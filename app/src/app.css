@@ -1,0 +1,320 @@
+/* Mobile-first, dark by default: this app is mostly read at night, on a phone, by someone
+   who was woken up by a notification. */
+
+:root {
+	--bg: #0f1216;
+	--surface: #171b21;
+	--surface-2: #1f242c;
+	--border: #2a3038;
+	--text: #e6e9ee;
+	--muted: #949dab;
+	--accent: #4a9eff;
+	--ok: #35c07a;
+	--warn: #f0a832;
+	--crit: #f4553d;
+	--radius: 12px;
+	--shadow: 0 1px 2px rgb(0 0 0 / 0.3);
+
+	color-scheme: dark light;
+}
+
+@media (prefers-color-scheme: light) {
+	:root {
+		--bg: #f4f6f9;
+		--surface: #ffffff;
+		--surface-2: #eef1f5;
+		--border: #dde2e9;
+		--text: #131720;
+		--muted: #5d6675;
+		--shadow: 0 1px 2px rgb(16 24 40 / 0.08);
+	}
+}
+
+* {
+	box-sizing: border-box;
+}
+
+html,
+body {
+	margin: 0;
+	padding: 0;
+	background: var(--bg);
+	color: var(--text);
+	font-family:
+		-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+	font-size: 15px;
+	line-height: 1.45;
+	-webkit-font-smoothing: antialiased;
+}
+
+/* Safe areas: the app runs full-bleed on notched phones. */
+body {
+	padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+		env(safe-area-inset-left);
+}
+
+h1,
+h2,
+h3 {
+	margin: 0;
+	font-weight: 600;
+	letter-spacing: -0.01em;
+}
+
+h1 {
+	font-size: 1.25rem;
+}
+h2 {
+	font-size: 1.05rem;
+}
+h3 {
+	font-size: 0.95rem;
+}
+
+a {
+	color: inherit;
+	text-decoration: none;
+}
+
+button {
+	font: inherit;
+	cursor: pointer;
+}
+
+input,
+select {
+	font: inherit;
+	width: 100%;
+	padding: 0.6rem 0.7rem;
+	background: var(--bg);
+	color: var(--text);
+	border: 1px solid var(--border);
+	border-radius: 8px;
+}
+
+input:focus,
+select:focus {
+	outline: 2px solid var(--accent);
+	outline-offset: -1px;
+}
+
+.page {
+	max-width: 900px;
+	margin: 0 auto;
+	padding: 0.75rem 0.75rem 4rem;
+}
+
+.card {
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	box-shadow: var(--shadow);
+	padding: 0.85rem;
+	margin-bottom: 0.7rem;
+}
+
+.row {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+.between {
+	justify-content: space-between;
+}
+
+.muted {
+	color: var(--muted);
+	font-size: 0.85rem;
+}
+
+.mono {
+	font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+	font-size: 0.8rem;
+}
+
+.btn {
+	padding: 0.55rem 0.9rem;
+	border-radius: 9px;
+	border: 1px solid var(--border);
+	background: var(--surface-2);
+	color: var(--text);
+	font-weight: 500;
+	white-space: nowrap;
+}
+
+.btn:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.btn-primary {
+	background: var(--accent);
+	border-color: var(--accent);
+	color: #fff;
+}
+
+.btn-danger {
+	background: transparent;
+	border-color: var(--crit);
+	color: var(--crit);
+}
+
+.btn-sm {
+	padding: 0.35rem 0.6rem;
+	font-size: 0.85rem;
+}
+
+.grid {
+	display: grid;
+	gap: 0.5rem;
+	grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+}
+
+/* One measured value with its label. The number is what the eye lands on. */
+.stat {
+	background: var(--surface-2);
+	border-radius: 9px;
+	padding: 0.5rem 0.6rem;
+}
+
+.stat .value {
+	font-size: 1.15rem;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+.stat .label {
+	font-size: 0.72rem;
+	color: var(--muted);
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+.dot {
+	width: 9px;
+	height: 9px;
+	border-radius: 50%;
+	flex: none;
+}
+
+.sev-0 {
+	background: var(--ok);
+}
+.sev-1 {
+	background: var(--warn);
+}
+.sev-2 {
+	background: var(--crit);
+}
+
+.badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.3rem;
+	padding: 0.15rem 0.45rem;
+	border-radius: 999px;
+	font-size: 0.75rem;
+	background: var(--surface-2);
+	border: 1px solid var(--border);
+	color: var(--muted);
+}
+
+.badge-warn {
+	color: var(--warn);
+	border-color: color-mix(in srgb, var(--warn) 40%, transparent);
+}
+
+.badge-crit {
+	color: var(--crit);
+	border-color: color-mix(in srgb, var(--crit) 40%, transparent);
+}
+
+.field {
+	margin-bottom: 0.65rem;
+}
+
+.field label {
+	display: block;
+	font-size: 0.8rem;
+	color: var(--muted);
+	margin-bottom: 0.25rem;
+}
+
+.field-row {
+	display: grid;
+	gap: 0.5rem;
+	grid-template-columns: 1fr 1fr;
+}
+
+.error {
+	background: color-mix(in srgb, var(--crit) 12%, transparent);
+	border: 1px solid color-mix(in srgb, var(--crit) 35%, transparent);
+	color: var(--crit);
+	padding: 0.6rem 0.7rem;
+	border-radius: 9px;
+	margin-bottom: 0.7rem;
+	font-size: 0.9rem;
+}
+
+.notice {
+	background: color-mix(in srgb, var(--accent) 12%, transparent);
+	border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+	padding: 0.6rem 0.7rem;
+	border-radius: 9px;
+	margin-bottom: 0.7rem;
+	font-size: 0.9rem;
+}
+
+table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 0.85rem;
+}
+
+th {
+	text-align: left;
+	font-weight: 500;
+	color: var(--muted);
+	font-size: 0.75rem;
+	text-transform: uppercase;
+	letter-spacing: 0.03em;
+	padding: 0.3rem 0.4rem;
+	border-bottom: 1px solid var(--border);
+}
+
+td {
+	padding: 0.4rem;
+	border-bottom: 1px solid var(--border);
+	vertical-align: top;
+}
+
+/* Wide tables scroll inside their own box; the page itself never scrolls sideways. */
+.scroll-x {
+	overflow-x: auto;
+	-webkit-overflow-scrolling: touch;
+}
+
+.tabs {
+	display: flex;
+	gap: 0.25rem;
+	overflow-x: auto;
+	margin-bottom: 0.7rem;
+	padding-bottom: 0.2rem;
+}
+
+.tab {
+	padding: 0.4rem 0.75rem;
+	border-radius: 999px;
+	border: 1px solid var(--border);
+	background: var(--surface);
+	color: var(--muted);
+	font-size: 0.85rem;
+	white-space: nowrap;
+}
+
+.tab.active {
+	background: var(--accent);
+	border-color: var(--accent);
+	color: #fff;
+}

@@ -1,0 +1,30 @@
+# .NET
+bin/
+obj/
+*.user
+
+# Runtime data — the SQLite database, the data-protection key ring and the logs.
+# Never commit these: the key ring decrypts every stored SQL password.
+data/
+src/MssqlRealtime.Api/data/
+
+# Node / SvelteKit
+node_modules/
+.svelte-kit/
+app/build/
+
+# Tauri
+app/src-tauri/target/
+app/src-tauri/gen/
+
+# Local secrets
+.env
+.env.*
+!.env.example
+
+# OS
+.DS_Store
+
+# Başka bir projeden kopyalanmış çalışma direktifi; bu depoya ait değil.
+# Yerelde kalır, yayınlanmaz.
+CLAUDE.md

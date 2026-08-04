@@ -1,0 +1,37 @@
+[Unit]
+Description=MSSQL Realtime monitoring API
+After=network.target
+
+[Service]
+WorkingDirectory=/opt/mssqlrealtime
+ExecStart=/usr/bin/dotnet /opt/mssqlrealtime/MssqlRealtime.Api.dll
+Restart=always
+RestartSec=5
+SyslogIdentifier=mssqlrealtime
+User=mssqlrealtime
+
+# Bind to loopback only: nginx is the only thing that should reach Kestrel.
+Environment=ASPNETCORE_URLS=http://127.0.0.1:5199
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=DOTNET_PRINT_TELEMETRY_MESSAGE=false
+
+# Data directory holds the SQLite database and the data-protection key ring. Losing the key
+# ring makes every stored SQL password unreadable — back this folder up.
+Environment=Storage__DataDirectory=/var/lib/mssqlrealtime
+
+# The single operator account, created on first start. Set this before the first run;
+# otherwise a random password is generated and printed once into the journal.
+# Environment=Admin__Email=admin@example.com
+# Environment=Admin__Password=CHANGE-ME
+
+Environment=Cors__AllowedOrigins__0=https://izleme.example.com
+
+# Hardening: the service needs nothing but its own data directory.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/mssqlrealtime
+
+[Install]
+WantedBy=multi-user.target

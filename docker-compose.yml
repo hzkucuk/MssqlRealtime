@@ -1,0 +1,67 @@
+# Runs the monitoring app behind nginx.
+#
+# Two deployments, and they differ in one important way:
+#
+#   A) nginx runs on the HOST (apt-installed)
+#      Keep the `ports` mapping below. nginx reaches the app at 127.0.0.1:5199.
+#      Use deploy/nginx/izleme.example.com.conf as-is.
+#
+#   B) nginx runs as a CONTAINER on the SAME host (e.g. from Portainer)
+#      `proxy_pass http://127.0.0.1:5199` would point nginx at ITSELF. Put both on one Docker
+#      network and address the app by its service name:
+#          proxy_pass http://mssqlrealtime:8080;
+#      Uncomment the `networks:` blocks below; the `ports:` mapping is then unnecessary —
+#      leaving it out is safer, since nothing but nginx should reach the app.
+#      Find nginx's network with:  docker inspect <nginx-container> | grep -A5 Networks
+#
+#   C) nginx runs on ANOTHER SERVER  ← this is the setup here
+#      The app must be reachable over the network, so change the port binding to the private
+#      interface (or 0.0.0.0) and point nginx at it:
+#          proxy_pass http://<app-sunucu-ip>:5199;
+#      🔴 Then the port is no longer protected by loopback. Restrict it to the nginx host:
+#          sudo ufw allow from <nginx-sunucu-ip> to any port 5199 proto tcp
+#          sudo ufw deny 5199
+#      Traffic between the two servers is plain HTTP: only acceptable on a private network.
+#      Over the public internet, put the app behind TLS on that hop too (or use a VPN).
+
+services:
+  app:
+    build: .
+    image: mssqlrealtime:latest
+    container_name: mssqlrealtime
+    restart: unless-stopped
+
+    ports:
+      # Deployment A (host nginx): loopback only.
+      # - '127.0.0.1:5199:8080'
+      #
+      # Deployment C (nginx elsewhere): bind the private interface, not 0.0.0.0, so the port
+      # is not offered on every NIC the box happens to have.
+      - '${BIND_ADDRESS:-0.0.0.0}:5199:8080'
+
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+
+      # The single operator account, created on first start. Set it before the first run, or
+      # read the generated password once from `docker compose logs app`.
+      Admin__Email: ${ADMIN_EMAIL:-admin@local}
+      Admin__Password: ${ADMIN_PASSWORD:-}
+
+      # Must match the public address the phone connects to, exactly — scheme included.
+      Cors__AllowedOrigins__0: ${PUBLIC_ORIGIN:-https://izleme.example.com}
+      Cors__AllowedOrigins__1: tauri://localhost
+      Cors__AllowedOrigins__2: http://tauri.localhost
+
+    volumes:
+      # SQLite database + data-protection key ring + logs. Back this up: without the key ring
+      # every stored SQL password becomes unreadable.
+      - ./data:/data
+
+    # --- Deployment B only (containerised nginx) ---
+    # networks:
+    #   - nginx-net
+
+# networks:
+#   nginx-net:
+#     external: true
+#     name: <nginx-in-portainer-icin-ag-adi>

@@ -1,0 +1,25 @@
+<Project>
+
+  <PropertyGroup>
+    <!-- Single source of truth for versioning (semver). -->
+    <VersionPrefix>0.1.0</VersionPrefix>
+
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+
+    <!--
+      Measured 2026-08-04: Microsoft.Data.SqlClient throws
+      "Globalization Invariant Mode is not supported" at connection time, so ICU is required.
+      Container images must therefore ship ICU too (see Dockerfile) — do not re-enable this.
+    -->
+    <InvariantGlobalization>false</InvariantGlobalization>
+
+    <Product>MSSQL Realtime</Product>
+    <Company>hzkucuk</Company>
+  </PropertyGroup>
+
+</Project>
