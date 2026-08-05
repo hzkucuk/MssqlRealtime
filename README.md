@@ -64,6 +64,9 @@ açıkça onayladığın `KILL <spid>`. Gereken izin: `VIEW SERVER STATE`.
 
 ## Kurulum
 
+Gereken: **Windows Server 2016 veya üzeri**. Hedef makineye .NET kurulmaz — runtime pakete
+gömülüdür.
+
 Müşteriye tek dosya: **`SunucuIzleme-Setup-*.exe`** — çift tıklar, e-posta/parola ve genel
 adresi girer, biter. Panel Windows servisi olarak SQL Server'ın yanında çalışır; izlenen
 sunucuya hiçbir şey kurulmaz.

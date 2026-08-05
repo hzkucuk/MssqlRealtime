@@ -242,7 +242,7 @@ bölmek daha küçük imaj verirdi — henüz değmez, not düşüldü.)
 16.0.4252.3 ölçüldü, veri hub'a ulaştı, alarm üretildi. `/data` biriminde veritabanı ve
 anahtar halkası kalıcı.
 
-## 2026-08-05 — Windows Server 2019'da `Invoke-WebRequest` GitHub'dan indiremiyor
+## 2026-08-05 — Windows Server 2016/2019'da `Invoke-WebRequest` GitHub'dan indiremiyor
 
 ```
 Invoke-WebRequest : İstek durduruldu: SSL/TLS güvenli kanalı oluşturulamadı.
@@ -258,13 +258,24 @@ Sunucunun ağıyla ya da sertifikayla ilgisi yok.
 ```
 
 `curl.exe` bir alternatiftir (kendi TLS yığınını kullanır) **ama her sunucuda yoktur**:
-2026-08-06'da bir Windows Server 2019 kurulumunda `CommandNotFoundException` verdi — curl.exe
-Windows'a 1803 ile geldi, daha eski build'lerde bulunmaz.
+2026-08-06'da bir **Windows Server 2016** kurulumunda `CommandNotFoundException` verdi —
+curl.exe Windows'a 1803 ile geldi, Server 2016'da hiç yoktur.
 
 ⚠️ Ayrıca PowerShell'de `curl` bir takma addır ve `Invoke-WebRequest`'e gider; kullanılacaksa
 **`.exe` uzantısı şart**.
 
 **Her yerde çalışan yol** TLS satırı + `Invoke-WebRequest -UseBasicParsing`.
+
+## 2026-08-06 — Windows Server 2016 destekleniyor (ölçüldü)
+
+Self-contained .NET 10 paketi **Windows Server 2016** üzerinde sorunsuz çalışıyor: servis
+kuruldu, panel açıldı, canlı MSSQL verisi aktı (22 oturum, gerçek müşteri kurulumu).
+
+Hedef makineye .NET kurulmadı — runtime pakete gömülü olduğu için işletim sisteminin .NET
+sürümüyle ilgisi yok. Bu, eski sunucularda çalışan müşteriler için belirleyici: 2016'da
+kurulu .NET Framework/Core sürümü ne olursa olsun ürün etkilenmiyor.
+
+Bu sürümlerde dikkat edilecek tek şey indirme adımı (TLS 1.2 ve curl.exe'nin yokluğu).
 
 ## Doğrulanmayı bekleyenler
 

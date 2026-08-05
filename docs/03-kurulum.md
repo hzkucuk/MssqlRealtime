@@ -1,5 +1,11 @@
 # Kurulum ve yayına alma
 
+## Desteklenen sunucular
+
+**Windows Server 2016 ve üzeri.** Paket self-contained olduğu için hedef makineye .NET
+kurulmaz; işletim sisteminde hangi .NET sürümünün bulunduğu önemli değildir.
+Server 2016 üzerinde çalıştığı ölçüldü (2026-08-06).
+
 ## Ne nerede çalışır
 
 | Bileşen | Nerede | Nasıl |
@@ -24,7 +30,7 @@ Panel bir arka plan servisidir: telefon kapalıyken de ölçer, alarm üretir, b
 
 ## 1b. Paketi Windows'a indirirken
 
-⚠️ Windows Server 2019 + PowerShell 5.1'de `Invoke-WebRequest` GitHub'dan indiremez:
+⚠️ Windows Server 2016/2019 + PowerShell 5.1'de `Invoke-WebRequest` GitHub'dan indiremez:
 *"SSL/TLS güvenli kanalı oluşturulamadı"* — PowerShell TLS 1.0/1.1 dener, GitHub 1.2+ ister.
 
 ```powershell
@@ -34,8 +40,8 @@ Panel bir arka plan servisidir: telefon kapalıyken de ölçer, alarm üretir, b
 Invoke-WebRequest -UseBasicParsing -Uri "<release-url>" -OutFile "$env:TEMP\SunucuIzleme.zip"
 ```
 
-`curl.exe` de bir seçenek ama **her sunucuda yok** (Windows'a 1803 ile geldi; eski 2019
-build'lerinde `CommandNotFoundException` alırsınız). Ayrıca `curl` değil `curl.exe` yazılmalı —
+`curl.exe` de bir seçenek ama **her sunucuda yok** (Windows'a 1803 ile geldi; **Server 2016'da
+hiç yoktur**, eski 2019 build'lerinde de bulunmaz). Ayrıca `curl` değil `curl.exe` yazılmalı —
 PowerShell'de `curl` takma adı `Invoke-WebRequest`'e gider.
 
 ⚠️ Güncellemede **`Stop-Service` indirmeden sonra** gelmeli: servis çalışırken dosyalar
