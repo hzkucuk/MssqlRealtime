@@ -1,20 +1,18 @@
 # Portainer stack — izleme.marmaracloud.net
+# Nginx Proxy Manager (jc21/nginx-proxy-manager) ayni sunucuda: 192.168.2.240
 #
 # Portainer → Stacks → Add stack → Repository
 #   Repository URL : https://github.com/hzkucuk/MssqlRealtime
 #   Reference      : refs/heads/main
 #   Compose path   : docker-compose.portainer.yml
 #
-# Ardindan asagidaki degiskenleri Portainer'in "Environment variables" bolumune girin
-# (Portainer stack'leri .env dosyasi okumaz):
-#
+# Environment variables (Portainer stack'leri .env dosyasi OKUMAZ, UI'dan girin):
 #   ADMIN_EMAIL      admin@marmaracloud.net
-#   ADMIN_PASSWORD   en az 10 karakter, guclu
+#   ADMIN_PASSWORD   en az 10 karakter
 #   PUBLIC_ORIGIN    https://izleme.marmaracloud.net
-#   BIND_ADDRESS     asagidaki iki senaryodan birine gore
+#   BIND_ADDRESS     192.168.2.240        (varsayilan: 127.0.0.1)
 #
-# ⚠️ Ilk deploy sunucuda imaj derler (.NET SDK + Node indirilir, ~2 GB, birkac dakika).
-#    Sonraki deploylar katman onbellegi sayesinde cok daha hizlidir.
+# ⚠️ Ilk deploy sunucuda imaj derler (.NET SDK + Node, ~2 GB, birkac dakika).
 
 services:
   app:
@@ -26,31 +24,20 @@ services:
     restart: unless-stopped
 
     ports:
-      # ┌─ nginx AYNI sunucuda mi, BASKA sunucuda mi? Tek fark bu satir. ─┐
-      #
-      #   Ayni sunucuda  → BIND_ADDRESS=127.0.0.1
-      #                    nginx: proxy_pass http://127.0.0.1:5199;
-      #
-      #   Baska sunucuda → BIND_ADDRESS=<bu sunucunun ozel IP'si>   (0.0.0.0 degil)
-      #                    nginx: proxy_pass http://<bu-sunucu-ip>:5199;
-      #                    🔴 Guvenlik duvari SART:
-      #                       ufw allow from <nginx-ip> to any port 5199 proto tcp
-      #                       ufw deny 5199
-      #
-      #   nginx de bu Portainer'da konteyner olarak kosuyorsa: bu blogu tamamen silin,
-      #   asagidaki networks bloklarini acin ve nginx'te
-      #   proxy_pass http://mssqlrealtime:8080; yazin.
+      # NPM bu porta yerel agdan ulasir. 0.0.0.0 yerine belirli bir IP: port yalnizca o
+      # arayuzde dinlenir, sunucunun sahip oldugu her NIC'te degil.
       - '${BIND_ADDRESS:-127.0.0.1}:5199:8080'
 
     environment:
       ASPNETCORE_ENVIRONMENT: Production
 
-      # Tek operator hesabi, ilk aciliste olusturulur. Bos birakilirsa rastgele bir parola
+      # Tek operator hesabi, ilk aciliste olusturulur. Bos birakilirsa rastgele parola
       # uretilip loga bir kez yazilir (Portainer → Containers → mssqlrealtime → Logs).
       Admin__Email: ${ADMIN_EMAIL:-admin@local}
       Admin__Password: ${ADMIN_PASSWORD:-}
 
-      # Telefonun bagladigi adresle birebir ayni olmali — sema dahil.
+      # 🔴 Telefonun bagladigi adresle BIREBIR ayni olmali — sema dahil.
+      # Yanlissa arayuz acilir ama giris "CORS" hatasiyla sessizce basarisiz olur.
       Cors__AllowedOrigins__0: ${PUBLIC_ORIGIN:-https://izleme.marmaracloud.net}
       Cors__AllowedOrigins__1: tauri://localhost
       Cors__AllowedOrigins__2: http://tauri.localhost
@@ -63,7 +50,6 @@ services:
       #   mssqlrealtime.db → sunucu profilleri + operator hesabi
       #   keys/            → veri koruma anahtarlari; kaybolursa TUM kayitli SQL parolalari
       #                      okunamaz hale gelir
-      #   logs/            → denetim izi
       - mssqlrealtime-data:/data
 
     healthcheck:
@@ -73,17 +59,6 @@ services:
       start_period: 40s
       retries: 3
 
-    # nginx bu Portainer'da konteynerse acin:
-    # networks:
-    #   - nginx-net
-
 volumes:
   mssqlrealtime-data:
     name: mssqlrealtime-data
-
-# nginx bu Portainer'da konteynerse acin ve ag adini yazin:
-#   docker inspect <nginx-konteyner> --format '{{json .NetworkSettings.Networks}}'
-# networks:
-#   nginx-net:
-#     external: true
-#     name: <nginx-agi-adi>
