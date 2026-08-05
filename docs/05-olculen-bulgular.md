@@ -242,6 +242,30 @@ bölmek daha küçük imaj verirdi — henüz değmez, not düşüldü.)
 16.0.4252.3 ölçüldü, veri hub'a ulaştı, alarm üretildi. `/data` biriminde veritabanı ve
 anahtar halkası kalıcı.
 
+## 2026-08-05 — Windows Server 2019'da `Invoke-WebRequest` GitHub'dan indiremiyor
+
+```
+Invoke-WebRequest : İstek durduruldu: SSL/TLS güvenli kanalı oluşturulamadı.
+```
+
+PowerShell 5.1 varsayılan olarak TLS 1.0/1.1 dener; GitHub yalnız TLS 1.2+ kabul eder.
+Sunucunun ağıyla ya da sertifikayla ilgisi yok.
+
+Çözüm (yalnız o oturum için, kalıcı değişiklik yapmaz):
+
+```powershell
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+```
+
+Daha sağlamı **`curl.exe`** — Windows 2019'da hazır gelir ve kendi TLS yığınını kullanır:
+
+```powershell
+curl.exe -L -o "$env:TEMP\paket.zip" "<url>"
+```
+
+⚠️ PowerShell'de `curl` bir takma addır ve `Invoke-WebRequest`'e gider; **`.exe` uzantısı
+şart**, yoksa aynı hataya düşülür.
+
 ## Doğrulanmayı bekleyenler
 
 | Konu | Neden ölçülemedi |

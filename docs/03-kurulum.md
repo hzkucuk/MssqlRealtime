@@ -22,6 +22,21 @@ Panel bir arka plan servisidir: telefon kapalıyken de ölçer, alarm üretir, b
 `windows-publish/` çıkar (~123 MB): .NET runtime ve web arayüzü gömülü — müşteri sunucusuna
 .NET kurmak gerekmez.
 
+## 1b. Paketi Windows'a indirirken
+
+⚠️ Windows Server 2019 + PowerShell 5.1'de `Invoke-WebRequest` GitHub'dan indiremez:
+*"SSL/TLS güvenli kanalı oluşturulamadı"* — PowerShell TLS 1.0/1.1 dener, GitHub 1.2+ ister.
+
+```powershell
+# ya bu satırı önce çalıştırın (yalnız o oturum için geçerli)
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
+# ya da curl.exe kullanın — kendi TLS yığınını kullanır, bu sorunu yaşamaz
+curl.exe -L -o "$env:TEMP\SunucuIzleme.zip" "<release-url>"
+```
+
+`curl` değil **`curl.exe`**: PowerShell'de `curl` takma adı `Invoke-WebRequest`'e gider.
+
 ## 2. Kur (müşterinin Windows makinesinde)
 
 **A) Setup ile** — müşteriye tek dosya verilecekse (önerilen)
