@@ -7,12 +7,14 @@
 #   Compose path   : docker-compose.portainer.yml
 #
 # Environment variables (Portainer stack'leri .env dosyasi OKUMAZ, UI'dan girin):
-#   ADMIN_EMAIL      admin@marmaracloud.net
-#   ADMIN_PASSWORD   en az 10 karakter
+#   ADMIN_EMAIL      giris icin kullanacaginiz adres
+#   ADMIN_PASSWORD   en az 10 karakter  (unutmayin: parola sifirlama akisi yok)
 #   PUBLIC_ORIGIN    https://izleme.marmaracloud.net
-#   BIND_ADDRESS     192.168.2.240        (varsayilan: 127.0.0.1)
+#   BIND_ADDRESS     192.168.2.240      ← 127.0.0.1 birakilirsa NPM ulasamaz, 502 alirsiniz
 #
-# ⚠️ Ilk deploy sunucuda imaj derler (.NET SDK + Node, ~2 GB, birkac dakika).
+# ⚠️ Ilk deploy sunucuda imaj derler: .NET SDK + Node indirilir (~2 GB) ve derleme birkac
+#    dakika surer. Portainer bu sirada sessiz gorunur — bitmesini bekleyin.
+#    Sonraki deploylar katman onbellegi sayesinde cok daha hizlidir.
 
 services:
   app:
@@ -24,8 +26,7 @@ services:
     restart: unless-stopped
 
     ports:
-      # NPM bu porta yerel agdan ulasir. 0.0.0.0 yerine belirli bir IP: port yalnizca o
-      # arayuzde dinlenir, sunucunun sahip oldugu her NIC'te degil.
+      # Belirli bir IP: port yalnizca o arayuzde dinlenir, sunucunun her NIC'inde degil.
       - '${BIND_ADDRESS:-127.0.0.1}:5199:8080'
 
     environment:
