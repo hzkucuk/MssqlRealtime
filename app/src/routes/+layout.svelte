@@ -3,7 +3,7 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { getTokens, logout } from '$lib/api/client';
+	import { getActiveServer, getTokens, logout } from '$lib/api/client';
 	import { realtime } from '$lib/api/realtime.svelte';
 	import { ensureNotificationPermission } from '$lib/notify';
 	import { ago } from '$lib/format';
@@ -11,6 +11,10 @@
 	let { children } = $props();
 
 	let showAlerts = $state(false);
+
+	// Which customer's panel is on screen — with one hub per customer, this is the first
+	// thing you need to know before reading any number on it.
+	const activeServer = $derived(getActiveServer());
 
 	const isLogin = $derived(page.url.pathname === '/giris');
 	const unread = $derived(realtime.alerts.filter((a) => !a.isCleared).length);
@@ -51,7 +55,10 @@
 	<header>
 		<a href="/" class="brand">
 			{#if page.url.pathname !== '/'}<span class="back" aria-hidden="true">‹</span>{/if}
-			<strong>Sunucu İzleme</strong>
+			<span style="min-width:0">
+				<strong>{activeServer?.label ?? 'Sunucu İzleme'}</strong>
+				{#if activeServer}<div class="host">{activeServer.url.replace(/^https?:\/\//, '')}</div>{/if}
+			</span>
 		</a>
 
 		<div class="row" style="gap:0.4rem">
@@ -65,6 +72,7 @@
 			</button>
 
 			<a class="btn btn-sm" href="/bildirimler" title="Bildirim ayarları">⚙️</a>
+			<a class="btn btn-sm" href="/giris" title="Panel değiştir">🔀</a>
 			<button class="btn btn-sm" onclick={signOut} title="Çıkış">⏻</button>
 		</div>
 	</header>
@@ -124,6 +132,14 @@
 		font-size: 1.4rem;
 		line-height: 1;
 		color: var(--accent);
+	}
+
+	.host {
+		font-size: 0.7rem;
+		color: var(--muted);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
 	.conn {

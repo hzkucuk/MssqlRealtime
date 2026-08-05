@@ -2,6 +2,27 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/)
 
+## [0.6.0] — 2026-08-05
+
+Çoklu panel: her müşteri kendi hub'ında.
+
+### Eklenen
+
+- **Telefonda birden fazla panel.** Kayıtlı müşteri panelleri listelenir, aralarında tek
+  dokunuşla geçilir; her panel **kendi oturumunu** saklar, geçişte yeniden giriş gerekmez.
+  Üst barda hangi müşterinin panelinde olduğun ve adresi görünür.
+- Giriş ekranı artık boş bir adres kutusu değil, "hangi müşteri" sorusuyla başlar.
+
+### Neden
+
+Dağıtım kararı netleşti: **her müşteride bir hub**, kendi Portainer makinesinde, kendi SQL
+sunucularını doğrudan izler. İki makine aynı ağda olduğu için agent gerekmiyor. Ama bu,
+telefonda N ayrı panel adresi demek — tek adres saklayan istemci her geçişte çıkış
+yapmayı gerektiriyordu.
+
+> Agent kodu duruyor ve çalışıyor; müşteri ağına erişimin olmadığı senaryo için gerekli
+> kalacak (`docs/07-agent.md`). Bu dağıtım modelinde kullanılmıyor.
+
 ## [0.5.1] — 2026-08-05
 
 Docker imajları ilk kez gerçekten derlendi ve çalıştırıldı — iki hata çıktı, ikisi de
