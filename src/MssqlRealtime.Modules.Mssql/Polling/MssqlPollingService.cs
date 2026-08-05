@@ -76,7 +76,10 @@ public sealed class MssqlPollingService(
         var store = scope.ServiceProvider.GetRequiredService<IServerProfileStore>();
         var profiles = await store.GetAllAsync(stoppingToken);
 
-        var wanted = profiles.Where(p => p.Enabled).ToDictionary(p => p.Id);
+        // Servers assigned to an agent are polled from the customer's side; the hub must not
+        // also try to reach them directly — it usually cannot, and if it could, both would be
+        // measuring the same instance twice.
+        var wanted = profiles.Where(p => p.Enabled && p.AgentId is null).ToDictionary(p => p.Id);
 
         // Stop workers whose server was deleted or disabled, and clear their state so a
         // re-enabled server does not inherit a stale alert or a stale wait-stats baseline.

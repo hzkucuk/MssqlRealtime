@@ -25,7 +25,11 @@
 
 | Ne bozulur | Bugün ne olur | Ne olmalı |
 |---|---|---|
-| Müşteri sunucusuna erişim yok (NAT/firewall) | Sunucu eklenebilir ama sürekli `offline` alarmı üretir. | Agent modu (müşteri tarafından dışa doğru bağlanan servis). **Yazılmadı.** |
+| Müşteri sunucusuna erişim yok (NAT/firewall) | ✅ Çözüldü (v0.4.0): **agent modu** — müşteri sunucusundan dışa doğru bağlanılır. `docs/07-agent.md` | ✅ |
+| **Agent çevrimdışı** | O sunucu için ölçüm gelmez ve **alarm da üretilmez** — sessizlik "sorun yok" sanılabilir. Agent listesinde kırmızı görünür. | Agent'ın kendisi için "N dakikadır sessiz" alarmı gerekli. **Yazılmadı.** |
+| Agent bağlantısı koparken ölçüm | Biriktirilmez, kaybolur (bilinçli: eski snapshot yanıltıcıdır). | ✅ |
+| Agent protokol sürümü eski | Kayıt reddedilir, agent log'una "güncelleyin" yazılır. | ✅ |
+| Agent kayıt anahtarı sızarsa | Yalnız ölçüm gönderebilir; okuma/komut yetkisi yok. Anahtar arayüzden yenilenir, eskisi anında geçersiz olur. | ✅ |
 | Çok sayıda sunucu | Her sunucu **bağımsız** döngüde; biri yavaşsa diğerini bekletmez. Yük tek sunucuyla ölçüldü, N sunucuda ölçülmedi ❓ | 50+ sunucuda ölçüp poller havuzu sınırlanmalı. |
 | Bir müşteri SQL'i çok yavaş | `CommandTimeout` (varsayılan 15 sn) sonrası prob hata verir; döngü devam eder. | ✅ |
 | SignalR yerine long-polling'e düşülür | nginx'te WebSocket upgrade yoksa **sessizce** olur; işlev aynı, mobil veri/pil tüketimi artar. | `deploy/nginx/README.md` içindeki 101 testi ile doğrula. |

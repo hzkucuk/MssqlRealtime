@@ -1,0 +1,3 @@
+2026-08-05 13:52:15.293 +03:00 [INF] Hub'a bağlanılıyor: http://localhost:5199/hubs/agent
+2026-08-05 13:52:15.408 +03:00 [INF] Kayıt başarılı: Musteri A sunucusu (1 sunucu atanmış)
+2026-08-05 13:52:15.410 +03:00 [INF] İzleme başladı: Musteri A - SQL (agent uzerinden) (localhost:1433) her 5 sn

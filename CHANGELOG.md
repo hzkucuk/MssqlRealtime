@@ -2,6 +2,38 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/)
 
+## [0.4.0] — 2026-08-05
+
+Agent modu: NAT arkasındaki müşteri sunucuları.
+
+### Eklenen
+
+- **`MssqlRealtime.Agent`** — müşteri sunucusunda çalışan küçük servis. Merkeze **dışarı
+  doğru** bağlanır, iş listesini alır, SQL Server'ı yerelden ölçer ve sonucu gönderir.
+  Müşteri güvenlik duvarında hiçbir port açılmaz.
+- Agent yönetimi: kayıt anahtarı üretme (bir kez gösterilir, hash'i saklanır), anahtar
+  yenileme, bağlı/çevrimdışı durumu, atanmış sunucu sayısı.
+- Sunucu profiline **agent ataması**. Atanan sunucuyu merkez artık kendisi ölçmez; atama
+  değişikliği bağlı agent'a **anında** iletilir (yeniden başlatma gerekmez).
+- Agent silinince ona atanmış sunucular sessizce izlemeden düşmez, merkeze geri döner.
+
+### Tasarım kararları
+
+- 🔴 **Agent hiçbir şeye karar vermez.** Ölçer ve gönderir; eşikler, alarm motoru, bildirim
+  ve geçmiş merkezde kalır. Böylece agent üzerinden izlenen sunucu doğrudan izlenenle aynı
+  sonucu verir, ve eski/ele geçirilmiş bir agent alarm bastıramaz.
+- Problar paylaşılır: agent hub'ın kullandığı **aynı** `ISqlProbe` sınıflarını çalıştırır.
+- SQL parolası agent diskine **yazılmaz** — TLS üzerinden gelir, bellekte durur.
+- Bağlantı yokken ölçüm biriktirilmez: beş dakika önceki bir snapshot'ı "canlı" göstermek
+  yanıltıcı olur.
+- Protokol sürümü uyuşmazsa kayıt reddedilir; sessizce yanlış veri göndermek yerine bağlanmaz.
+
+### Ölçülen
+
+- Agent ayrı süreç olarak çalıştırıldı: kayıt → yapılandırma → yerel ölçüm → hub'da alarm
+  değerlendirme zinciri uçtan uca çalıştı (`Alert raised cpu … (via agent …)`).
+- 64 test yeşil (9 yeni: anahtar üretimi/hash'i, bağlantı defteri yarış durumları).
+
 ## [0.3.0] — 2026-08-05
 
 İkinci araç, ve bildirimlerin gerçekten kaybolmaması.

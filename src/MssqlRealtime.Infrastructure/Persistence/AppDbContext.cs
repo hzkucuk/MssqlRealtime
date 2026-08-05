@@ -32,6 +32,7 @@ public sealed class AppDbContext(
     public DbSet<NotificationChannelState> NotificationChannelStates => Set<NotificationChannelState>();
     public DbSet<AlertRecord> AlertRecords => Set<AlertRecord>();
     public DbSet<NotificationOutboxEntry> NotificationOutbox => Set<NotificationOutboxEntry>();
+    public DbSet<AgentRecord> Agents => Set<AgentRecord>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -84,6 +85,18 @@ public sealed class AppDbContext(
 
             // The retry sweep asks exactly one question: what is due now and not abandoned?
             e.HasIndex(x => new { x.AbandonedUtc, x.NextAttemptUtc });
+        });
+
+        builder.Entity<AgentRecord>(e =>
+        {
+            e.ToTable("Agents");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            e.Property(x => x.KeyHash).HasMaxLength(128).IsRequired();
+            e.Property(x => x.MachineName).HasMaxLength(200);
+            e.Property(x => x.Version).HasMaxLength(64);
+            e.Property(x => x.OperatingSystem).HasMaxLength(200);
+            e.HasIndex(x => x.KeyHash).IsUnique();
         });
 
         foreach (var module in _modules)

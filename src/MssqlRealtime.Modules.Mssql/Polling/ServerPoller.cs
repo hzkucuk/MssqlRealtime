@@ -158,7 +158,7 @@ public sealed class ServerPoller(
     /// Turns the SQL error number into something the operator can act on. Guessing from the
     /// raw driver text is how "login failed" ends up looking like a network outage.
     /// </summary>
-    internal static string DescribeSqlError(SqlException ex) => ex.Number switch
+    public static string DescribeSqlError(SqlException ex) => ex.Number switch
     {
         -2 or 258 => "Bağlantı zaman aşımına uğradı. Sunucu yanıt vermiyor ya da ağ yavaş.",
         2 or 53 or 10060 or 10061 => "Sunucuya ulaşılamıyor. Adres, port ve güvenlik duvarı kuralını doğrulayın.",

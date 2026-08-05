@@ -55,6 +55,32 @@
 	{#if !loading && modules.length === 0 && !error}
 		<p class="muted">Kurulu araç yok.</p>
 	{/if}
+
+	<h2 style="margin-top:1.2rem">Yönetim</h2>
+	<a class="card tool" href="/agentlar">
+		<span class="icon">🛰️</span>
+		<span style="flex:1;min-width:0">
+			<strong>Agent'lar</strong>
+			<div class="muted">NAT arkasındaki müşteri sunucuları için</div>
+		</span>
+		<span class="muted">›</span>
+	</a>
+	<a class="card tool" href="/bildirimler">
+		<span class="icon">🔔</span>
+		<span style="flex:1;min-width:0">
+			<strong>Bildirimler</strong>
+			<div class="muted">Telegram, e-posta, webhook</div>
+		</span>
+		<span class="muted">›</span>
+	</a>
+	<a class="card tool" href="/alarmlar">
+		<span class="icon">📋</span>
+		<span style="flex:1;min-width:0">
+			<strong>Alarm geçmişi</strong>
+			<div class="muted">Uygulama kapalıyken olanlar dahil</div>
+		</span>
+		<span class="muted">›</span>
+	</a>
 </div>
 
 <style>
