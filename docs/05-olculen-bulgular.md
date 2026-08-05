@@ -209,6 +209,39 @@ Agent geri başlatıldığında:
 > ayırt edilemiyordu. Mesajın *"bu agent'a bağlı N sunucu artık izlenmiyor"* demesi kasıtlı —
 > sessizliğin neye mal olduğunu söylemeyen bir alarm eksik bir alarmdır.
 
+## 2026-08-05 11:5x — Docker imajı ilk kez gerçekten derlendi (ve iki hata çıktı)
+
+`Dockerfile` v0.1.0'dan beri duruyordu ama **hiç çalıştırılmamıştı**. Çalıştırınca:
+
+**① `HEALTHCHECK` hiçbir zaman geçmiyordu.**
+
+```
+docker inspect → health: starting  (sonsuza kadar)
+/bin/sh: 1: curl: not found
+```
+
+`aspnet:10.0` imajında ne curl ne wget var. Sonuç: konteyner sonsuza kadar "starting"de
+kalır, `depends_on: condition: service_healthy` çalışmaz, orchestrator sağlıksız sanıp
+yeniden başlatabilir. Düzeltme: imaja `curl` eklendi (~4 MB).
+
+**② Agent, `runtime:10.0` imajında başlamıyordu.**
+
+```
+framework 'Microsoft.AspNetCore.App', version '10.0.0' was not found
+```
+
+Agent hiçbir endpoint map'lemiyor ama `Core` ve `Modules.Mssql` mod<ül uç API'si için
+`Microsoft.AspNetCore.App` framework referansı taşıyor ve bu bağımlılık miras kalıyor.
+Düzeltme: agent imajı da `aspnet:10.0` tabanlı. (Core'un web tarafını ayrı bir derlemeye
+bölmek daha küçük imaj verirdi — henüz değmez, not düşüldü.)
+
+> Her ikisi de yalnız **çalıştırınca** görülebilecek hatalardı: `dotnet build` ikisini de
+> yeşil geçiyordu.
+
+**Doğrulanan tam yığın:** hub konteyneri (healthy) ← SignalR ← agent konteyneri → SQL Server
+16.0.4252.3 ölçüldü, veri hub'a ulaştı, alarm üretildi. `/data` biriminde veritabanı ve
+anahtar halkası kalıcı.
+
 ## Doğrulanmayı bekleyenler
 
 | Konu | Neden ölçülemedi |

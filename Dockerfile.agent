@@ -1,0 +1,43 @@
+# The agent, for customers who already run Docker.
+#
+# Installing a Windows service on someone else's production server is a negotiation;
+# `docker run` usually is not. Same binary either way.
+#
+#   docker build -f Dockerfile.agent -t mssqlrealtime-agent .
+#   docker run -d --restart unless-stopped \
+#     -e Agent__HubUrl=https://izleme.example.com \
+#     -e Agent__EnrollmentKey=... \
+#     --add-host=host.docker.internal:host-gateway \
+#     mssqlrealtime-agent
+#
+# If the SQL Server runs on the container host rather than in Docker, point the server's
+# address at host.docker.internal (see --add-host above); "localhost" inside a container
+# means the container itself.
+
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+
+COPY Directory.Build.props MssqlRealtime.slnx ./
+COPY src/ src/
+COPY tests/ tests/
+
+RUN dotnet publish src/MssqlRealtime.Agent/MssqlRealtime.Agent.csproj -c Release -o /app/publish
+
+# aspnet, not runtime — measured 2026-08-05: the agent failed to start on the plain runtime
+# image with "framework Microsoft.AspNetCore.App not found". It inherits that framework
+# reference from Core/Modules.Mssql, which carry it for the module endpoint API even though
+# the agent never maps an endpoint. Splitting the web-facing parts of Core into their own
+# assembly would let this go back to the smaller runtime image; not worth it yet.
+#
+# Full Debian, not -alpine or -chiseled: Microsoft.Data.SqlClient needs ICU
+# (measured 2026-08-04 — "Globalization Invariant Mode is not supported").
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
+WORKDIR /app
+
+COPY --from=build /app/publish ./
+
+# Logs only; the agent stores nothing else on disk — no database, no credentials.
+VOLUME /app/logs
+
+# Nothing is exposed: the agent only makes outbound connections. That is the entire point.
+ENTRYPOINT ["dotnet", "MssqlRealtime.Agent.dll"]

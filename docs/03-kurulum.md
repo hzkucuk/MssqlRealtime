@@ -30,9 +30,34 @@ docker compose logs -f app
 
 `data/` klasörü oluşur: SQLite veritabanı, Data Protection anahtarları, loglar.
 
-⚠️ İmaj **Debian tabanlı** `aspnet:10.0` kullanır. `-alpine`/`-chiseled` varyantına
-geçirmeyin: `Microsoft.Data.SqlClient` ICU ister, aksi hâlde bağlantı anında
-*"Globalization Invariant Mode is not supported"* hatası alırsınız (ölçüldü, 2026-08-04).
+Doğrulama:
+
+```bash
+docker compose ps                      # health: healthy olmalı
+curl -s http://127.0.0.1:5199/api/health
+```
+
+⚠️ **İmajı küçültmeye çalışmayın** — iki tuzak ölçüldü:
+
+| Değişiklik | Sonuç |
+|---|---|
+| `-alpine` / `-chiseled` taban | `Microsoft.Data.SqlClient` ICU ister → bağlantı anında *"Globalization Invariant Mode is not supported"* (2026-08-04) |
+| `curl` kurulumunu kaldırmak | `HEALTHCHECK` sessizce hiç geçmez, konteyner sonsuza kadar "starting" (2026-08-05) |
+
+### Agent'ı da konteyner olarak çalıştırmak
+
+Müşteride Docker varsa Windows servisi kurmaya gerek yok:
+
+```bash
+HUB_URL=https://izleme.example.com ENROLLMENT_KEY=... \
+  docker compose -f docker-compose.agent.yml up -d
+```
+
+Hiçbir port yayınlanmaz — agent yalnız dışa doğru bağlanır.
+
+⚠️ SQL Server konteynerin **dışında**, host üzerinde çalışıyorsa sunucu adresi olarak
+`localhost` değil **`host.docker.internal`** yazın: konteyner içinde `localhost` konteynerin
+kendisidir.
 
 ## 2. systemd ile (Docker'sız Linux)
 

@@ -28,6 +28,13 @@ RUN dotnet publish src/MssqlRealtime.Api/MssqlRealtime.Api.csproj -c Release -o 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
 
+# curl is for HEALTHCHECK only. Measured 2026-08-05: the runtime image ships neither curl nor
+# wget, so the healthcheck below silently never passed and the container sat in "starting"
+# forever — which also breaks `depends_on: condition: service_healthy`.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY --from=server /app/publish ./
 COPY --from=client /client/build ./wwwroot/
 

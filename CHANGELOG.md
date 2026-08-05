@@ -2,6 +2,31 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/)
 
+## [0.5.1] — 2026-08-05
+
+Docker imajları ilk kez gerçekten derlendi ve çalıştırıldı — iki hata çıktı, ikisi de
+düzeltildi.
+
+### Düzeltilen
+
+- **`HEALTHCHECK` hiçbir zaman geçmiyordu.** `aspnet:10.0` imajında curl (ve wget) yok;
+  konteyner sonsuza kadar "starting" kalıyor, `depends_on: service_healthy` çalışmıyordu.
+  İmaja curl eklendi.
+- **Agent, `runtime:10.0` imajında başlamıyordu** — `Microsoft.AspNetCore.App` bulunamıyor.
+  Agent endpoint map'lemese de bu framework referansını `Core`/`Modules.Mssql` üzerinden
+  miras alıyor. Agent imajı `aspnet:10.0` tabanına alındı.
+
+### Eklenen
+
+- `Dockerfile.agent` ve `docker-compose.agent.yml`: agent'ı müşteri tarafında konteyner
+  olarak çalıştırmak için. Hiçbir port yayınlanmaz.
+
+### Ölçülen
+
+- Tam yığın konteynerde: hub (healthy) ← SignalR ← agent konteyneri → SQL Server 16.0.4252.3
+  ölçüldü, alarm hub'da üretildi. `/data` biriminde veritabanı ve anahtar halkası kalıcı.
+- İmaj boyutları: hub 486 MB, agent ~450 MB.
+
 ## [0.5.0] — 2026-08-05
 
 Sessiz kalmayan izleme.

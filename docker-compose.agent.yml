@@ -1,0 +1,31 @@
+# The agent, on the customer's side.
+#
+# Use this when the customer already runs Docker — installing a Windows service on someone
+# else's production server is a negotiation, `docker compose up -d` usually is not.
+#
+#   HUB_URL=https://izleme.example.com ENROLLMENT_KEY=... docker compose -f docker-compose.agent.yml up -d
+#
+# Nothing is published: the agent only makes outbound connections. That is the whole point.
+
+services:
+  agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    image: mssqlrealtime-agent:latest
+    container_name: mssqlrealtime-agent
+    restart: unless-stopped
+
+    environment:
+      # The central monitoring server. Must be https:// — the enrollment key and the SQL
+      # password both travel over this connection.
+      Agent__HubUrl: ${HUB_URL:?HUB_URL gerekli}
+      Agent__EnrollmentKey: ${ENROLLMENT_KEY:?ENROLLMENT_KEY gerekli}
+
+    volumes:
+      - ./logs:/app/logs
+
+    # If SQL Server runs on the host rather than in Docker, the monitored server's address
+    # must be host.docker.internal — inside a container, "localhost" is the container itself.
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
