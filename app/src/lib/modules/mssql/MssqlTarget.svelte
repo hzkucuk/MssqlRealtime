@@ -4,7 +4,9 @@
 	import { realtime } from '$lib/api/realtime.svelte';
 	import { mssql, MSSQL_MODULE_ID } from './store.svelte';
 	import { Sorter } from '$lib/sort.svelte';
+	import { TableColumns } from '$lib/table.svelte';
 	import SortHeader from '$lib/components/SortHeader.svelte';
+	import ColumnPicker from '$lib/components/ColumnPicker.svelte';
 	import type { DatabaseInfo, RequestInfo, SessionInfo, SqlServiceInfo } from '$lib/types';
 	import { ago, clock, dateTime, duration, mb, num, pct, statusText } from '$lib/format';
 
@@ -24,6 +26,10 @@
 			status: (s) => s.status,
 			database: (s) => s.databaseName,
 			cpu: (s) => s.cpuTimeMs,
+			reads: (s) => s.logicalReads,
+			writes: (s) => s.writes,
+			memory: (s) => s.memoryUsageKb,
+			loginTime: (s) => s.loginTime,
 			idle: (s) => s.idleSeconds
 		},
 		'cpu'
@@ -62,6 +68,33 @@
 		},
 		'name'
 	);
+
+	// Column widths and visibility, remembered per table. SPID and the action column are
+	// required: without them a row cannot be identified or acted on.
+	const sessionColumns = new TableColumns('mssql.sessions', [
+		{ key: 'sessionId', label: 'SPID', width: 60, required: true },
+		{ key: 'program', label: 'Uygulama', width: 150 },
+		{ key: 'host', label: 'Makine / IP', width: 140 },
+		{ key: 'login', label: 'Kullanıcı', width: 170 },
+		{ key: 'status', label: 'Durum', width: 130 },
+		{ key: 'database', label: 'Veritabanı', width: 160 },
+		{ key: 'cpu', label: 'CPU', width: 90 },
+		{ key: 'reads', label: 'Okuma', width: 90, hiddenByDefault: true },
+		{ key: 'writes', label: 'Yazma', width: 90, hiddenByDefault: true },
+		{ key: 'memory', label: 'Bellek', width: 90, hiddenByDefault: true },
+		{ key: 'login-time', label: 'Bağlanma', width: 130, hiddenByDefault: true },
+		{ key: 'idle', label: 'Boşta', width: 90 },
+		{ key: 'action', label: 'İşlem', width: 70, required: true }
+	]);
+
+	const databaseColumns = new TableColumns('mssql.databases', [
+		{ key: 'name', label: 'Veritabanı', width: 200, required: true },
+		{ key: 'state', label: 'Durum', width: 110 },
+		{ key: 'recovery', label: 'Kurtarma', width: 110 },
+		{ key: 'data', label: 'Veri', width: 100 },
+		{ key: 'log', label: 'Log', width: 100 },
+		{ key: 'backup', label: 'Son yedek', width: 150 }
+	]);
 
 	let killing = $state<number | null>(null);
 	let actionError = $state<string | null>(null);
@@ -196,28 +229,38 @@
 				</div>
 			{/if}
 		{:else if tab === 'oturumlar'}
+			<div class="row between" style="margin-bottom:0.5rem">
+				<span class="muted">Başlığı sürükleyerek genişliği değiştirebilirsiniz.</span>
+				<ColumnPicker columns={sessionColumns} />
+			</div>
+
 			<div class="card scroll-x">
-				<table>
+				<table class="sized">
 					<thead>
 						<tr>
-							<SortHeader sorter={sessionSort} column="sessionId" label="SPID" />
-							<SortHeader sorter={sessionSort} column="program" label="Uygulama" />
-							<SortHeader sorter={sessionSort} column="host" label="Makine / IP" />
-							<SortHeader sorter={sessionSort} column="login" label="Kullanıcı" />
-							<SortHeader sorter={sessionSort} column="status" label="Durum" />
-							<SortHeader sorter={sessionSort} column="database" label="Veritabanı" />
-							<SortHeader sorter={sessionSort} column="cpu" label="CPU" />
-							<SortHeader sorter={sessionSort} column="idle" label="Boşta" />
-							<th class="pinned"></th>
+							{#if sessionColumns.isVisible('sessionId')}<SortHeader sorter={sessionSort} column="sessionId" label="SPID" columns={sessionColumns} />{/if}
+							{#if sessionColumns.isVisible('program')}<SortHeader sorter={sessionSort} column="program" label="Uygulama" columns={sessionColumns} />{/if}
+							{#if sessionColumns.isVisible('host')}<SortHeader sorter={sessionSort} column="host" label="Makine / IP" columns={sessionColumns} />{/if}
+							{#if sessionColumns.isVisible('login')}<SortHeader sorter={sessionSort} column="login" label="Kullanıcı" columns={sessionColumns} />{/if}
+							{#if sessionColumns.isVisible('status')}<SortHeader sorter={sessionSort} column="status" label="Durum" columns={sessionColumns} />{/if}
+							{#if sessionColumns.isVisible('database')}<SortHeader sorter={sessionSort} column="database" label="Veritabanı" columns={sessionColumns} />{/if}
+							{#if sessionColumns.isVisible('cpu')}<SortHeader sorter={sessionSort} column="cpu" label="CPU" columns={sessionColumns} />{/if}
+							{#if sessionColumns.isVisible('reads')}<SortHeader sorter={sessionSort} column="reads" label="Okuma" columns={sessionColumns} />{/if}
+							{#if sessionColumns.isVisible('writes')}<SortHeader sorter={sessionSort} column="writes" label="Yazma" columns={sessionColumns} />{/if}
+							{#if sessionColumns.isVisible('memory')}<SortHeader sorter={sessionSort} column="memory" label="Bellek" columns={sessionColumns} />{/if}
+							{#if sessionColumns.isVisible('login-time')}<SortHeader sorter={sessionSort} column="loginTime" label="Bağlanma" columns={sessionColumns} resizeKey="login-time" />{/if}
+							{#if sessionColumns.isVisible('idle')}<SortHeader sorter={sessionSort} column="idle" label="Boşta" columns={sessionColumns} />{/if}
+							<th class="pinned" style="width:{sessionColumns.width('action')}px"></th>
 						</tr>
 					</thead>
 					<tbody>
 						{#each sessionSort.apply(s.sessions) as x (x.sessionId)}
 							<tr class:blocked={x.isBlocked} class:blocker={x.isBlocker}>
-								<td class="mono">{x.sessionId}</td>
-								<td class="clamp">{x.programName ?? '—'}</td>
-								<td class="clamp">{x.hostName ?? '—'}<div class="muted mono">{x.clientAddress ?? ''}</div></td>
-								<td>{x.loginName ?? '—'}</td>
+								{#if sessionColumns.isVisible('sessionId')}<td class="mono">{x.sessionId}</td>{/if}
+								{#if sessionColumns.isVisible('program')}<td class="clamp">{x.programName ?? '—'}</td>{/if}
+								{#if sessionColumns.isVisible('host')}<td class="clamp">{x.hostName ?? '—'}<div class="muted mono">{x.clientAddress ?? ''}</div></td>{/if}
+								{#if sessionColumns.isVisible('login')}<td class="clamp">{x.loginName ?? '—'}</td>{/if}
+								{#if sessionColumns.isVisible('status')}
 								<td>
 									{x.status ?? '—'}
 									{#if x.isBlocker}<span class="badge badge-crit">engelliyor</span>{/if}
@@ -226,9 +269,14 @@
 										<span class="badge">{x.openTransactionCount} açık işlem</span>
 									{/if}
 								</td>
-								<td>{x.databaseName ?? '—'}</td>
-								<td class="mono">{num(x.cpuTimeMs)} ms</td>
-								<td>{duration(x.idleSeconds)}</td>
+								{/if}
+								{#if sessionColumns.isVisible('database')}<td class="clamp">{x.databaseName ?? '—'}</td>{/if}
+								{#if sessionColumns.isVisible('cpu')}<td class="mono">{num(x.cpuTimeMs)} ms</td>{/if}
+								{#if sessionColumns.isVisible('reads')}<td class="mono">{num(x.logicalReads)}</td>{/if}
+								{#if sessionColumns.isVisible('writes')}<td class="mono">{num(x.writes)}</td>{/if}
+								{#if sessionColumns.isVisible('memory')}<td class="mono">{num(x.memoryUsageKb)} KB</td>{/if}
+								{#if sessionColumns.isVisible('login-time')}<td class="muted">{dateTime(x.loginTime)}</td>{/if}
+								{#if sessionColumns.isVisible('idle')}<td>{duration(x.idleSeconds)}</td>{/if}
 								<td class="pinned">
 									<button
 										class="btn btn-sm btn-danger"
@@ -304,27 +352,32 @@
 				</div>
 			{/each}
 		{:else if tab === 'veritabani'}
+			<div class="row between" style="margin-bottom:0.5rem">
+				<span class="muted">Başlığı sürükleyerek genişliği değiştirebilirsiniz.</span>
+				<ColumnPicker columns={databaseColumns} />
+			</div>
+
 			<div class="card scroll-x">
-				<table>
+				<table class="sized">
 					<thead>
 						<tr>
-							<SortHeader sorter={databaseSort} column="name" label="Veritabanı" />
-							<SortHeader sorter={databaseSort} column="state" label="Durum" />
-							<SortHeader sorter={databaseSort} column="recovery" label="Kurtarma" />
-							<SortHeader sorter={databaseSort} column="data" label="Veri" />
-							<SortHeader sorter={databaseSort} column="log" label="Log" />
-							<SortHeader sorter={databaseSort} column="backup" label="Son yedek" />
+							{#if databaseColumns.isVisible('name')}<SortHeader sorter={databaseSort} column="name" label="Veritabanı" columns={databaseColumns} />{/if}
+							{#if databaseColumns.isVisible('state')}<SortHeader sorter={databaseSort} column="state" label="Durum" columns={databaseColumns} />{/if}
+							{#if databaseColumns.isVisible('recovery')}<SortHeader sorter={databaseSort} column="recovery" label="Kurtarma" columns={databaseColumns} />{/if}
+							{#if databaseColumns.isVisible('data')}<SortHeader sorter={databaseSort} column="data" label="Veri" columns={databaseColumns} />{/if}
+							{#if databaseColumns.isVisible('log')}<SortHeader sorter={databaseSort} column="log" label="Log" columns={databaseColumns} />{/if}
+							{#if databaseColumns.isVisible('backup')}<SortHeader sorter={databaseSort} column="backup" label="Son yedek" columns={databaseColumns} />{/if}
 						</tr>
 					</thead>
 					<tbody>
 						{#each databaseSort.apply(s.databases) as d (d.name)}
 							<tr>
-								<td>{d.name}{#if d.isReadCommittedSnapshotOn}<span class="badge">RCSI</span>{/if}</td>
-								<td>{d.state ?? '—'}</td>
-								<td>{d.recoveryModel ?? '—'}</td>
-								<td>{mb(d.dataSizeMb)}</td>
-								<td>{mb(d.logSizeMb)}</td>
-								<td class:stale={!d.lastFullBackup}>{dateTime(d.lastFullBackup)}</td>
+								{#if databaseColumns.isVisible('name')}<td class="clamp">{d.name}{#if d.isReadCommittedSnapshotOn}<span class="badge">RCSI</span>{/if}</td>{/if}
+								{#if databaseColumns.isVisible('state')}<td>{d.state ?? '—'}</td>{/if}
+								{#if databaseColumns.isVisible('recovery')}<td>{d.recoveryModel ?? '—'}</td>{/if}
+								{#if databaseColumns.isVisible('data')}<td>{mb(d.dataSizeMb)}</td>{/if}
+								{#if databaseColumns.isVisible('log')}<td>{mb(d.logSizeMb)}</td>{/if}
+								{#if databaseColumns.isVisible('backup')}<td class:stale={!d.lastFullBackup}>{dateTime(d.lastFullBackup)}</td>{/if}
 							</tr>
 						{/each}
 					</tbody>

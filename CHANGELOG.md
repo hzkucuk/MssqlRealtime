@@ -2,6 +2,20 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/)
 
+## [0.10.0] — 2026-08-06
+
+### Eklenen — sütun denetimi
+
+- **Sütun genişliği sürüklenerek ayarlanır.** Başlığın sağ kenarındaki tutamaçtan çekin;
+  çift tıklamak varsayılana döndürür. Dokunmatikte de çalışır (pointer olayları).
+- **Sütun göster/gizle** — ⚙ Sütunlar menüsünden. Telefonda asıl işe yarayan bu: dokuz
+  sütunu 2 cm''ye sıkıştırmak yerine dördünü seçersiniz.
+- Tercihler **tablo başına** tarayıcıda saklanır; her ziyarette yeniden ayarlamak gerekmez.
+- **SPID ve İşlem sütunu gizlenemez**: onlar olmadan satır ne tanınır ne de üzerinde işlem
+  yapılabilir.
+- Oturumlar tablosuna varsayılan gizli dört sütun eklendi: **Okuma, Yazma, Bellek, Bağlanma
+  zamanı** — ihtiyaç duyanlar menüden açar.
+
 ## [0.9.1] — 2026-08-06
 
 ### Düzeltilen

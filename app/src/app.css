@@ -333,9 +333,21 @@ tr.blocker td.pinned {
 	background: color-mix(in srgb, var(--crit) 10%, var(--surface));
 }
 
+/* Column widths only take effect with a fixed layout; otherwise the browser recomputes
+   them from the content and the drag appears to do nothing. */
+table.sized {
+	table-layout: fixed;
+	width: max-content;
+	min-width: 100%;
+}
+
+table.sized td {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
 /* Keep long application and host names from stretching the table indefinitely. */
 td.clamp {
-	max-width: 16ch;
 	overflow-wrap: anywhere;
 }
 
