@@ -3,11 +3,25 @@
 	import { http } from './store.svelte';
 	import { httpStatusText } from './types';
 	import { ago, num, pct } from '$lib/format';
+	import { Sorter } from '$lib/sort.svelte';
+	import type { HttpCheckResult } from './types';
 
 	onMount(() => http.start());
 	onDestroy(() => http.stop());
 
-	const checks = $derived(http.checks);
+	const sorter = new Sorter<HttpCheckResult>(
+		{
+			severity: (c) => c.severity,
+			name: (c) => c.targetName,
+			group: (c) => c.groupName,
+			response: (c) => c.responseTimeMs,
+			uptime: (c) => c.uptimePercent,
+			certificate: (c) => c.certificateDaysRemaining
+		},
+		'severity'
+	);
+
+	const checks = $derived(sorter.apply(http.checks));
 </script>
 
 <div class="page">
@@ -15,6 +29,18 @@
 		<h1>Site / API İzleme</h1>
 		<a class="btn btn-sm btn-primary" href="/m/http/yeni">+ Adres</a>
 	</div>
+
+	{#if checks.length > 0}
+		<div class="row" style="gap:0.4rem;margin-bottom:0.6rem;flex-wrap:wrap">
+			<span class="muted">Sırala:</span>
+			{#each [['severity', 'Durum'], ['name', 'Ad'], ['response', 'Yanıt'], ['uptime', 'Erişilebilirlik'], ['certificate', 'Sertifika']] as [key, label] (key)}
+				<button class="tab" class:active={sorter.key === key} onclick={() => sorter.toggle(key)}>
+					{label}
+					{sorter.indicator(key)}
+				</button>
+			{/each}
+		</div>
+	{/if}
 
 	{#if http.error}<div class="error">{http.error}</div>{/if}
 

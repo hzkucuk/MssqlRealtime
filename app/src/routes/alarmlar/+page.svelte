@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { api } from '$lib/api/client';
 	import { ago, dateTime, duration } from '$lib/format';
+	import { Sorter } from '$lib/sort.svelte';
 	import type { AlertHistoryEntry } from '$lib/types';
 
 	// Persisted history: this is what answers "what happened while I was asleep" — the in-app
@@ -11,7 +12,21 @@
 	let error = $state<string | null>(null);
 	let onlyActive = $state(false);
 
-	const shown = $derived(onlyActive ? entries.filter((e) => e.isActive) : entries);
+	const sorter = new Sorter<AlertHistoryEntry>(
+		{
+			raised: (e) => e.raisedAtUtc,
+			severity: (e) => e.severity,
+			target: (e) => e.targetName,
+			group: (e) => e.groupName,
+			rule: (e) => e.ruleTitle,
+			duration: (e) =>
+				(e.clearedAtUtc ? new Date(e.clearedAtUtc).getTime() : Date.now()) -
+				new Date(e.raisedAtUtc).getTime()
+		},
+		'raised'
+	);
+
+	const shown = $derived(sorter.apply(onlyActive ? entries.filter((e) => e.isActive) : entries));
 	const activeCount = $derived(entries.filter((e) => e.isActive).length);
 
 	onMount(async () => {
@@ -37,6 +52,16 @@
 			<input type="checkbox" bind:checked={onlyActive} />
 			Yalnız süren ({activeCount})
 		</label>
+	</div>
+
+	<div class="row" style="gap:0.4rem;margin-bottom:0.6rem;flex-wrap:wrap">
+		<span class="muted">Sırala:</span>
+		{#each [['raised', 'Zaman'], ['severity', 'Seviye'], ['target', 'Sunucu'], ['rule', 'Kural'], ['duration', 'Süre']] as [key, label] (key)}
+			<button class="tab" class:active={sorter.key === key} onclick={() => sorter.toggle(key)}>
+				{label}
+				{sorter.indicator(key)}
+			</button>
+		{/each}
 	</div>
 
 	{#if error}<div class="error">{error}</div>{/if}

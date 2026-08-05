@@ -2,12 +2,28 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { mssql } from './store.svelte';
 	import { ago, duration, mb, num, pct, statusText } from '$lib/format';
+	import { Sorter } from '$lib/sort.svelte';
+	import type { ServerSnapshot } from '$lib/types';
 
 	// The summary screen: one card per customer server, sorted so the worst is first.
 	onMount(() => mssql.start());
 	onDestroy(() => mssql.stop());
 
-	const servers = $derived(mssql.servers);
+	const sorter = new Sorter<ServerSnapshot>(
+		{
+			severity: (s) => s.summary.severity,
+			name: (s) => s.serverName,
+			customer: (s) => s.customerName,
+			cpu: (s) => s.summary.cpuPercent,
+			memory: (s) => s.summary.memoryUsedPercent,
+			sessions: (s) => s.summary.totalSessions,
+			blocked: (s) => s.summary.blockedSessions,
+			longest: (s) => s.summary.longestRunningSeconds
+		},
+		'severity'
+	);
+
+	const servers = $derived(sorter.apply(mssql.servers));
 </script>
 
 <div class="page">
@@ -15,6 +31,18 @@
 		<h1>MSSQL İzleme</h1>
 		<a class="btn btn-sm btn-primary" href="/m/mssql/yeni">+ Sunucu</a>
 	</div>
+
+	{#if servers.length > 1}
+		<div class="row" style="gap:0.4rem;margin-bottom:0.6rem;flex-wrap:wrap">
+			<span class="muted">Sırala:</span>
+			{#each [['severity', 'Durum'], ['name', 'Ad'], ['customer', 'Müşteri'], ['cpu', 'CPU'], ['memory', 'Bellek'], ['sessions', 'Oturum'], ['blocked', 'Bloke']] as [key, label] (key)}
+				<button class="tab" class:active={sorter.key === key} onclick={() => sorter.toggle(key)}>
+					{label}
+					{sorter.indicator(key)}
+				</button>
+			{/each}
+		</div>
+	{/if}
 
 	{#if mssql.error}<div class="error">{mssql.error}</div>{/if}
 

@@ -3,6 +3,9 @@
 	import { page } from '$app/state';
 	import { realtime } from '$lib/api/realtime.svelte';
 	import { mssql, MSSQL_MODULE_ID } from './store.svelte';
+	import { Sorter } from '$lib/sort.svelte';
+	import SortHeader from '$lib/components/SortHeader.svelte';
+	import type { DatabaseInfo, RequestInfo, SessionInfo, SqlServiceInfo } from '$lib/types';
 	import { ago, clock, dateTime, duration, mb, num, pct, statusText } from '$lib/format';
 
 	const serverId = $derived(page.params.target!);
@@ -10,6 +13,56 @@
 
 	type Tab = 'ozet' | 'oturumlar' | 'calisan' | 'bloke' | 'veritabani' | 'sistem';
 	let tab = $state<Tab>('ozet');
+	// Sorting is applied to every incoming snapshot, not once to the DOM: rows are replaced
+	// every few seconds and the chosen order has to survive that.
+	const sessionSort = new Sorter<SessionInfo>(
+		{
+			sessionId: (s) => s.sessionId,
+			program: (s) => s.programName,
+			host: (s) => s.hostName,
+			login: (s) => s.loginName,
+			status: (s) => s.status,
+			database: (s) => s.databaseName,
+			cpu: (s) => s.cpuTimeMs,
+			idle: (s) => s.idleSeconds
+		},
+		'cpu'
+	);
+
+	const requestSort = new Sorter<RequestInfo>(
+		{
+			sessionId: (r) => r.sessionId,
+			elapsed: (r) => r.elapsedSeconds,
+			cpu: (r) => r.cpuTimeMs,
+			reads: (r) => r.logicalReads,
+			program: (r) => r.programName,
+			database: (r) => r.databaseName
+		},
+		'elapsed'
+	);
+
+	const databaseSort = new Sorter<DatabaseInfo>(
+		{
+			name: (d) => d.name,
+			state: (d) => d.state,
+			recovery: (d) => d.recoveryModel,
+			data: (d) => d.dataSizeMb,
+			log: (d) => d.logSizeMb,
+			backup: (d) => d.lastFullBackup
+		},
+		'data'
+	);
+
+	const serviceSort = new Sorter<SqlServiceInfo>(
+		{
+			name: (s) => s.serviceName,
+			account: (s) => s.serviceAccount,
+			status: (s) => s.statusDescription,
+			startup: (s) => s.startupType
+		},
+		'name'
+	);
+
 	let killing = $state<number | null>(null);
 	let actionError = $state<string | null>(null);
 	let actionOk = $state<string | null>(null);
@@ -147,12 +200,19 @@
 				<table>
 					<thead>
 						<tr>
-							<th>SPID</th><th>Uygulama</th><th>Makine / IP</th><th>Kullanıcı</th>
-							<th>Durum</th><th>Veritabanı</th><th>CPU</th><th>Boşta</th><th></th>
+							<SortHeader sorter={sessionSort} column="sessionId" label="SPID" />
+							<SortHeader sorter={sessionSort} column="program" label="Uygulama" />
+							<SortHeader sorter={sessionSort} column="host" label="Makine / IP" />
+							<SortHeader sorter={sessionSort} column="login" label="Kullanıcı" />
+							<SortHeader sorter={sessionSort} column="status" label="Durum" />
+							<SortHeader sorter={sessionSort} column="database" label="Veritabanı" />
+							<SortHeader sorter={sessionSort} column="cpu" label="CPU" />
+							<SortHeader sorter={sessionSort} column="idle" label="Boşta" />
+							<th></th>
 						</tr>
 					</thead>
 					<tbody>
-						{#each s.sessions as x (x.sessionId)}
+						{#each sessionSort.apply(s.sessions) as x (x.sessionId)}
 							<tr class:blocked={x.isBlocked} class:blocker={x.isBlocker}>
 								<td class="mono">{x.sessionId}</td>
 								<td>{x.programName ?? '—'}</td>
@@ -186,8 +246,22 @@
 		{:else if tab === 'calisan'}
 			{#if s.requests.length === 0}
 				<p class="muted">Şu anda çalışan sorgu yok.</p>
+			{:else}
+				<div class="row" style="gap:0.4rem;margin-bottom:0.5rem;flex-wrap:wrap">
+					<span class="muted">Sırala:</span>
+					{#each [['elapsed', 'Süre'], ['cpu', 'CPU'], ['reads', 'Okuma'], ['sessionId', 'SPID'], ['program', 'Uygulama']] as [key, label] (key)}
+						<button
+							class="tab"
+							class:active={requestSort.key === key}
+							onclick={() => requestSort.toggle(key)}
+						>
+							{label}
+							{requestSort.indicator(key)}
+						</button>
+					{/each}
+				</div>
 			{/if}
-			{#each s.requests as r (r.sessionId)}
+			{#each requestSort.apply(s.requests) as r (r.sessionId)}
 				<div class="card">
 					<div class="row between">
 						<strong class="mono">SPID {r.sessionId} · {r.command ?? '—'}</strong>
@@ -233,10 +307,17 @@
 			<div class="card scroll-x">
 				<table>
 					<thead>
-						<tr><th>Veritabanı</th><th>Durum</th><th>Kurtarma</th><th>Veri</th><th>Log</th><th>Son yedek</th></tr>
+						<tr>
+							<SortHeader sorter={databaseSort} column="name" label="Veritabanı" />
+							<SortHeader sorter={databaseSort} column="state" label="Durum" />
+							<SortHeader sorter={databaseSort} column="recovery" label="Kurtarma" />
+							<SortHeader sorter={databaseSort} column="data" label="Veri" />
+							<SortHeader sorter={databaseSort} column="log" label="Log" />
+							<SortHeader sorter={databaseSort} column="backup" label="Son yedek" />
+						</tr>
 					</thead>
 					<tbody>
-						{#each s.databases as d (d.name)}
+						{#each databaseSort.apply(s.databases) as d (d.name)}
 							<tr>
 								<td>{d.name}{#if d.isReadCommittedSnapshotOn}<span class="badge">RCSI</span>{/if}</td>
 								<td>{d.state ?? '—'}</td>
@@ -274,9 +355,16 @@
 				{:else}
 					<div class="scroll-x">
 						<table>
-							<thead><tr><th>Servis</th><th>Hesap</th><th>Durum</th><th>Başlangıç</th></tr></thead>
+							<thead>
+								<tr>
+									<SortHeader sorter={serviceSort} column="name" label="Servis" />
+									<SortHeader sorter={serviceSort} column="account" label="Hesap" />
+									<SortHeader sorter={serviceSort} column="status" label="Durum" />
+									<SortHeader sorter={serviceSort} column="startup" label="Başlangıç" />
+								</tr>
+							</thead>
 							<tbody>
-								{#each s.services as svc (svc.serviceName)}
+								{#each serviceSort.apply(s.services) as svc (svc.serviceName)}
 									<tr>
 										<td>{svc.serviceName}</td>
 										<td class="mono">{svc.serviceAccount ?? '—'}</td>
