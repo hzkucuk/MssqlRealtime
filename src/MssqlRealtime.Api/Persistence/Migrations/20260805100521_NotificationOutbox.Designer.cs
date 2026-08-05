@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using MssqlRealtime.Infrastructure.Persistence;
 
@@ -10,9 +11,11 @@ using MssqlRealtime.Infrastructure.Persistence;
 namespace MssqlRealtime.Api.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260805100521_NotificationOutbox")]
+    partial class NotificationOutbox
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.10");
@@ -388,79 +391,6 @@ namespace MssqlRealtime.Api.Persistence.Migrations
                     b.HasIndex("AbandonedUtc", "NextAttemptUtc");
 
                     b.ToTable("NotificationOutbox", (string)null);
-                });
-
-            modelBuilder.Entity("MssqlRealtime.Modules.Http.Models.HttpTarget", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("AlertConsecutiveBreaches")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<bool>("AlertOnDown")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("AlertRenotifyMinutes")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int?>("CertificateExpiryWarningDays")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("CheckIntervalSeconds")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("Enabled")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("ExpectedBodyContains")
-                        .HasMaxLength(400)
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("ExpectedStatusCode")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("GroupName")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("IgnoreCertificateErrors")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Method")
-                        .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("TEXT");
-
-                    b.Property<int?>("SlowResponseMs")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("TimeoutSeconds")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Url")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("GroupName");
-
-                    b.ToTable("HttpTargets", (string)null);
                 });
 
             modelBuilder.Entity("MssqlRealtime.Modules.Mssql.Models.ServerProfile", b =>

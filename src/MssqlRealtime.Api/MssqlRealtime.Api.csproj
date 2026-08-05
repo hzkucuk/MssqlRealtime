@@ -4,6 +4,7 @@
     <ProjectReference Include="..\MssqlRealtime.Core\MssqlRealtime.Core.csproj" />
     <ProjectReference Include="..\MssqlRealtime.Infrastructure\MssqlRealtime.Infrastructure.csproj" />
     <ProjectReference Include="..\MssqlRealtime.Modules.Mssql\MssqlRealtime.Modules.Mssql.csproj" />
+    <ProjectReference Include="..\MssqlRealtime.Modules.Http\MssqlRealtime.Modules.Http.csproj" />
   </ItemGroup>
 
   <ItemGroup>

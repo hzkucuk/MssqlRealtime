@@ -24,6 +24,7 @@
     <ProjectReference Include="..\..\src\MssqlRealtime.Infrastructure\MssqlRealtime.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\MssqlRealtime.Api\MssqlRealtime.Api.csproj" />
     <ProjectReference Include="..\..\src\MssqlRealtime.Modules.Mssql\MssqlRealtime.Modules.Mssql.csproj" />
+    <ProjectReference Include="..\..\src\MssqlRealtime.Modules.Http\MssqlRealtime.Modules.Http.csproj" />
   </ItemGroup>
 
 </Project>

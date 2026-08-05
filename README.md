@@ -3,7 +3,9 @@
 Telefondan, tarayıcıdan ve masaüstünden **canlı** sunucu izleme. Tek uygulama, tek backend,
 içine sürekli yeni araç (tool) eklenebilir.
 
-İlk araç: **MSSQL İzleme** — birden fazla müşterinin SQL Server'ında kim bağlı, ne çalışıyor,
+Araçlar: **MSSQL İzleme** ve **Site / API İzleme**.
+
+MSSQL İzleme — birden fazla müşterinin SQL Server'ında kim bağlı, ne çalışıyor,
 ne kilitlenmiş, makinenin işlemci ve belleği ne durumda; hepsi saniyeler içinde ve
 kendi belirlediğin sınırlar aşılınca telefona bildirim.
 
@@ -30,6 +32,15 @@ Telefon / Masaüstü / Tarayıcı  ──SignalR (WSS)──▶  .NET 10 servis
 | Veritabanları, son yedek | `sys.databases`, `msdb.backupset` | |
 | Servis hesabı | `dm_server_services` | Orijinal soruna cevap veren yer |
 
+## Site / API İzleme (ikinci araç)
+
+Müşteri sitesi ya da API ucu ayakta mı, kaç ms'de yanıtlıyor, TLS sertifikası ne zaman
+bitiyor. “200 OK dönüyor ama sayfada hata var” durumunu gövde kontrolüyle yakalar.
+
+Bu araç, platformun iddiasının kanıtı: alarm motoruna, bildirim kanallarına veya host'a
+dokunulmadan eklendi — bir kayıt satırı ve bir ön yüz klasörü. Nasıl yapıldığı:
+`docs/02-modul-ekleme.md`.
+
 ## Alarm ve bildirim
 
 Kendi belirlediğin sınır aşılınca haber verir — **uygulama kapalıyken de**:
@@ -40,6 +51,9 @@ Kendi belirlediğin sınır aşılınca haber verir — **uygulama kapalıyken d
 | E-posta (SMTP) | ✅ | Mevcut mail sunucun |
 | Webhook (Slack/Teams/kendi) | ✅ | Bir URL, isteğe bağlı HMAC imza |
 | Uygulama içi | yalnız açıkken | Otomatik |
+
+Teslim edilemeyen bildirim **kaybolmaz**: veritabanına yazılır ve 8 saat boyunca artan
+aralıklarla yeniden denenir (ölçüldü).
 
 Gürültü kontrolü zaten yerleşik: sınır üst üste N ölçümde aşılmadıkça alarm oluşmaz, süren
 alarm en fazla tekrar penceresi kadar sıklıkta bildirilir, uyarı→kritik yükselmesi pencereyi
@@ -88,6 +102,7 @@ src/
   MssqlRealtime.Core/            Platform çekirdeği — modül sözleşmesi, alarm motoru
   MssqlRealtime.Infrastructure/  Kimlik, depo, şifreleme
   MssqlRealtime.Modules.Mssql/   MSSQL aracı (problar, poller, uçlar)
+  MssqlRealtime.Modules.Http/    Site/API aracı (kontrol, sertifika, uçlar)
   MssqlRealtime.Api/             Host: SignalR hub, Identity, statik ön yüz
 app/
   src/lib/modules/<araç>/        Aracın ekranları

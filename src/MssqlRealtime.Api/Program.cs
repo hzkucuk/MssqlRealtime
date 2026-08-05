@@ -13,6 +13,7 @@ using MssqlRealtime.Core.Notifications;
 using MssqlRealtime.Infrastructure.Notifications;
 using MssqlRealtime.Infrastructure.Persistence;
 using MssqlRealtime.Infrastructure.Security;
+using MssqlRealtime.Modules.Http;
 using MssqlRealtime.Modules.Mssql;
 using Serilog;
 
@@ -80,9 +81,11 @@ builder.Services.AddSingleton<AlertBroadcaster>();
 builder.Services.AddSingleton<IAlertSink>(sp => sp.GetRequiredService<AlertBroadcaster>());
 builder.Services.AddHostedService<AlertDeliveryService>();
 builder.Services.AddHostedService<AlertMaintenanceService>();
+builder.Services.AddHostedService<NotificationRetryService>();
 
 builder.Services.AddScoped<IAlertStore, EfAlertStore>();
 builder.Services.AddScoped<INotificationSettingsStore, NotificationSettingsStore>();
+builder.Services.AddScoped<INotificationOutbox, NotificationOutbox>();
 builder.Services.AddSingleton<INotificationDispatcher, NotificationDispatcher>();
 
 // Registering a channel is all it takes for it to appear in the settings screen.
@@ -97,6 +100,7 @@ builder.Services.AddHttpClient(WebhookChannel.ChannelId, c => c.Timeout = TimeSp
 // --- Tool modules -------------------------------------------------------------------------
 // Adding a tool is one line here plus its own project. Nothing else in the host changes.
 builder.Services.AddToolModule<MssqlModule>(builder.Configuration);
+builder.Services.AddToolModule<HttpModule>(builder.Configuration);
 
 // --- Identity -----------------------------------------------------------------------------
 // A single operator account. Registration is disabled below; the account is seeded at startup.

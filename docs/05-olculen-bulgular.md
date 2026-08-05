@@ -134,6 +134,54 @@ HMAC imzası `X-Signature` başlığında geldi. API logu: `Alert delivered via 
 Sonrasında yeni webhook teslimatı: **0**. Başlangıç saatleri korundu, dolayısıyla "6 saattir
 sürüyor" bilgisi restart'ta sıfırlanmıyor.
 
+## 2026-08-05 13:1x — İzleme aracı `User-Agent` göndermezse kesinti uydurur
+
+Yeni HTTP modülünün ilk canlı denemesinde `https://api.github.com/zen` **403 Forbidden**
+döndü ve modül bunu haklı olarak "erişilemiyor" sayıp alarm üretti. Sebep sitede değil bizde:
+istek `User-Agent` başlığı taşımıyordu. GitHub API bunu reddediyor, birçok WAF da öyle.
+
+Düzeltildi: `SunucuIzleme/1.0 (+monitoring)`. Sonrası: **200, 49 ms**.
+
+> Bir izleme aracının en kötü hatası, izlediği şeyi bozuk göstermektir.
+
+## 2026-08-05 13:1x — Teslim edilemeyen bildirim artık kaybolmuyor
+
+Webhook alıcısı **kapalıyken** üç alarm üretildi:
+
+```
+[13:15:10 WRN] Notification channel webhook failed: Connection refused (localhost:9099)
+outbox: {"pending":3,"abandoned":0}
+```
+
+Alıcı açıldıktan sonra, hiçbir müdahale olmadan:
+
+```
+[13:15:55 INF] Queued notification delivered via webhook after 2 attempt(s)
+[13:17:55 INF] Queued notification delivered via webhook after 3 attempt(s)
+[13:17:55 INF] Queued notification delivered via webhook after 3 attempt(s)
+outbox: {"pending":0,"abandoned":0}
+```
+
+Aynı testte beklenmedik bir doğrulama daha çıktı: API yeniden başlatıldığı için
+"Yerel API sağlığı" hedefi gerçekten düştü ve toparlandı — hem `down` hem de
+"✅ normale döndü" bildirimi doğru sırayla gitti.
+
+## 2026-08-05 13:0x — İkinci modül: mimari iddiası sınandı
+
+Site/API izleme modülü eklendi. Dokunulan ortak dosya sayısı:
+
+| Katman | Değişiklik |
+|---|---|
+| Alarm motoru | **0** |
+| Bildirim kanalları | **0** |
+| SignalR hub | **0** |
+| Kimlik / yetkilendirme | **0** |
+| Host (`Program.cs`) | 1 satır (`AddToolModule<HttpModule>`) + 1 using |
+| Ön yüz kayıt | 1 satır (`modules` dizisine ekleme) + 1 import |
+
+Modülün kendi dosyaları dışında toplam **4 satır**. Bildirim, alarm bastırma, geçmiş,
+kalıcılık ve ayar ekranı hazır geldi.
+
 ## Doğrulanmayı bekleyenler
 
 | Konu | Neden ölçülemedi |

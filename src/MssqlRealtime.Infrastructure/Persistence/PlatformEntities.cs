@@ -35,6 +35,38 @@ public sealed class NotificationChannelState
 }
 
 /// <summary>
+/// A notification that has not been delivered yet.
+/// <para>
+/// Telegram being briefly unreachable must not mean the alert is lost — that is precisely the
+/// moment the tool has to work. Failed deliveries land here and are retried in the background
+/// until they succeed or the give-up window passes.
+/// </para>
+/// </summary>
+public sealed class NotificationOutboxEntry
+{
+    public long Id { get; set; }
+    public string ChannelId { get; set; } = string.Empty;
+
+    /// <summary>Serialized AlertNotification.</summary>
+    public string Payload { get; set; } = string.Empty;
+
+    /// <summary>Shown in the UI without deserializing the payload.</summary>
+    public string Summary { get; set; } = string.Empty;
+
+    public int Attempts { get; set; }
+    public DateTime FirstFailedUtc { get; set; }
+    public DateTime? LastAttemptUtc { get; set; }
+
+    /// <summary>Backoff: nothing is retried before this moment.</summary>
+    public DateTime NextAttemptUtc { get; set; }
+
+    public string? LastError { get; set; }
+
+    /// <summary>Set when the give-up window passed; kept for visibility, not retried again.</summary>
+    public DateTime? AbandonedUtc { get; set; }
+}
+
+/// <summary>
 /// Persisted alert history. Survives restarts, which is the difference between "the service
 /// restarted at 04:00 and we lost the night" and an answer to "what happened last night".
 /// </summary>

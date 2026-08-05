@@ -31,6 +31,7 @@ public sealed class AppDbContext(
     public DbSet<NotificationChannelSetting> NotificationChannelSettings => Set<NotificationChannelSetting>();
     public DbSet<NotificationChannelState> NotificationChannelStates => Set<NotificationChannelState>();
     public DbSet<AlertRecord> AlertRecords => Set<AlertRecord>();
+    public DbSet<NotificationOutboxEntry> NotificationOutbox => Set<NotificationOutboxEntry>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -71,6 +72,18 @@ public sealed class AppDbContext(
             // "What is firing right now" and "what happened lately" are the only two queries.
             e.HasIndex(x => new { x.ModuleId, x.TargetId, x.RuleId, x.ClearedAtUtc });
             e.HasIndex(x => x.RaisedAtUtc);
+        });
+
+        builder.Entity<NotificationOutboxEntry>(e =>
+        {
+            e.ToTable("NotificationOutbox");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.ChannelId).HasMaxLength(64).IsRequired();
+            e.Property(x => x.Summary).HasMaxLength(400);
+            e.Property(x => x.LastError).HasMaxLength(1000);
+
+            // The retry sweep asks exactly one question: what is due now and not abandoned?
+            e.HasIndex(x => new { x.AbandonedUtc, x.NextAttemptUtc });
         });
 
         foreach (var module in _modules)

@@ -1,4 +1,5 @@
 import type { Component } from 'svelte';
+import { httpModule } from './http';
 import { mssqlModule } from './mssql';
 
 /**
@@ -25,7 +26,7 @@ export type UiModule = {
 	createTarget?: Component;
 };
 
-const modules: UiModule[] = [mssqlModule];
+const modules: UiModule[] = [mssqlModule, httpModule];
 
 export const uiModules = new Map(modules.map((m) => [m.id, m]));
 

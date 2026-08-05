@@ -2,6 +2,45 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/)
 
+## [0.3.0] — 2026-08-05
+
+İkinci araç, ve bildirimlerin gerçekten kaybolmaması.
+
+### Eklenen — Site / API İzleme modülü (yeni araç)
+
+- HTTP/HTTPS uç noktaları izleme: ayakta mı, kaç ms'de yanıtlıyor, beklenen durum kodu ve
+  **gövde içeriği** doğru mu (“200 OK dönen hata sayfası” tuzağını yakalar).
+- **TLS sertifikası bitiş takibi** — kendi kısa ömürlü el sıkışmasıyla okunur; havuzdaki bir
+  bağlantıdan okunan sertifika hangi isteğe ait olduğu belirsiz olduğu için ayrı tutuldu.
+- Hedef başına bağımsız kontrol döngüsü, son 60 ölçüm üzerinden erişilebilirlik yüzdesi.
+- Eşikler: erişilemiyor, yavaş yanıt, sertifika bitişine kalan gün.
+- Kaydetmeden önce “Şimdi dene”.
+
+> Bu modül platform iddiasının sınavıydı: alarm motoruna, bildirim kanallarına, hub'a veya
+> host'a **dokunulmadan** eklendi — backend'de bir kayıt satırı, ön yüzde bir klasör.
+> Bildirim, alarm bastırma, geçmiş ve ayar ekranı hazır geldi.
+
+### Eklenen — bildirim dayanıklılığı
+
+- **Kalıcı outbox**: teslim edilemeyen bildirim kaybolmaz, veritabanına yazılır ve geri
+  çekilmeli aralıklarla (30 sn → 2 dk → 5 dk → 15 dk → 30 dk) 8 saat boyunca yeniden denenir.
+- Kanal arada kapatılırsa yeniden deneme durur (karar, hata değil).
+- `/api/notifications/outbox` ile bekleyen/vazgeçilen sayısı görünür — sessizce biriken bir
+  kuyruk, kendisi bir arıza belirtisidir.
+
+### Düzeltilen
+
+- HTTP kontrolleri artık `User-Agent` gönderiyor. Ölçüldü: `api.github.com` User-Agent'sız
+  isteğe **403** döndü — düzeltilmeseydi izleme aracı olmayan kesintiler uydururdu.
+
+### Ölçülen
+
+- Webhook alıcısı kapalıyken 3 bildirim outbox'ta birikti; alıcı açılınca 2. ve 3. denemede
+  teslim edildi ve kuyruk boşaldı.
+- Gerçek hedeflerle: GitHub API 200/49 ms/sertifika 55 gün, DNS hatası doğru yakalandı,
+  gövde kontrolü çalıştı; bir down→up döngüsünde “normale döndü” bildirimi de gitti.
+- 55 test yeşil (16 yeni).
+
 ## [0.2.0] — 2026-08-05
 
 Uygulama kapalıyken de haber almak, ve alarmların restart'ta kaybolmaması.

@@ -92,6 +92,11 @@ public static class NotificationEndpoints
                 : Results.BadRequest(new { ok = false, error = result.Error, code = result.Code });
         });
 
+        // Undelivered notifications. Visible on purpose: a channel that has been failing for
+        // an hour is itself an incident, and silence is the worst way to find that out.
+        group.MapGet("/outbox", async (INotificationOutbox outbox, CancellationToken ct) =>
+            Results.Ok(await outbox.GetStatusAsync(ct)));
+
         // What happened while the app was closed.
         app.MapGet("/api/alerts", async (int? limit, IAlertStore store, CancellationToken ct) =>
                 Results.Ok(await store.GetHistoryAsync(limit ?? 100, ct)))

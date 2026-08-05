@@ -20,4 +20,9 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- Delivery filtering is internal but its rules are exactly what needs testing. -->
+    <InternalsVisibleTo Include="MssqlRealtime.Tests" />
+  </ItemGroup>
+
 </Project>
