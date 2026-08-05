@@ -156,11 +156,36 @@ function storeIdentityTokens(response: IdentityTokenResponse): Tokens {
 	return tokens;
 }
 
+export type CaptchaChallenge = { token: string; svg: string };
+
+/** Whether this address already has to solve a captcha before its next attempt. */
+export async function isCaptchaRequired(serverUrl: string): Promise<boolean> {
+	try {
+		const response = await fetch(`${normaliseUrl(serverUrl)}/api/auth/captcha/required`);
+		if (!response.ok) return false;
+
+		return ((await response.json()) as { required: boolean }).required;
+	} catch {
+		// Unreachable server: let the sign-in attempt produce the real error message.
+		return false;
+	}
+}
+
+export async function fetchCaptcha(serverUrl: string): Promise<CaptchaChallenge> {
+	const response = await fetch(`${normaliseUrl(serverUrl)}/api/auth/captcha`);
+	if (!response.ok) {
+		throw new ApiError('Güvenlik kodu alınamadı.', response.status);
+	}
+
+	return (await response.json()) as CaptchaChallenge;
+}
+
 export async function login(
 	serverUrl: string,
 	email: string,
 	password: string,
-	label = ''
+	label = '',
+	captcha?: { token: string; answer: string }
 ): Promise<void> {
 	const url = normaliseUrl(serverUrl);
 
@@ -168,13 +193,33 @@ export async function login(
 	upsertServer(url, label);
 	setActiveServer(url);
 
+	const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+
+	if (captcha) {
+		headers['X-Captcha-Token'] = captcha.token;
+		headers['X-Captcha-Answer'] = captcha.answer;
+	}
+
 	const response = await fetch(`${url}/api/auth/login`, {
 		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
+		headers,
 		body: JSON.stringify({ email, password })
 	});
 
 	if (!response.ok) {
+		// The server flags this so the screen can show a captcha instead of a dead end.
+		if (response.headers.get('X-Captcha-Required') === 'true') {
+			throw new ApiError('Güvenlik kodu hatalı veya süresi dolmuş.', response.status, 'captcha_required');
+		}
+
+		if (response.status === 429) {
+			throw new ApiError(
+				'Çok fazla deneme yapıldı. Bir dakika bekleyip tekrar deneyin.',
+				429,
+				'rate_limited'
+			);
+		}
+
 		throw new ApiError(
 			response.status === 401
 				? 'Kullanıcı adı veya parola hatalı.'

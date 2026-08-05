@@ -3,7 +3,10 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
 using MssqlRealtime.Api.Endpoints;
+using MssqlRealtime.Api.Security;
 using MssqlRealtime.Api.Realtime;
 using MssqlRealtime.Api.Setup;
 using MssqlRealtime.Core.Abstractions;
@@ -108,6 +111,24 @@ builder.Services.AddToolModule<HttpModule>(builder.Configuration);
 // AddIdentityApiEndpoints wires the bearer + cookie schemes and their defaults together —
 // doing it by hand leaves no default challenge scheme and every guarded route returns 500.
 builder.Services.AddAuthorization();
+builder.Services.AddSingleton<CaptchaService>();
+
+// Rate limiting on the auth endpoints. Identity already locks the account after five bad
+// passwords; this stops the attempts from arriving fast enough to be worth making, and it
+// protects the endpoint itself rather than just the account behind it.
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    options.AddPolicy("auth", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 10,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0
+        }));
+});
 
 builder.Services.AddIdentityApiEndpoints<AppUser>(options =>
     {
@@ -182,11 +203,28 @@ app.UseWhen(
         return Task.CompletedTask;
     }));
 
+app.UseRateLimiter();
+
+// Runs before authentication: a wrong captcha should never reach the password check.
+app.UseMiddleware<CaptchaMiddleware>();
+
 app.UseAuthentication();
 app.UseAuthorization();
 
 // --- Endpoints ----------------------------------------------------------------------------
-app.MapGroup("/api/auth").MapIdentityApi<AppUser>();
+app.MapGroup("/api/auth").MapIdentityApi<AppUser>().RequireRateLimiting("auth");
+
+// Issued on demand; the client asks for one when a sign-in comes back saying it is required.
+app.MapGet("/api/auth/captcha", (CaptchaService captcha) =>
+{
+    var challenge = captcha.Create();
+    return Results.Ok(new { token = challenge.Token, svg = challenge.Svg });
+}).RequireRateLimiting("auth");
+
+// Lets the sign-in screen show the captcha up front instead of after a rejected attempt.
+app.MapGet("/api/auth/captcha/required", (HttpContext context) =>
+    Results.Ok(new { required = CaptchaMiddleware.RequiresCaptcha(CaptchaMiddleware.Key(context)) }))
+    .RequireRateLimiting("auth");
 
 app.MapGet("/api/health", () => Results.Ok(new
 {

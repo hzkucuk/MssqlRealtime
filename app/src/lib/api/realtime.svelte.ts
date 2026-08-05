@@ -25,14 +25,20 @@ class RealtimeClient {
 	/** Alerts kept in memory for the current session, newest first. */
 	alerts = $state<AlertNotification[]>([]);
 
+	/** How many times the initial connection has been retried; shown in the UI. */
+	attempts = $state(0);
+
 	#handlers = new Set<Handler>();
 	#subscriptions = new Set<string>();
+	#retryTimer: ReturnType<typeof setTimeout> | null = null;
+	#stopped = false;
 
 	async start(): Promise<void> {
 		if (this.connection && this.connection.state !== HubConnectionState.Disconnected) {
 			return;
 		}
 
+		this.#stopped = false;
 		this.state = 'connecting';
 
 		const connection = new HubConnectionBuilder()
@@ -76,14 +82,52 @@ class RealtimeClient {
 			this.connection = connection;
 			this.state = 'connected';
 			this.lastError = null;
+			this.attempts = 0;
 			await this.#resubscribe();
 		} catch (error) {
 			this.state = 'disconnected';
 			this.lastError = error instanceof Error ? error.message : String(error);
+
+			// withAutomaticReconnect only covers a connection that was established and then
+			// dropped. A failed FIRST attempt — an expired token at page load, a proxy
+			// restarting — would otherwise leave the app saying "bağlı değil" forever.
+			this.#scheduleRetry();
 		}
 	}
 
+	#scheduleRetry(): void {
+		if (this.#stopped || this.#retryTimer) return;
+
+		this.attempts++;
+		const delays = [2000, 5000, 10000, 30000];
+		const delay = delays[Math.min(this.attempts - 1, delays.length - 1)];
+
+		this.#retryTimer = setTimeout(() => {
+			this.#retryTimer = null;
+			if (!this.#stopped) void this.start();
+		}, delay);
+	}
+
+	/** Manual retry from the UI; resets the backoff so the user is not made to wait. */
+	async reconnect(): Promise<void> {
+		if (this.#retryTimer) {
+			clearTimeout(this.#retryTimer);
+			this.#retryTimer = null;
+		}
+
+		this.attempts = 0;
+		await this.stop();
+		await this.start();
+	}
+
 	async stop(): Promise<void> {
+		this.#stopped = true;
+
+		if (this.#retryTimer) {
+			clearTimeout(this.#retryTimer);
+			this.#retryTimer = null;
+		}
+
 		await this.connection?.stop();
 		this.connection = null;
 		this.state = 'disconnected';

@@ -2,6 +2,32 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/)
 
+## [0.9.0] — 2026-08-05
+
+Giriş güvenliği ve sıralama.
+
+### Eklenen
+
+- **Captcha** — kendi ürettiğimiz, SVG, **internet gerektirmez**. reCAPTCHA/hCaptcha/Turnstile
+  bilinçli olarak elendi: panel müşteri ağında çalışıyor ve dış widget yüklenemezse giriş
+  tamamen kilitlenir. Cevap şifreli, 5 dakikalık, durumsuz bir token içinde taşınır.
+  - **Her girişte değil**, aynı adresten 2 başarısız denemeden sonra istenir. Nöbetçi gece
+    yarısı telefondan girerken her seferinde kod okumak zorunda kalmaz; bot ise ikinci
+    denemeden sonra duvara çarpar.
+  - Başarılı girişte sayaç sıfırlanır. Karışan karakterler (0/O, 1/I) kullanılmaz.
+- **Rate limiting**:  için adres başına dakikada 10 istek. Identity'nin hesap
+  kilidi (5 hatalı parola → 15 dk) zaten vardı; bu, denemelerin hızını da sınırlar.
+- **Tıklanabilir sıralama** — oturumlar, çalışan sorgular, veritabanları, servisler, sunucu
+  listesi, adres listesi ve alarm geçmişi. Sayılar önce büyükten küçüğe; boş değerler her iki
+  yönde de dibe iner; metin Türkçe sıralama kurallarıyla.
+
+### Düzeltilen
+
+- **İlk SignalR bağlantısı başarısız olursa bir daha denenmiyordu.** 
+  yalnız kurulmuş bir bağlantı koptuğunda devreye giriyor; sayfa açılışında token yenileme
+  gerekiyorsa ekranda sonsuza kadar "bağlı değil" kalıyordu. Artık geri çekilmeli yeniden
+  deneme var.
+
 ## [0.8.0] — 2026-08-05
 
 Tek dağıtım yolu: Windows servisi. Docker kaldırıldı.

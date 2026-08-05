@@ -1,11 +1,14 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import {
+		fetchCaptcha,
 		getServers,
 		getServerUrl,
+		isCaptchaRequired,
 		login,
 		removeServer,
 		setActiveServer,
+		type CaptchaChallenge,
 		type SavedServer
 	} from '$lib/api/client';
 	import { ago } from '$lib/format';
@@ -22,16 +25,42 @@
 	let busy = $state(false);
 	let error = $state<string | null>(null);
 
+	// Only shown once an address has failed a couple of times: a captcha on every sign-in
+	// costs the operator — who is often on a phone, at 03:00, during an incident — and buys
+	// nothing against a bot that has not started guessing yet.
+	let captcha = $state<CaptchaChallenge | null>(null);
+	let captchaAnswer = $state('');
+
+	async function loadCaptcha() {
+		try {
+			captcha = await fetchCaptcha(serverUrl);
+			captchaAnswer = '';
+		} catch {
+			captcha = null;
+		}
+	}
+
 	async function submit(event: SubmitEvent) {
 		event.preventDefault();
 		busy = true;
 		error = null;
 
 		try {
-			await login(serverUrl, email.trim(), password, label.trim());
+			await login(
+				serverUrl,
+				email.trim(),
+				password,
+				label.trim(),
+				captcha ? { token: captcha.token, answer: captchaAnswer } : undefined
+			);
 			await goto('/');
 		} catch (e) {
 			error = e instanceof Error ? e.message : String(e);
+
+			// A used or rejected challenge is spent — always issue a fresh one.
+			if (await isCaptchaRequired(serverUrl)) {
+				await loadCaptcha();
+			}
 		} finally {
 			busy = false;
 		}
@@ -49,6 +78,10 @@
 		label = server.label;
 		serverUrl = server.url;
 		showForm = true;
+
+		if (await isCaptchaRequired(server.url)) {
+			await loadCaptcha();
+		}
 	}
 
 	function forget(server: SavedServer, event: MouseEvent) {
@@ -65,6 +98,7 @@
 		serverUrl = 'https://';
 		email = '';
 		password = '';
+		captcha = null;
 		showForm = true;
 	}
 </script>
@@ -141,6 +175,29 @@
 				/>
 			</div>
 
+			{#if captcha}
+				<div class="field">
+					<label for="captcha">Güvenlik kodu</label>
+					<div class="captcha">
+						<!-- eslint-disable-next-line svelte/no-at-html-tags -->
+						<div class="image">{@html captcha.svg}</div>
+						<button type="button" class="btn btn-sm" onclick={loadCaptcha} title="Yenile">↻</button>
+					</div>
+					<input
+						id="captcha"
+						bind:value={captchaAnswer}
+						placeholder="Yukarıdaki kodu yazın"
+						autocomplete="off"
+						autocapitalize="characters"
+						spellcheck="false"
+						required
+					/>
+					<div class="muted help">
+						Birkaç başarısız denemeden sonra istenir. Büyük/küçük harf farkı yok.
+					</div>
+				</div>
+			{/if}
+
 			<button class="btn btn-primary" style="width:100%" disabled={busy}>
 				{busy ? 'Bağlanılıyor…' : 'Giriş yap'}
 			</button>
@@ -186,5 +243,30 @@
 	.forget:hover {
 		color: var(--crit);
 		background: var(--surface-2);
+	}
+
+	.captcha {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		margin-bottom: 0.4rem;
+	}
+
+	.image {
+		line-height: 0;
+		border-radius: 8px;
+		overflow: hidden;
+		/* The SVG is fixed-size; let it shrink on narrow phones rather than overflow. */
+		max-width: 100%;
+	}
+
+	.image :global(svg) {
+		max-width: 100%;
+		height: auto;
+	}
+
+	.help {
+		margin-top: 0.25rem;
+		font-size: 0.78rem;
 	}
 </style>
