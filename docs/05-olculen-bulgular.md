@@ -257,14 +257,14 @@ Sunucunun ağıyla ya da sertifikayla ilgisi yok.
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 ```
 
-Daha sağlamı **`curl.exe`** — Windows 2019'da hazır gelir ve kendi TLS yığınını kullanır:
+`curl.exe` bir alternatiftir (kendi TLS yığınını kullanır) **ama her sunucuda yoktur**:
+2026-08-06'da bir Windows Server 2019 kurulumunda `CommandNotFoundException` verdi — curl.exe
+Windows'a 1803 ile geldi, daha eski build'lerde bulunmaz.
 
-```powershell
-curl.exe -L -o "$env:TEMP\paket.zip" "<url>"
-```
+⚠️ Ayrıca PowerShell'de `curl` bir takma addır ve `Invoke-WebRequest`'e gider; kullanılacaksa
+**`.exe` uzantısı şart**.
 
-⚠️ PowerShell'de `curl` bir takma addır ve `Invoke-WebRequest`'e gider; **`.exe` uzantısı
-şart**, yoksa aynı hataya düşülür.
+**Her yerde çalışan yol** TLS satırı + `Invoke-WebRequest -UseBasicParsing`.
 
 ## Doğrulanmayı bekleyenler
 

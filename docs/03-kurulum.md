@@ -31,11 +31,15 @@ Panel bir arka plan servisidir: telefon kapalıyken de ölçer, alarm üretir, b
 # ya bu satırı önce çalıştırın (yalnız o oturum için geçerli)
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-# ya da curl.exe kullanın — kendi TLS yığınını kullanır, bu sorunu yaşamaz
-curl.exe -L -o "$env:TEMP\SunucuIzleme.zip" "<release-url>"
+Invoke-WebRequest -UseBasicParsing -Uri "<release-url>" -OutFile "$env:TEMP\SunucuIzleme.zip"
 ```
 
-`curl` değil **`curl.exe`**: PowerShell'de `curl` takma adı `Invoke-WebRequest`'e gider.
+`curl.exe` de bir seçenek ama **her sunucuda yok** (Windows'a 1803 ile geldi; eski 2019
+build'lerinde `CommandNotFoundException` alırsınız). Ayrıca `curl` değil `curl.exe` yazılmalı —
+PowerShell'de `curl` takma adı `Invoke-WebRequest`'e gider.
+
+⚠️ Güncellemede **`Stop-Service` indirmeden sonra** gelmeli: servis çalışırken dosyalar
+kilitlidir ve `Expand-Archive` erişim hatası verir.
 
 ## 2. Kur (müşterinin Windows makinesinde)
 
