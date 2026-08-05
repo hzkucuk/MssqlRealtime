@@ -277,6 +277,29 @@ kurulu .NET Framework/Core sürümü ne olursa olsun ürün etkilenmiyor.
 
 Bu sürümlerde dikkat edilecek tek şey indirme adımı (TLS 1.2 ve curl.exe'nin yokluğu).
 
+## 2026-08-06 02:20 — setup.exe macOS'ta derleniyor, belgeler tersini söylüyordu
+
+`amake/innosetup` konteyneri (Wine + Inno Setup 6) `SunucuIzleme-Setup-0.12.0.exe`'yi
+macOS/arm64'te **111 saniyede** derledi, çıktı 39 MB. Windows makine gerekmiyor.
+
+🔴 **Ölçülmüş ders belgeye yazılmadığı için kayboldu.** Bu yöntem 2026-08-06 00:38'de
+v0.9.1 ile bir kez kullanılmış (commit `6c570c1`, "build setup.exe without Windows"), ama
+komut hiçbir betiğe girmemiş; `CLAUDE.md`, `setup/README.md` ve `docs/03-kurulum.md`
+"Inno Setup yalnız Windows'ta çalışır" demeye devam etmiş. Sonraki oturumda v0.12.0
+release'i **setup.exe'siz** yayınlandı, çünkü belge okunup doğru kabul edildi. Yalnız
+commit mesajında yaşayan bilgi, yaşamıyor demektir.
+
+Düzeltildi: `tools/setup-derle.sh` (sürüm eşitliğini de kontrol eder, `windows-publish/`
+yoksa uyarır), üç belge güncellendi.
+
+## 2026-08-06 02:00 — sürüm iki dosyada birbirinden kaymıştı
+
+`Directory.Build.props` 0.12.0 iken `setup/SunucuIzleme.iss` 0.11.0'da kalmıştı. Fark
+sessiz: setup derlenir, çalışır, ama 0.12.0 ikilileri `SunucuIzleme-Setup-0.11.0.exe`
+adıyla ve Program Ekle/Kaldır'da 0.11.0 olarak görünür — "müşteride hangi sürüm var?"
+sorusu cevapsız kalır. `tools/setup-derle.sh` artık derlemeden **önce** ikisini
+karşılaştırıp eşit değilse durur.
+
 ## Doğrulanmayı bekleyenler
 
 | Konu | Neden ölçülemedi |

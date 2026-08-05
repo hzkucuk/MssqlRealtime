@@ -51,10 +51,11 @@ kilitlidir ve `Expand-Archive` erişim hatası verir.
 
 **A) Setup ile** — müşteriye tek dosya verilecekse (önerilen)
 
-Windows'ta bir kez [Inno Setup](https://jrsoftware.org/isdl.php) ile derle:
+Setup'ı bir kez derle — Mac/Linux'ta da olur, Docker yeter (Inno Setup Wine altında
+çalışıyor, ölçüldü 2026-08-06):
 
-```powershell
-& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" setup\SunucuIzleme.iss
+```bash
+./tools/setup-derle.sh
 ```
 
 Çıkan `setup\output\SunucuIzleme-Setup-*.exe` çift tıklanır; kurulumda yönetici hesabı ve

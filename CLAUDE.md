@@ -140,10 +140,15 @@ sürdürmek her kurulumda "hangisi?" sorusu doğuruyordu.
 
 ```bash
 ./tools/windows-paketle.sh          # self-contained, ~123 MB, .NET kurulumu gerekmez
+./tools/setup-derle.sh              # setup/output/SunucuIzleme-Setup-<sürüm>.exe
 ```
 
-Sonra iki seçenek: müşteriye **tek dosya** (Inno Setup ile `setup/SunucuIzleme.iss` derlenir)
-ya da **elle** (klasör + `windows-kur.ps1`). Inno Setup yalnız Windows'ta derlenir.
+Sonra iki seçenek: müşteriye **tek dosya** (`setup-derle.sh` çıktısı) ya da **elle**
+(klasör + `windows-kur.ps1`).
+
+> Inno Setup bir Windows programı ama **Wine altında çalışıyor**: `amake/innosetup`
+> konteyneri ikisini birden taşıyor, dolayısıyla setup `.exe`'si macOS'ta da derleniyor
+> (ölçüldü 2026-08-06, 111 sn). Windows makine **gerekmez** — Docker gerekir.
 
 ### Ölçülmüş tuzaklar
 
@@ -234,9 +239,17 @@ Her anlamlı değişiklikten sonra **otomatik**:
 
 ## "build ve release"
 
-Kullanıcı **"build ve release"** dediğinde: `./tools/windows-paketle.sh` ile yayın klasörünü
-üret, sürümü `Directory.Build.props` **ve** `setup/SunucuIzleme.iss` içinde eşitle,
-CHANGELOG'u yaz, git'e gönder. Setup `.exe` derlemesi **Windows'ta** yapılır (Inno Setup).
+Kullanıcı **"build ve release"** dediğinde, sırayla:
+
+1. Sürümü `Directory.Build.props` **ve** `setup/SunucuIzleme.iss` içinde eşitle
+2. `./tools/windows-paketle.sh` → `windows-publish/`
+3. `./tools/setup-derle.sh` → `setup/output/SunucuIzleme-Setup-<sürüm>.exe` (Docker+Wine,
+   Windows makine gerekmez)
+4. CHANGELOG'u yaz, commit + push
+5. **GitHub release'i de aç** — bu adım unutulmasın:
+   `gh release create v<sürüm> --title "…" --notes-file <notlar> <setup.exe> <zip>`.
+   Müşteri ürünü release sayfasından indiriyor; push edilmiş ama release'i açılmamış bir
+   sürüm **yayınlanmamış** demektir.
 
 ---
 

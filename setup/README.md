@@ -16,16 +16,23 @@ hiçbir yapılandırma dosyası düzenlemez, komut satırı açmaz.
 `windows-publish/` çıkar (~123 MB): .NET runtime ve web arayüzü gömülü, hedef makineye
 hiçbir şey kurulmasını gerektirmez.
 
-**2. Setup'ı derle** (yalnız Windows, [Inno Setup 6+](https://jrsoftware.org/isdl.php)):
+**2. Setup'ı derle** (Mac/Linux'ta da çalışır, Docker gerekir):
+
+```bash
+./tools/setup-derle.sh
+```
+
+Sonuç: `setup/output/SunucuIzleme-Setup-<sürüm>.exe` (~39 MB)
+
+> Inno Setup bir Windows programı, ama **Wine altında sorunsuz çalışıyor**: betik
+> `amake/innosetup` konteynerini kullanır, ikisi de imajın içinde. Ölçüldü 2026-08-06:
+> 0.12.0 macOS/arm64'te **111 saniyede** derlendi. Windows makine gerekmez.
+
+Windows'ta derlemek isterseniz (Inno Setup 6+ kuruluysa) aynı `.iss` doğrudan çalışır:
 
 ```powershell
 & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" setup\SunucuIzleme.iss
 ```
-
-Sonuç: `setup\output\SunucuIzleme-Setup-0.8.0.exe`
-
-> Inno Setup yalnızca Windows'ta çalışır. Mac'te `windows-paketle.sh` ile klasörü üretip
-> derleme adımını bir Windows makinede yapmak gerekir.
 
 ## Setup ne yapıyor
 

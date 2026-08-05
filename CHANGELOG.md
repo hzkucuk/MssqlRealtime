@@ -40,6 +40,16 @@ verildi** — bir izleme panelinde en güzel şey, bakınca anlaşılan veridir.
   tek başına alta atıyordu; yanında kart genişliğince boşluk kalıyordu. Sabit 2 (telefon)
   / 4 (geniş ekran) sütun: hem 4'lü özet hem 8'li detay ızgarası tam doluyor.
 
+### Araçlar
+
+- **`tools/setup-derle.sh`** — setup `.exe`'sini macOS/Linux'ta derler (Inno Setup, Wine
+  altında `amake/innosetup` konteynerinde). Ölçüldü 2026-08-06 02:20: 110 sn, 39 MB.
+  Yöntem v0.9.1'de bir kez elle kullanılmış ama betiğe girmemişti; belgeler "yalnız
+  Windows" demeye devam ettiği için v0.12.0 release'i önce setup'sız yayınlandı. Betik
+  ayrıca `Directory.Build.props` ile `SunucuIzleme.iss` sürümlerini karşılaştırır ve
+  eşit değilse **derlemeyi reddeder** — bu ikisi bu sürümde birbirinden kaymıştı
+  (0.12.0 / 0.11.0).
+
 ### Nasıl doğrulandı
 
 Tarayıcıda gerçek bileşenlerle çizdirilip **ekran görüntüsü alınarak** — 430 ve 900 piksel,
