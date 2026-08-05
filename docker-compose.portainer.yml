@@ -12,16 +12,13 @@
 #   PUBLIC_ORIGIN    https://izleme.marmaracloud.net
 #   BIND_ADDRESS     192.168.2.240      ← 127.0.0.1 birakilirsa NPM ulasamaz, 502 alirsiniz
 #
-# ⚠️ Ilk deploy sunucuda imaj derler: .NET SDK + Node indirilir (~2 GB) ve derleme birkac
-#    dakika surer. Portainer bu sirada sessiz gorunur — bitmesini bekleyin.
-#    Sonraki deploylar katman onbellegi sayesinde cok daha hizlidir.
+# Imaj Docker Hub'da hazir (linux/amd64) — sunucu derlemez, yalnizca indirir.
+# Yeni surum yayinlamak icin: "build ve release" deyin.
 
 services:
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: mssqlrealtime:latest
+    image: hzkucuk/mssqlrealtime:0.5.1
+    pull_policy: always
     container_name: mssqlrealtime
     restart: unless-stopped
 

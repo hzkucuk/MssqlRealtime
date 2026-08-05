@@ -9,10 +9,8 @@
 
 services:
   agent:
-    build:
-      context: .
-      dockerfile: Dockerfile.agent
-    image: mssqlrealtime-agent:latest
+    image: hzkucuk/mssqlrealtime-agent:0.5.1
+    pull_policy: always
     container_name: mssqlrealtime-agent
     restart: unless-stopped
 
