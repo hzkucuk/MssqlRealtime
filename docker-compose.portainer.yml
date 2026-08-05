@@ -1,5 +1,4 @@
-# Portainer stack — izleme.marmaracloud.net
-# Nginx Proxy Manager (jc21/nginx-proxy-manager) ayni sunucuda: 192.168.2.240
+# Portainer stack — musteri basina bir panel
 #
 # Portainer → Stacks → Add stack → Repository
 #   Repository URL : https://github.com/hzkucuk/MssqlRealtime
@@ -8,16 +7,24 @@
 #
 # Environment variables (Portainer stack'leri .env dosyasi OKUMAZ, UI'dan girin):
 #   ADMIN_EMAIL      giris icin kullanacaginiz adres
-#   ADMIN_PASSWORD   en az 10 karakter  (unutmayin: parola sifirlama akisi yok)
+#   ADMIN_PASSWORD   en az 10 karakter  (parola sifirlama akisi YOK, bir yere kaydedin)
 #   PUBLIC_ORIGIN    https://izleme.marmaracloud.net
 #   BIND_ADDRESS     192.168.2.240      ← 127.0.0.1 birakilirsa NPM ulasamaz, 502 alirsiniz
 #
 # Imaj Docker Hub'da hazir (linux/amd64) — sunucu derlemez, yalnizca indirir.
 # Yeni surum yayinlamak icin: "build ve release" deyin.
+#
+# Izlenecek SQL Server'a (or. 192.168.2.2) hicbir sey kurulmaz; ayni LAN uzerinden
+# dogrudan baglanilir. Yalniz SQL tarafinda salt okunur bir kullanici gerekir:
+#   CREATE LOGIN [izleme] WITH PASSWORD = N'...';
+#   GRANT VIEW SERVER STATE TO [izleme];
+#   GRANT VIEW ANY DEFINITION TO [izleme];
+#   -- Oturum sonlandirma (KILL) kullanacaksaniz ayrica:
+#   GRANT ALTER ANY CONNECTION TO [izleme];
 
 services:
   app:
-    image: hzkucuk/mssqlrealtime:0.5.1
+    image: hzkucuk/mssqlrealtime:latest
     pull_policy: always
     container_name: mssqlrealtime
     restart: unless-stopped
@@ -39,9 +46,6 @@ services:
       Cors__AllowedOrigins__0: ${PUBLIC_ORIGIN:-https://izleme.marmaracloud.net}
       Cors__AllowedOrigins__1: tauri://localhost
       Cors__AllowedOrigins__2: http://tauri.localhost
-
-      # Bu sureden uzun sessiz kalan agent icin kritik alarm uretilir.
-      Agents__OfflineAfterMinutes: ${AGENT_OFFLINE_MINUTES:-3}
 
     volumes:
       # 🔴 Yedeklenmesi gereken tek yer.
