@@ -2,6 +2,29 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/)
 
+## [0.11.0] — 2026-08-06
+
+### Eklenen — görsel kimlik ve tasarım
+
+- **Simge** — tarayıcı sekmesindeki gri dünya gitti. Nabız çizgisi geçen bir sunucu rafı:
+  ürünün ne izlediğini ve *canlı* izlediğini söylüyor. 16 pikselde okunabilmesi için
+  şekiller kalın tutuldu, tek ince ayrıntı nabız.
+- **Ana ekrana eklenebilir** (`manifest.webmanifest`): telefonda tam ekran açılır, kendi
+  simgesi ve durum çubuğu rengi olur. iOS ve Android'de çalışır.
+- **Tasarım elden geçirildi.** Kararların gerekçesi `app.css` başında yazılı:
+  - Yeşil/sarı/kırmızı **yalnız ölçülmüş durumu** anlatır; vurgu rengi bu yüzden bilerek
+    mavi-mor. Alarm rengi dekoratif amaçla kullanılsaydı anlamını yitirirdi.
+  - **Yalnız kritik alarm nabız atar** — hareket süs değil, "bu hâlâ sürüyor" demek.
+    Her yerde animasyon olsa hiçbiri fark edilmezdi. Nabız transform/opacity ile çalışır:
+    saatlerce açık kalan bir ekranda her karede yeniden boyama yapmaz.
+  - Sayılar **tabular** hizalı; canlı akışta değişen bir rakam satırı zıplatmıyor.
+  - Yalnızca **tıklanabilir** kartlar hover'da tepki verir; durağan bir kartın oynaması
+    yalan söyler.
+  - Tablo satırında hover vurgusu — 20 satırlık bir listede gözün nerede olduğunu bilmek
+    okumanın yarısı.
+  - Başlık çubuğu yarı saydam + bulanık; desteklemeyen tarayıcıda düz yüzeye düşer.
+  - `prefers-reduced-motion` ve görünür klavye odağı desteklenir.
+
 ## [0.10.0] — 2026-08-06
 
 ### Eklenen — sütun denetimi

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Server rack with a heartbeat running through it: what the product watches, and that
+       it watches it live. Reads at 16px because the shapes stay chunky and the trace is the
+       only fine detail. -->
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4a9eff"/>
+      <stop offset="1" stop-color="#7c5cff"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="64" height="64" rx="14" fill="#141922"/>
+  <rect x="10" y="11" width="44" height="15" rx="4" fill="url(#g)" opacity="0.9"/>
+  <rect x="10" y="38" width="44" height="15" rx="4" fill="url(#g)" opacity="0.55"/>
+  <circle cx="17" cy="18.5" r="2.4" fill="#0f1216" opacity="0.75"/>
+  <circle cx="17" cy="45.5" r="2.4" fill="#0f1216" opacity="0.75"/>
+
+  <!-- The pulse sits in the gap between the units so it stays legible when scaled down. -->
+  <path d="M6 32h11l4.5-8 6 16 5-11 4 6h21"
+        fill="none" stroke="#35c07a" stroke-width="3.4"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

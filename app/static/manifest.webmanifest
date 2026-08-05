@@ -1,0 +1,25 @@
+{
+	"name": "Sunucu İzleme",
+	"short_name": "İzleme",
+	"description": "MSSQL ve site izleme paneli — canlı",
+	"start_url": "/",
+	"scope": "/",
+	"display": "standalone",
+	"orientation": "portrait-primary",
+	"background_color": "#0f1216",
+	"theme_color": "#0f1216",
+	"icons": [
+		{
+			"src": "/favicon.svg",
+			"sizes": "any",
+			"type": "image/svg+xml",
+			"purpose": "any"
+		},
+		{
+			"src": "/apple-touch-icon.png",
+			"sizes": "180x180",
+			"type": "image/png",
+			"purpose": "any maskable"
+		}
+	]
+}

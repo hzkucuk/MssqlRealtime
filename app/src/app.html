@@ -1,9 +1,21 @@
 <!doctype html>
-<html lang="en">
+<html lang="tr">
 	<head>
 		<meta charset="utf-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 		<meta name="text-scale" content="scale" />
+
+		<link rel="icon" href="%sveltekit.assets%/favicon.svg" type="image/svg+xml" />
+		<link rel="apple-touch-icon" href="%sveltekit.assets%/apple-touch-icon.png" />
+
+		<!-- Added to the home screen on a phone, this decides the status bar and splash colour. -->
+		<meta name="theme-color" content="#0f1216" media="(prefers-color-scheme: dark)" />
+		<meta name="theme-color" content="#f4f6f9" media="(prefers-color-scheme: light)" />
+		<meta name="apple-mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+		<meta name="apple-mobile-web-app-title" content="Sunucu İzleme" />
+		<link rel="manifest" href="%sveltekit.assets%/manifest.webmanifest" />
+
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">

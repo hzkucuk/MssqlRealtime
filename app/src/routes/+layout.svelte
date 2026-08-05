@@ -113,19 +113,35 @@
 		align-items: center;
 		justify-content: space-between;
 		gap: 0.5rem;
-		padding: 0.6rem 0.75rem;
-		background: var(--surface);
+		padding: 0.6rem 0.85rem;
+		/* Yarı saydam + bulanık: altındaki içerik kaydıkça görünür, ama başlık okunur kalır.
+		   Destekleyemeyen tarayıcıda düz yüzeye düşer. */
+		background: color-mix(in srgb, var(--surface) 88%, transparent);
+		backdrop-filter: blur(12px) saturate(140%);
+		-webkit-backdrop-filter: blur(12px) saturate(140%);
 		border-bottom: 1px solid var(--border);
 		position: sticky;
 		top: 0;
 		z-index: 10;
 	}
 
+	@supports not (backdrop-filter: blur(1px)) {
+		header {
+			background: var(--surface);
+		}
+	}
+
 	.brand {
 		display: flex;
 		align-items: center;
-		gap: 0.35rem;
+		gap: 0.4rem;
 		font-size: 1rem;
+		min-width: 0;
+		transition: opacity var(--speed) var(--ease);
+	}
+
+	.brand:hover {
+		opacity: 0.85;
 	}
 
 	.back {
@@ -145,18 +161,33 @@
 	.conn {
 		display: inline-flex;
 		align-items: center;
-		gap: 0.3rem;
-		font-size: 0.75rem;
+		gap: 0.35rem;
+		font-size: 0.72rem;
 		color: var(--muted);
+		padding: 0.2rem 0.5rem;
+		border-radius: 999px;
+		background: var(--surface-2);
+		border: 1px solid var(--border);
+		white-space: nowrap;
+	}
+
+	/* Canlı akış varken nokta yeşil ve sabit; yokken sarı. Metin de durumu söylüyor —
+	   rengi tek başına bilgi taşıyıcı yapmıyoruz. */
+	.conn.live {
+		color: var(--ok);
+		border-color: color-mix(in srgb, var(--ok) 30%, transparent);
+		background: color-mix(in srgb, var(--ok) 8%, transparent);
 	}
 
 	.count {
 		background: var(--crit);
 		color: #fff;
 		border-radius: 999px;
-		padding: 0 0.3rem;
-		margin-left: 0.2rem;
-		font-size: 0.7rem;
+		padding: 0.05rem 0.32rem;
+		margin-left: 0.25rem;
+		font-size: 0.68rem;
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
 	}
 
 	.alerts {
@@ -164,14 +195,24 @@
 		overflow-y: auto;
 		background: var(--surface);
 		border-bottom: 1px solid var(--border);
+		box-shadow: var(--shadow);
 	}
 
 	.alert-row {
 		display: flex;
-		gap: 0.5rem;
+		gap: 0.55rem;
 		align-items: flex-start;
-		padding: 0.55rem 0.75rem;
+		padding: 0.6rem 0.85rem;
 		border-bottom: 1px solid var(--border);
+		transition: background var(--speed) var(--ease);
+	}
+
+	.alert-row:hover {
+		background: var(--surface-2);
+	}
+
+	.alert-row:last-child {
+		border-bottom: none;
 	}
 
 	.alert-row .dot {

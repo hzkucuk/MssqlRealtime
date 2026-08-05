@@ -13,7 +13,7 @@
 ; disinda okunamaz) ve ilk aciliste veritabanina hash'lenerek kaydedilir.
 
 #define AppName "Sunucu Izleme"
-#define AppVersion "0.10.0"
+#define AppVersion "0.11.0"
 #define AppPublisher "hzkucuk"
 #define ServiceName "SunucuIzleme"
 #define ExeName "MssqlRealtime.Api.exe"
