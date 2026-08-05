@@ -24,8 +24,6 @@ public sealed record ServerProfileDto
     public required bool Enabled { get; init; }
     public required int PollIntervalSeconds { get; init; }
 
-    /// <summary>Which agent polls this server; null means the hub connects directly.</summary>
-    public Guid? AgentId { get; init; }
 
     public required AlertThresholdsDto Thresholds { get; init; }
     public DateTimeOffset UpdatedAt { get; init; }
@@ -47,7 +45,6 @@ public sealed record ServerProfileDto
         CommandTimeoutSeconds = p.CommandTimeoutSeconds,
         Enabled = p.Enabled,
         PollIntervalSeconds = p.PollIntervalSeconds,
-        AgentId = p.AgentId,
         Thresholds = AlertThresholdsDto.From(p),
         UpdatedAt = p.UpdatedAt
     };
@@ -111,11 +108,6 @@ public sealed record ServerProfileRequest
     public bool Enabled { get; init; } = true;
     public int PollIntervalSeconds { get; init; } = 5;
 
-    /// <summary>
-    /// Assign to an agent when the server is behind NAT and the hub cannot reach it.
-    /// Null hands the server back to the hub's own poller.
-    /// </summary>
-    public Guid? AgentId { get; init; }
 
     public AlertThresholdsDto? Thresholds { get; init; }
 

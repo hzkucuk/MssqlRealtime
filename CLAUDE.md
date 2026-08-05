@@ -7,18 +7,16 @@
 - **Backend:** .NET 10, ASP.NET Core, SignalR, EF Core + SQLite, ASP.NET Core Identity
 - **Ön yüz:** SvelteKit (Svelte 5 runes) + Tauri 2 → iOS, Android, masaüstü, tarayıcı
 - **Araçlar (modüller):** MSSQL İzleme, Site/API İzleme
-- **Agent:** müşteri sunucusunda çalışan, dışa doğru bağlanan ölçüm servisi
-- **Yayın:** Docker Hub → Portainer → Nginx Proxy Manager → `izleme.marmaracloud.net`
+- **Yayın:** Docker Hub → Portainer → Nginx Proxy Manager
 
-### İki ayrı imaj, çünkü iki ayrı makine
+## Dağıtım modeli: müşteri başına bir hub
 
-| İmaj | Nerede çalışır | Kaç tane |
-|---|---|---|
-| `hzkucuk/mssqlrealtime` | **Senin** sunucun (Portainer) | 1 |
-| `hzkucuk/mssqlrealtime-agent` | **Müşterinin** sunucusu | müşteri başına 1 |
+Her müşterinin kendi Portainer makinesine **tek bir konteyner** kurulur ve o müşterinin SQL
+sunucularını **aynı LAN üzerinden doğrudan** izler. İzlenen Windows makineye hiçbir şey
+kurulmaz — yalnız SQL'de salt okunur bir kullanıcı gerekir.
 
-Aynı stack'te olamazlar: agent'ın tek varlık sebebi, hub'ın ulaşamadığı bir ağın *içinde*
-olmaktır. Hub bir SQL Server'a doğrudan erişebiliyorsa **agent gerekmez**.
+Telefonda birden fazla müşteri paneli kayıtlıdır ve aralarında tek dokunuşla geçilir; her
+panel kendi oturumunu saklar.
 
 Belgeler:
 
@@ -30,7 +28,6 @@ Belgeler:
 | `docs/04-kirilma-noktalari.md` | Ne bozulur, **bugün** ne olur — ölçülmüş |
 | `docs/05-olculen-bulgular.md` | Canlı ölçümle bulunan davranışlar ve tuzaklar |
 | `docs/06-bildirimler.md` | Telegram/e-posta/webhook kurulumu |
-| `docs/07-agent.md` | Agent kurulumu — NAT arkasındaki müşteriler |
 
 ---
 
@@ -71,10 +68,6 @@ gerçekliği (yeniden deneme, idempotency, gözlemlenebilirlik) tecrübesi.
    `dotnet build` **ve** `dotnet test` **ve** ön yüzde `npm run check`. Kırılan her yeri
    düzelt ve kullanıcıya *"şunu değiştirdim, şu N yeri etkiledi, şöyle düzelttim"* de.
    Sessizce düzeltilen bir kırılma, gözden kaçandan ayırt edilemez.
-
-2. **Agent hiçbir şeye karar vermez.** Ölçer ve gönderir. Eşikler, alarm motoru, bildirim
-   ve geçmiş **merkezde** kalır. Böylece agent üzerinden izlenen sunucu doğrudan izlenenle
-   aynı sonucu verir ve eski/ele geçirilmiş bir agent alarmı bastıramaz.
 
 3. **Ölçemediğin şeyi "normal" diye raporlama.** Sunucuya erişilemiyorsa veya prob hata
    verdiyse o kural için `IsBreached = false` gönderme — gerçekte süren bir sorunu
@@ -147,7 +140,6 @@ yazılmadı.
 | Hata | Nasıl görünüyordu |
 |---|---|
 | `aspnet:10.0` imajında **curl yok** | `HEALTHCHECK` hiç geçmiyor, konteyner sonsuza kadar "starting"; `depends_on: service_healthy` sessizce bozuk |
-| Agent `runtime:10.0`'da başlamıyor | `framework 'Microsoft.AspNetCore.App' not found` — `Core`/`Modules.Mssql` üzerinden miras alınan referans |
 
 Doğrulama: `docker inspect <ad> --format '{{.State.Health.Status}}'` → `healthy`.
 
@@ -156,10 +148,9 @@ Doğrulama: `docker inspect <ad> --format '{{.State.Health.Status}}'` → `healt
 | Deneme | Sonuç |
 |---|---|
 | `-alpine` / `-chiseled` | `Microsoft.Data.SqlClient` ICU ister → *"Globalization Invariant Mode is not supported"* |
-| `runtime:10.0` (agent) | ASP.NET Core framework yok → agent açılmıyor |
 | `curl` kurulumunu kaldırmak | HEALTHCHECK ölür |
 
-İkisi de **Debian tabanlı `aspnet:10.0`**. `InvariantGlobalization` `false` kalmalı.
+**Debian tabanlı `aspnet:10.0`** kullanılır. `InvariantGlobalization` `false` kalmalı.
 
 ## Mimari — sessiz tuzak
 
@@ -168,8 +159,7 @@ sunucuda konteyner hiç açılmaz. Yayınlarken **`--platform linux/amd64`** zor
 
 ## "build ve release"
 
-Kullanıcı **"build ve release"** dediğinde: her iki imajı `--platform linux/amd64` ile
-derle ve **Docker Hub**'a gönder (`hzkucuk/mssqlrealtime`, `hzkucuk/mssqlrealtime-agent`).
+Kullanıcı **"build ve release"** dediğinde: imajı `--platform linux/amd64` ile derle ve **Docker Hub**'a gönder (`hzkucuk/mssqlrealtime`).
 Sürüm etiketi `Directory.Build.props` → `VersionPrefix` ile aynı olmalı; `latest` de
 güncellenir. Otomatik CI (GitHub Actions/ghcr.io) **reddedildi** — yayın komutla tetiklenir.
 
@@ -218,17 +208,6 @@ Hazır betik: `tools/502-teshis.sh`.
 bekleme — en iyi ihtimalle `401` döner. WebSocket'in çalıştığını **tarayıcıdaki bağlantı
 göstergesi** doğrular.
 
-## Agent dağıtımı
-
-- Windows Server'a kurulan **agent**'tır, merkez değil.
-- ⚠️ **Önce sor: hub o SQL Server'a doğrudan ulaşabiliyor mu?** Ulaşabiliyorsa agent
-  gereksizdir; sunucuyu merkeze ekleyip doğrudan izlemek daha az parça demektir.
-- **Self-contained** yayınla (`tools/agent-paketle.sh`) — müşterinin üretim sunucusuna
-  .NET runtime kurdurma.
-- Kurulum: `tools/agent-kur.ps1` (yönetici PowerShell). Kayıt anahtarı yer tutucuysa
-  kurulumu **reddeder**.
-- Müşteride Docker varsa `docker-compose.agent.yml` daha kolay; hiçbir port yayınlanmaz.
-- Konteyner içinden host'taki SQL'e erişim `localhost` **değil** `host.docker.internal`.
 
 ---
 

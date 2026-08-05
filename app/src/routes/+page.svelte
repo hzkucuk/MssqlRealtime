@@ -57,14 +57,6 @@
 	{/if}
 
 	<h2 style="margin-top:1.2rem">Yönetim</h2>
-	<a class="card tool" href="/agentlar">
-		<span class="icon">🛰️</span>
-		<span style="flex:1;min-width:0">
-			<strong>Agent'lar</strong>
-			<div class="muted">NAT arkasındaki müşteri sunucuları için</div>
-		</span>
-		<span class="muted">›</span>
-	</a>
 	<a class="card tool" href="/bildirimler">
 		<span class="icon">🔔</span>
 		<span style="flex:1;min-width:0">

@@ -25,14 +25,7 @@
 
 | Ne bozulur | Bugün ne olur | Ne olmalı |
 |---|---|---|
-| Müşteri sunucusuna erişim yok (NAT/firewall) | ✅ Çözüldü (v0.4.0): **agent modu** — müşteri sunucusundan dışa doğru bağlanılır. `docs/07-agent.md` | ✅ |
-| **Agent çevrimdışı** | ✅ Çözüldü (v0.5.0): agent N dakika (varsayılan 3) sessiz kalırsa **kritik alarm** üretilir ve mesaj kaç sunucunun izlenmediğini söyler. Ölçüldü 2026-08-05. | ✅ |
-| Agent hiç kurulmadı (anahtar üretildi, kurulmadı) | Alarm üretilmez — bilinçli: her hazırlanan agent için nöbetçi uyandırılmaz. Listede "henüz hiç bağlanmadı" görünür. | ✅ |
-| Agent'a hiç sunucu atanmamış | Alarm üretilmez; sessizliğinin bir bedeli yok. | ✅ |
-| Hub yeniden başlar, agent'lar henüz bağlanmadı | Sağlık servisi 45 sn bekleyip başlar; yeniden bağlanma penceresi tanınır. | ✅ |
-| Agent bağlantısı koparken ölçüm | Biriktirilmez, kaybolur (bilinçli: eski snapshot yanıltıcıdır). | ✅ |
-| Agent protokol sürümü eski | Kayıt reddedilir, agent log'una "güncelleyin" yazılır. | ✅ |
-| Agent kayıt anahtarı sızarsa | Yalnız ölçüm gönderebilir; okuma/komut yetkisi yok. Anahtar arayüzden yenilenir, eskisi anında geçersiz olur. | ✅ |
+| Müşteri sunucusuna erişim yok (NAT/firewall) | Bu dağıtım modelinde oluşmaz: hub müşterinin kendi ağında çalışır. Uzaktan izlenen bir müşteri çıkarsa VPN gerekir ya da agent v0.6.0'dan geri alınır. | ❓ ölçülmedi |
 | Çok sayıda sunucu | Her sunucu **bağımsız** döngüde; biri yavaşsa diğerini bekletmez. Yük tek sunucuyla ölçüldü, N sunucuda ölçülmedi ❓ | 50+ sunucuda ölçüp poller havuzu sınırlanmalı. |
 | Bir müşteri SQL'i çok yavaş | `CommandTimeout` (varsayılan 15 sn) sonrası prob hata verir; döngü devam eder. | ✅ |
 | SignalR yerine long-polling'e düşülür | nginx'te WebSocket upgrade yoksa **sessizce** olur; işlev aynı, mobil veri/pil tüketimi artar. | `deploy/nginx/README.md` içindeki 101 testi ile doğrula. |

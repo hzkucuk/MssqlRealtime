@@ -7,7 +7,6 @@ using MssqlRealtime.Api.Endpoints;
 using MssqlRealtime.Api.Realtime;
 using MssqlRealtime.Api.Setup;
 using MssqlRealtime.Core.Abstractions;
-using MssqlRealtime.Core.Agents;
 using MssqlRealtime.Core.Alerts;
 using MssqlRealtime.Core.Modularity;
 using MssqlRealtime.Core.Notifications;
@@ -74,8 +73,6 @@ builder.Services.AddSingleton<ISecretProtector, DataProtectionSecretProtector>()
 builder.Services.AddSingleton<IAlertEngine, AlertEngine>();
 builder.Services.AddSingleton<IRealtimePublisher, SignalRPublisher>();
 builder.Services.AddSingleton<IModuleRegistry, ModuleRegistry>();
-builder.Services.AddSingleton<IAgentRegistry, AgentRegistry>();
-builder.Services.AddSingleton<IAgentNotifier, AgentNotifier>();
 
 // --- Alerting and notifications -------------------------------------------------------------
 // A raised alert goes three ways: connected apps, persisted history, and the notification
@@ -86,8 +83,6 @@ builder.Services.AddHostedService<AlertDeliveryService>();
 builder.Services.AddHostedService<AlertMaintenanceService>();
 builder.Services.AddHostedService<NotificationRetryService>();
 
-// An agent that stops reporting must say so; silence is not the same as health.
-builder.Services.AddHostedService<AgentHealthService>();
 
 builder.Services.AddScoped<IAlertStore, EfAlertStore>();
 builder.Services.AddScoped<INotificationSettingsStore, NotificationSettingsStore>();
@@ -204,13 +199,10 @@ app.MapGet("/api/modules", (IModuleRegistry registry) => Results.Ok(registry.Des
     .RequireAuthorization();
 
 app.MapNotificationEndpoints();
-app.MapAgentEndpoints();
 app.MapToolModules();
 
 app.MapHub<ToolsHub>(ToolsHub.Path);
 
-// Agents connect here with an enrollment key rather than an operator login.
-app.MapHub<AgentHub>(AgentProtocol.HubPath);
 
 // The same SvelteKit build that ships inside Tauri is served here for desktop browsers.
 app.UseDefaultFiles();

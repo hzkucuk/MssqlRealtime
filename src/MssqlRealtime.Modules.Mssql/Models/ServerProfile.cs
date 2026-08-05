@@ -39,14 +39,6 @@ public sealed class ServerProfile
 
     public bool Enabled { get; set; } = true;
 
-    /// <summary>
-    /// Which agent polls this server, or null for "the hub connects directly".
-    /// <para>
-    /// Set this when the customer's SQL Server is behind NAT or a firewall: an agent on their
-    /// side dials out to us, so nothing has to be opened inbound.
-    /// </para>
-    /// </summary>
-    public Guid? AgentId { get; set; }
 
     /// <summary>How often the poller refreshes this server.</summary>
     public int PollIntervalSeconds { get; set; } = 5;

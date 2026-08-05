@@ -41,15 +41,6 @@ Bu araç, platformun iddiasının kanıtı: alarm motoruna, bildirim kanalların
 dokunulmadan eklendi — bir kayıt satırı ve bir ön yüz klasörü. Nasıl yapıldığı:
 `docs/02-modul-ekleme.md`.
 
-## Müşteri sunucusuna erişemiyorsan: agent
-
-Çoğu müşteride 1433'e dışarıdan ulaşamazsın — NAT arkasında, güvenlik duvarı kapalı.
-O zaman bağlantı yönü ters çevrilir: müşteri sunucusuna kurulan küçük bir servis **dışarı
-doğru** bağlanır, yerelde ölçer ve sonucu gönderir. Müşteri tarafında hiçbir port açılmaz.
-
-Eşikler, alarm ve bildirim yine merkezde kalır — agent yalnız ölçer. Kurulum:
-`docs/07-agent.md`.
-
 ## Alarm ve bildirim
 
 Kendi belirlediğin sınır aşılınca haber verir — **uygulama kapalıyken de**:
@@ -103,7 +94,6 @@ Kısa yol: `deploy/nginx/README.md`.
 | `docs/04-kirilma-noktalari.md` | Ne bozulur, bugün ne olur — ölçülmüş |
 | `docs/05-olculen-bulgular.md` | Canlı ölçümle bulunan davranışlar ve tuzaklar |
 | `docs/06-bildirimler.md` | **Telegram/e-posta/webhook kurulumu** ve gürültü kontrolü |
-| `docs/07-agent.md` | **Agent kurulumu** — NAT arkasındaki müşteriler |
 
 ## Yapı
 
@@ -114,7 +104,6 @@ src/
   MssqlRealtime.Modules.Mssql/   MSSQL aracı (problar, poller, uçlar)
   MssqlRealtime.Modules.Http/    Site/API aracı (kontrol, sertifika, uçlar)
   MssqlRealtime.Api/             Host: SignalR hub, Identity, statik ön yüz
-  MssqlRealtime.Agent/           Müşteri tarafında çalışan ölçüm servisi
 app/
   src/lib/modules/<araç>/        Aracın ekranları
   src-tauri/                     Mobil/masaüstü kabuk

@@ -1,6 +1,5 @@
 <Solution>
   <Folder Name="/src/">
-    <Project Path="src/MssqlRealtime.Agent/MssqlRealtime.Agent.csproj" />
     <Project Path="src/MssqlRealtime.Api/MssqlRealtime.Api.csproj" />
     <Project Path="src/MssqlRealtime.Core/MssqlRealtime.Core.csproj" />
     <Project Path="src/MssqlRealtime.Infrastructure/MssqlRealtime.Infrastructure.csproj" />

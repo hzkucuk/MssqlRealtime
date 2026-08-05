@@ -5,7 +5,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using MssqlRealtime.Core.Abstractions;
-using MssqlRealtime.Core.Agents;
 using MssqlRealtime.Core.Modularity;
 using MssqlRealtime.Modules.Mssql.Models;
 using MssqlRealtime.Modules.Mssql.Polling;
@@ -48,11 +47,6 @@ public sealed class MssqlModule : IToolModule
         services.AddSingleton<ISqlProbe, ServicesProbe>();
 
         services.AddHostedService<MssqlPollingService>();
-
-        // Agent support: servers behind NAT are polled by an agent on the customer's side and
-        // arrive through these two seams instead of the local poller.
-        services.AddScoped<IAgentConfigurationProvider, Agents.MssqlAgentConfigurationProvider>();
-        services.AddSingleton<IAgentSnapshotSink, Agents.MssqlAgentSnapshotSink>();
     }
 
     public void ConfigureDbModel(ModelBuilder modelBuilder)
@@ -69,7 +63,6 @@ public sealed class MssqlModule : IToolModule
             e.Property(x => x.ProtectedPassword).HasMaxLength(4000);
             e.Property(x => x.AuthMode).HasConversion<int>();
             e.HasIndex(x => x.CustomerName);
-            e.HasIndex(x => x.AgentId);
         });
     }
 
@@ -115,7 +108,6 @@ public sealed class MssqlModule : IToolModule
             ServerProfileRequest request,
             IServerProfileStore store,
             ISecretProtector protector,
-            IAgentNotifier agents,
             CancellationToken ct) =>
         {
             var errors = request.Validate();
@@ -129,10 +121,6 @@ public sealed class MssqlModule : IToolModule
 
             await store.AddAsync(profile, ct);
 
-            if (profile.AgentId is { } newAgent)
-            {
-                await agents.NotifyConfigurationChangedAsync(newAgent, ct);
-            }
 
             return Results.Created($"/api/modules/{ModuleId}/servers/{profile.Id}", ServerProfileDto.From(profile));
         });
@@ -142,7 +130,6 @@ public sealed class MssqlModule : IToolModule
             ServerProfileRequest request,
             IServerProfileStore store,
             ISecretProtector protector,
-            IAgentNotifier agents,
             CancellationToken ct) =>
         {
             var errors = request.Validate();
@@ -157,20 +144,10 @@ public sealed class MssqlModule : IToolModule
                 return Results.NotFound(new { error = "Sunucu profili bulunamadı." });
             }
 
-            // Both the old and the new owner need telling: one gains the server, one loses it.
-            var previousAgent = profile.AgentId;
             Apply(request, profile, protector);
 
             var result = await store.UpdateAsync(profile, ct);
 
-            if (result.IsSuccess)
-            {
-                var affected = new[] { previousAgent, profile.AgentId }
-                    .Where(a => a is not null)
-                    .Select(a => a!.Value);
-
-                await agents.NotifyConfigurationChangedAsync(affected, ct);
-            }
 
             return result.IsSuccess
                 ? Results.Ok(ServerProfileDto.From(profile))
@@ -180,16 +157,10 @@ public sealed class MssqlModule : IToolModule
         routes.MapDelete("/servers/{id:guid}", async (
             Guid id,
             IServerProfileStore store,
-            IAgentNotifier agents,
             CancellationToken ct) =>
         {
-            var owner = (await store.GetAsync(id, ct))?.AgentId;
             var result = await store.DeleteAsync(id, ct);
 
-            if (result.IsSuccess && owner is { } agentId)
-            {
-                await agents.NotifyConfigurationChangedAsync(agentId, ct);
-            }
             return result.IsSuccess
                 ? Results.NoContent()
                 : Results.NotFound(new { error = result.Error });
@@ -261,7 +232,6 @@ public sealed class MssqlModule : IToolModule
         profile.CommandTimeoutSeconds = request.CommandTimeoutSeconds;
         profile.Enabled = request.Enabled;
         profile.PollIntervalSeconds = request.PollIntervalSeconds;
-        profile.AgentId = request.AgentId;
 
         // An omitted password means "keep the stored one"; an empty string means "clear it".
         if (request.Password is not null)

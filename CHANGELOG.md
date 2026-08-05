@@ -2,6 +2,25 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/)
 
+## [0.7.0] — 2026-08-05
+
+Agent kaldırıldı.
+
+### Kaldırılan
+
+- `MssqlRealtime.Agent` projesi, agent hub'ı, kayıt/anahtar yönetimi, sessizlik alarmı,
+  agent yönetim ekranı, `Dockerfile.agent` ve agent compose dosyaları.
+- `ServerProfile.AgentId` kolonu ve `Agents` tablosu (migration: `RemoveAgentSupport`).
+
+### Neden
+
+Dağıtım modeli netleşti: **her müşteride bir hub**, kendi Portainer makinesinde, aynı LAN'daki
+SQL sunucularını doğrudan izliyor. Agent'ın tek işlevi ulaşılamayan bir ağın içinden dışa
+bağlanmaktı — bu modelde hiç devreye girmiyor ve varlığı her kurulumda *"agent kurmalı
+mıyım?"* sorusunu doğuruyordu.
+
+Kod git geçmişinde duruyor (`v0.6.0`); ulaşılamayan bir müşteri çıkarsa oradan geri alınır.
+
 ## [0.6.0] — 2026-08-05
 
 Çoklu panel: her müşteri kendi hub'ında.
