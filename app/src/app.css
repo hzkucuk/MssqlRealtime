@@ -64,9 +64,13 @@
 		--accent: #2570e8;
 		--accent-soft: #6d4aff;
 
-		--ok: #12915c;
-		--warn: #b26a00;
-		--crit: #d63b26;
+		/* Açık temada ölçülmüş: eski çift (#b26a00 / #d63b26) kırmızı-yeşil renk körlüğünde
+		   ΔE 1.0 ile ayırt edilemiyordu — "uyarı" ile "kritik" aynı görünüyordu. Bu üçlü
+		   dataviz doğrulayıcısından geçiyor: en kötü normal-görme çifti ΔE 19.4,
+		   en kötü CVD çifti (kırmızı↔yeşil) ΔE 7.9 + her zaman metin etiketiyle birlikte. */
+		--ok: #0e7a4d;
+		--warn: #b0851c;
+		--crit: #c62828;
 
 		--shadow: 0 1px 2px rgb(16 24 40 / 0.06), 0 4px 14px -8px rgb(16 24 40 / 0.16);
 		--shadow-lift: 0 2px 6px rgb(16 24 40 / 0.08), 0 12px 26px -12px rgb(16 24 40 / 0.24);
@@ -75,6 +79,20 @@
 
 * {
 	box-sizing: border-box;
+}
+
+/* Zemin tek düz renk değil: iki çok soluk ışık kaynağı, ekranın üst köşelerinden.
+   Amaç dekor değil — düz koyu bir yüzeyde kartların kenarları kaybolur; bu, kartlara
+   üzerinde durdukları bir derinlik veriyor. Okunabilirliği etkilemeyecek kadar soluk. */
+body::before {
+	content: '';
+	position: fixed;
+	inset: 0;
+	pointer-events: none;
+	z-index: -1;
+	background:
+		radial-gradient(60rem 30rem at 15% -10%, color-mix(in srgb, var(--accent) 7%, transparent), transparent),
+		radial-gradient(50rem 26rem at 90% -5%, color-mix(in srgb, var(--accent-soft) 6%, transparent), transparent);
 }
 
 html,
@@ -197,6 +215,27 @@ select:focus {
 }
 
 /* Yalnızca tıklanabilir kartlar tepki verir; durağan bir kartın hover'da oynaması yalan söyler. */
+/* Durum şeridi: kartın sol kenarında ince bir renk. Nokta zaten durumu söylüyor ama
+   listede aşağı kaydırırken göz şeridi yakalar — tek tek noktaları taramaz. */
+.sev-edge-1::before,
+.sev-edge-2::before {
+	content: '';
+	position: absolute;
+	left: 0;
+	top: 0;
+	bottom: 0;
+	width: 3px;
+	border-radius: var(--radius) 0 0 var(--radius);
+}
+
+.sev-edge-1::before {
+	background: var(--warn);
+}
+
+.sev-edge-2::before {
+	background: var(--crit);
+}
+
 a.card:hover,
 button.card:hover {
 	border-color: var(--border-strong);
@@ -292,10 +331,19 @@ button.card:active {
 	min-height: 1.9rem;
 }
 
+/* Sabit 2/4 sütun — "auto-fit" değil. auto-fit, dört ölçümlü bir kartta üç sütun seçip
+   dördüncüyü tek başına alta düşürüyordu; yanında kart genişliği kadar boşluk kalıyordu.
+   İki ve dört, hem 4'lü (özet kartı) hem 8'li (detay) ızgarayı tam dolduruyor. */
 .grid {
 	display: grid;
 	gap: 0.5rem;
-	grid-template-columns: repeat(auto-fit, minmax(115px, 1fr));
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (min-width: 560px) {
+	.grid {
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+	}
 }
 
 /* Ölçülmüş tek değer. Göz önce sayıya iner, etiket sonra gelir. */
@@ -313,6 +361,10 @@ button.card:active {
 	/* Canlı akışta rakam değişince satır zıplamasın. */
 	font-variant-numeric: tabular-nums;
 	line-height: 1.2;
+}
+
+.stat :global(.spark) {
+	margin-top: 0.35rem;
 }
 
 .stat .label {

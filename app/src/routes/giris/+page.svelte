@@ -104,7 +104,39 @@
 </script>
 
 <div class="page login">
-	<h1>Sunucu İzleme</h1>
+	<!-- The one screen in the product with no data on it, so the one place a mark can breathe.
+	     The trace is the same motif as the favicon: a pulse. It draws itself once, on arrival —
+	     the product's whole promise in one gesture — then stops. It does not loop, because a
+	     loop would compete with the alarm pulse that actually means something. -->
+	<header class="hero">
+		<svg class="mark" viewBox="0 0 220 56" role="img" aria-label="Sunucu İzleme">
+			<defs>
+				<linearGradient id="trace" x1="0" y1="0" x2="1" y2="0">
+					<stop offset="0%" stop-color="var(--accent-soft)" />
+					<stop offset="100%" stop-color="var(--accent)" />
+				</linearGradient>
+			</defs>
+			<path
+				class="baseline"
+				d="M2 28 H70 l10 0 M150 28 H218"
+				fill="none"
+				stroke="var(--border)"
+				stroke-width="1.5"
+			/>
+			<path
+				class="pulse"
+				d="M70 28 h12 l7 -18 l9 36 l8 -26 l7 8 h37"
+				fill="none"
+				stroke="url(#trace)"
+				stroke-width="2.5"
+				stroke-linecap="round"
+				stroke-linejoin="round"
+			/>
+		</svg>
+
+		<h1>Sunucu İzleme</h1>
+		<p class="tagline">Sunucularınız ne yapıyor — şu anda.</p>
+	</header>
 
 	{#if error}<div class="error">{error}</div>{/if}
 
@@ -211,8 +243,56 @@
 		padding-top: 2.5rem;
 	}
 
+	.hero {
+		text-align: center;
+		margin-bottom: 1.6rem;
+	}
+
+	.mark {
+		width: 200px;
+		height: 52px;
+		margin: 0 auto 0.5rem;
+		display: block;
+		/* The glow is on the mark only — it is what makes this feel like a title screen
+		   rather than a form, and it costs nothing on any screen that shows data. */
+		filter: drop-shadow(0 0 14px color-mix(in srgb, var(--accent) 35%, transparent));
+	}
+
+	.pulse {
+		stroke-dasharray: 190;
+		stroke-dashoffset: 190;
+		animation: draw 1.1s cubic-bezier(0.22, 1, 0.36, 1) 0.15s forwards;
+	}
+
+	@keyframes draw {
+		to {
+			stroke-dashoffset: 0;
+		}
+	}
+
 	.login h1 {
-		margin-bottom: 0.8rem;
+		margin: 0 0 0.25rem;
+		font-size: 1.6rem;
+		letter-spacing: -0.02em;
+		/* Gradient ink on the wordmark alone. Applied to body text it would hurt contrast;
+		   on 1.6rem semibold at this pair's lightness it stays legible. */
+		background: linear-gradient(100deg, var(--text) 20%, var(--accent) 130%);
+		-webkit-background-clip: text;
+		background-clip: text;
+		color: transparent;
+	}
+
+	.tagline {
+		margin: 0;
+		color: var(--muted);
+		font-size: 0.88rem;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.pulse {
+			animation: none;
+			stroke-dashoffset: 0;
+		}
 	}
 
 	.entry {

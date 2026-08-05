@@ -2,6 +2,51 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/)
 
+## [0.12.0] — 2026-08-06
+
+### Eklenen — sanatsal ve ölçülmüş
+
+Kullanıcı: *"tasarım daha sanatsal olabilir bence."* Süs eklemek yerine **veriye biçim
+verildi** — bir izleme panelinde en güzel şey, bakınca anlaşılan veridir.
+
+- **Sparkline** — her CPU ve bellek kutucuğunun altında son ~40 ölçümün şeridi. Sayı
+  *nerede olduğunu* söyler; şerit *nereye gittiğini*. Gece 3'te sorulan asıl soru bu.
+  - Ölçek her kartta sabit (0–100) — kartlar birbiriyle karşılaştırılabilsin diye.
+    Otomatik ölçek, %2'lik gürültüyü dağ gibi gösterirdi.
+  - Renk **vurgu rengi**, durum rengi değil: kartın şeridi ve noktası durumu zaten
+    söylüyor, üçüncü kez söylemek gürültü olurdu.
+  - Geçmiş yalnız bellekte; kalıcı olsaydı "rapor" olduğunu ima ederdi.
+- **Giriş ekranı bir kapak oldu.** Üründeki tek verisiz ekran, dolayısıyla markanın nefes
+  alabileceği tek yer. Nabız çizgisi açılışta **bir kez** kendini çizer — döngü olsaydı
+  gerçekten bir şey ifade eden alarm nabzıyla yarışırdı. Kelime işareti degrade mürekkep;
+  gövde metnine uygulansa kontrastı düşerdi, 1.6rem başlıkta okunaklı kalıyor.
+- **Kartın sol kenarında durum şeridi** — listeyi kaydırırken göz noktaları tek tek
+  taramıyor, şeridi yakalıyor.
+- **Zeminde iki çok soluk ışık** (üst köşeler). Düz koyu bir yüzeyde kartların kenarı
+  kayboluyordu; artık üzerinde durdukları bir derinlik var.
+
+### Düzeltilen — ölçümle bulundu
+
+- 🔴 **Açık temada "uyarı" ile "kritik" ayırt edilemiyordu.** Eski çift
+  (`#b26a00` / `#d63b26`) kırmızı-yeşil renk körlüğünde **ΔE 1.0**, normal görmede
+  **11.3** (eşik 15) — yani tam görüşlü biri için bile zor. Bir izleme panelinde
+  "uyarı"yı "kritik" sanmak tam da olmaması gereken hata. Yeni üçlü doğrulayıcıdan
+  geçiyor: `--ok #0e7a4d`, `--warn #b0851c`, `--crit #c62828`; en kötü normal-görme
+  çifti ΔE 19.4, en kötü CVD çifti (kırmızı↔yeşil) 7.9 — ve durum rengi **her zaman**
+  bir metin etiketiyle birlikte geliyor.
+- **Durum noktası artık metin taşıyor** (`Normal` / `Uyarı` / `Kritik`). Renk tek başına
+  durum anlatmaz — ekran okuyucu ve renk körü kullanıcı için nokta sessizdi.
+- **Izgaradaki yetim kutucuk.** `auto-fit`, dört ölçümlü kartta üç sütun seçip dördüncüyü
+  tek başına alta atıyordu; yanında kart genişliğince boşluk kalıyordu. Sabit 2 (telefon)
+  / 4 (geniş ekran) sütun: hem 4'lü özet hem 8'li detay ızgarası tam doluyor.
+
+### Nasıl doğrulandı
+
+Tarayıcıda gerçek bileşenlerle çizdirilip **ekran görüntüsü alınarak** — 430 ve 900 piksel,
+koyu ve açık tema. İlk denemede sparkline kutucuğu komşusundan geniş yapıp ızgarayı
+bozuyordu ve yüksek değerlerde dolgu mavi bir bloğa dönüşüyordu; ikisi de görüldüğü için
+düzeltildi. Renk kararları göz kararı değil, `dataviz` doğrulayıcısıyla hesaplandı.
+
 ## [0.11.0] — 2026-08-06
 
 ### Eklenen — görsel kimlik ve tasarım

@@ -9,6 +9,7 @@
 	import ColumnPicker from '$lib/components/ColumnPicker.svelte';
 	import type { DatabaseInfo, RequestInfo, SessionInfo, SqlServiceInfo } from '$lib/types';
 	import { ago, clock, dateTime, duration, mb, num, pct, statusText } from '$lib/format';
+	import Sparkline from '$lib/components/Sparkline.svelte';
 
 	const serverId = $derived(page.params.target!);
 	const snapshot = $derived(mssql.snapshot(serverId));
@@ -176,6 +177,7 @@
 				<div class="stat">
 					<div class="value">{pct(s.resources?.cpuPercent)}</div>
 					<div class="label">İşlemci</div>
+					<Sparkline values={mssql.metrics(s.serverId).cpu} max={100} height={16} fluid />
 				</div>
 				<div class="stat">
 					<div class="value">{pct(s.resources?.sqlCpuPercent)}</div>
@@ -184,6 +186,7 @@
 				<div class="stat">
 					<div class="value">{pct(s.resources?.memoryUsedPercent, 1)}</div>
 					<div class="label">Bellek</div>
+					<Sparkline values={mssql.metrics(s.serverId).memory} max={100} height={16} fluid />
 				</div>
 				<div class="stat">
 					<div class="value">{mb(s.resources?.availablePhysicalMemoryMb)}</div>

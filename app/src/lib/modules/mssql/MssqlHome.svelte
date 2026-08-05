@@ -3,6 +3,7 @@
 	import { mssql } from './store.svelte';
 	import { ago, duration, mb, num, pct, statusText } from '$lib/format';
 	import { Sorter } from '$lib/sort.svelte';
+	import Sparkline from '$lib/components/Sparkline.svelte';
 	import type { ServerSnapshot } from '$lib/types';
 
 	// The summary screen: one card per customer server, sorted so the worst is first.
@@ -24,6 +25,9 @@
 	);
 
 	const servers = $derived(sorter.apply(mssql.servers));
+
+	// Renk tek başına durum anlatmaz: nokta her zaman bir metin etiketi taşır.
+	const severityText = ['Normal', 'Uyarı', 'Kritik'];
 </script>
 
 <div class="page">
@@ -57,10 +61,15 @@
 	{/if}
 
 	{#each servers as s (s.serverId)}
-		<a class="card server" href="/m/mssql/{s.serverId}">
+		<a class="card server sev-edge-{s.summary.severity}" href="/m/mssql/{s.serverId}">
 			<div class="row between">
 				<div class="row" style="min-width:0">
-					<span class="dot sev-{s.summary.severity}"></span>
+					<span
+						class="dot sev-{s.summary.severity}"
+						title={severityText[s.summary.severity]}
+						aria-label={severityText[s.summary.severity]}
+						role="img"
+					></span>
 					<div style="min-width:0">
 						<strong>{s.serverName}</strong>
 						<div class="muted">{s.customerName}</div>
@@ -79,10 +88,14 @@
 					<div class="stat">
 						<div class="value">{pct(s.summary.cpuPercent)}</div>
 						<div class="label">İşlemci</div>
+						<!-- A strip under the label, not beside it: beside it the tile grew wider than
+						     its neighbours and broke the grid into a ragged row. -->
+						<Sparkline values={mssql.metrics(s.serverId).cpu} max={100} height={16} fluid />
 					</div>
 					<div class="stat">
 						<div class="value">{pct(s.summary.memoryUsedPercent, 1)}</div>
 						<div class="label">Bellek</div>
+						<Sparkline values={mssql.metrics(s.serverId).memory} max={100} height={16} fluid />
 					</div>
 					<div class="stat">
 						<div class="value">{num(s.summary.totalSessions)}</div>
@@ -124,6 +137,8 @@
 <style>
 	.server {
 		display: block;
+		position: relative;
+		overflow: hidden;
 	}
 
 	.stat.bad .value {

@@ -11,8 +11,17 @@ const BASE = `/api/modules/${MSSQL_MODULE_ID}`;
  * Two sources feed the same map: a REST read on open (so the screen is never blank while
  * waiting for the first push) and the SignalR stream after that.
  */
+/** How many measurements a sparkline shows. ~2 minutes at a 3s interval. */
+const HISTORY_LENGTH = 40;
+
+export type MetricHistory = { cpu: (number | null)[]; memory: (number | null)[] };
+
 class MssqlStore {
 	snapshots = $state<Map<string, ServerSnapshot>>(new Map());
+
+	/** Recent CPU/memory readings per server, kept in memory only — the sparkline is a
+	 *  "what just happened" device, not a report; persisting it would imply otherwise. */
+	history = $state<Map<string, MetricHistory>>(new Map());
 	profiles = $state<ServerProfile[]>([]);
 	loading = $state(false);
 	error = $state<string | null>(null);
@@ -35,6 +44,22 @@ class MssqlStore {
 		return this.snapshots.get(serverId);
 	}
 
+	metrics(serverId: string): MetricHistory {
+		return this.history.get(serverId) ?? { cpu: [], memory: [] };
+	}
+
+	#record(snapshot: ServerSnapshot): void {
+		const next = new Map(this.history);
+		const existing = next.get(snapshot.serverId) ?? { cpu: [], memory: [] };
+
+		next.set(snapshot.serverId, {
+			cpu: [...existing.cpu, snapshot.summary.cpuPercent ?? null].slice(-HISTORY_LENGTH),
+			memory: [...existing.memory, snapshot.summary.memoryUsedPercent ?? null].slice(-HISTORY_LENGTH)
+		});
+
+		this.history = next;
+	}
+
 	profile(serverId: string): ServerProfile | undefined {
 		return this.profiles.find((p) => p.id === serverId);
 	}
@@ -50,6 +75,7 @@ class MssqlStore {
 			const next = new Map(this.snapshots);
 			next.set(snapshot.serverId, snapshot);
 			this.snapshots = next;
+			this.#record(snapshot);
 		});
 
 		await realtime.subscribeModule(MSSQL_MODULE_ID);
