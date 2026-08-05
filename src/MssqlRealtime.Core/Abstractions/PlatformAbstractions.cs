@@ -25,9 +25,6 @@ public interface IRealtimePublisher
 {
     /// <summary>Pushes a module event to clients watching that module (and that target).</summary>
     Task PublishAsync<T>(string moduleId, string? targetId, string eventName, T payload, CancellationToken ct = default);
-
-    /// <summary>Pushes an alert to every signed-in client; this is what raises a notification.</summary>
-    Task PublishAlertAsync(AlertNotification notification, CancellationToken ct = default);
 }
 
 /// <summary>All modules registered in this build, in display order.</summary>

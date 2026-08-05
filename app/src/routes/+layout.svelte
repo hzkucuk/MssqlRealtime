@@ -64,14 +64,21 @@
 				🔔{#if unread > 0}<span class="count">{unread}</span>{/if}
 			</button>
 
+			<a class="btn btn-sm" href="/bildirimler" title="Bildirim ayarları">⚙️</a>
 			<button class="btn btn-sm" onclick={signOut} title="Çıkış">⏻</button>
 		</div>
 	</header>
 
 	{#if showAlerts}
 		<div class="alerts">
+			<a class="history-link" href="/alarmlar" onclick={() => (showAlerts = false)}>
+				Tüm alarm geçmişi (uygulama kapalıyken olanlar dahil) ›
+			</a>
+
 			{#if realtime.alerts.length === 0}
-				<p class="muted" style="padding:0.5rem">Henüz alarm yok.</p>
+				<p class="muted" style="padding:0.5rem">
+					Bu oturumda alarm gelmedi. Daha öncekiler için geçmişe bakın.
+				</p>
 			{:else}
 				{#each realtime.alerts as item (item.alert.key + item.raisedAtUtc)}
 					<div class="alert-row">
@@ -153,5 +160,13 @@
 
 	.alert-row .dot {
 		margin-top: 0.4rem;
+	}
+
+	.history-link {
+		display: block;
+		padding: 0.5rem 0.75rem;
+		font-size: 0.85rem;
+		color: var(--accent);
+		border-bottom: 1px solid var(--border);
 	}
 </style>

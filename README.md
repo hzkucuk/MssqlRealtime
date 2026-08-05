@@ -30,6 +30,21 @@ Telefon / Masaüstü / Tarayıcı  ──SignalR (WSS)──▶  .NET 10 servis
 | Veritabanları, son yedek | `sys.databases`, `msdb.backupset` | |
 | Servis hesabı | `dm_server_services` | Orijinal soruna cevap veren yer |
 
+## Alarm ve bildirim
+
+Kendi belirlediğin sınır aşılınca haber verir — **uygulama kapalıyken de**:
+
+| Kanal | Uygulama kapalıyken | Kurulum |
+|---|---|---|
+| Telegram | ✅ | Ücretsiz, ~2 dakika (`docs/06-bildirimler.md`) |
+| E-posta (SMTP) | ✅ | Mevcut mail sunucun |
+| Webhook (Slack/Teams/kendi) | ✅ | Bir URL, isteğe bağlı HMAC imza |
+| Uygulama içi | yalnız açıkken | Otomatik |
+
+Gürültü kontrolü zaten yerleşik: sınır üst üste N ölçümde aşılmadıkça alarm oluşmaz, süren
+alarm en fazla tekrar penceresi kadar sıklıkta bildirilir, uyarı→kritik yükselmesi pencereyi
+deler, ve **servis yeniden başladığında süren alarmlar tekrar bildirilmez**.
+
 İzlenen sunucuya **hiçbir şey kurulmaz** ve **hiçbir şey yazılmaz** — tek istisna, arayüzden
 açıkça onayladığın `KILL <spid>`. Gereken izin: `VIEW SERVER STATE`.
 
@@ -64,6 +79,7 @@ Kısa yol: `deploy/nginx/README.md`.
 | `docs/03-kurulum.md` | Yayına alma, SSL, servis, yedekleme |
 | `docs/04-kirilma-noktalari.md` | Ne bozulur, bugün ne olur — ölçülmüş |
 | `docs/05-olculen-bulgular.md` | Canlı ölçümle bulunan davranışlar ve tuzaklar |
+| `docs/06-bildirimler.md` | **Telegram/e-posta/webhook kurulumu** ve gürültü kontrolü |
 
 ## Yapı
 
@@ -78,6 +94,7 @@ app/
   src-tauri/                     Mobil/masaüstü kabuk
 deploy/                          nginx, systemd
 tools/hub-dogrula.mjs            Canlı akış doğrulama betiği
+tools/webhook-alici.mjs          Bildirim teslimatını yerelde görmek için alıcı
 ```
 
 ## Sürüm

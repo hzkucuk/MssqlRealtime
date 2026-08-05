@@ -72,7 +72,4 @@ public sealed class SignalRPublisher(IHubContext<ToolsHub> hub) : IRealtimePubli
 
         return Task.WhenAll(moduleTask, targetTask);
     }
-
-    public Task PublishAlertAsync(AlertNotification notification, CancellationToken ct = default) =>
-        hub.Clients.Group(ToolsHub.AlertsGroup).SendAsync("alert", notification, ct);
 }

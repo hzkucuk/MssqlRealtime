@@ -219,3 +219,45 @@ export type ServerProfile = {
 	thresholds: AlertThresholds;
 	updatedAt: string;
 };
+
+// --- Notification channels ------------------------------------------------------------------
+
+export type ChannelFieldInfo = {
+	key: string;
+	label: string;
+	isSecret: boolean;
+	isRequired: boolean;
+	placeholder?: string | null;
+	help?: string | null;
+	/** Null for secrets — the server never returns them. */
+	value?: string | null;
+	/** Whether a value is stored, so the UI can show "kayıtlı" without seeing it. */
+	hasValue: boolean;
+};
+
+export type NotificationChannelInfo = {
+	id: string;
+	title: string;
+	enabled: boolean;
+	minimumSeverity: Severity;
+	sendRecoveries: boolean;
+	fields: ChannelFieldInfo[];
+};
+
+export type AlertHistoryEntry = {
+	id: number;
+	moduleId: string;
+	targetId: string;
+	targetName: string;
+	groupName?: string | null;
+	ruleId: string;
+	ruleTitle: string;
+	severity: Severity;
+	message: string;
+	value?: number | null;
+	threshold?: number | null;
+	unit?: string | null;
+	raisedAtUtc: string;
+	clearedAtUtc?: string | null;
+	isActive: boolean;
+};

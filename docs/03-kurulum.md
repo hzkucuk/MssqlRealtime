@@ -139,12 +139,22 @@ adres uygulamanın içine gömülü değildir, aynı derleme her kurulumda kulla
 tar czf mssqlrealtime-$(date +%F).tar.gz data/
 ```
 
-## 9. Güncelleme
+## 9. Bildirim kanallarını aç — atlanırsa uygulama kapalıyken kimse haber almaz
+
+Kurulum bittikten sonra uygulamada **⚙️ Bildirimler** ekranından en az bir kanal aç:
+Telegram (en hızlısı, ~2 dakika), e-posta veya webhook. Her birinde **Test gönder** düğmesi
+var; token'ın yanlış olduğunu gece 03:00'te değil şimdi öğren.
+
+Ayrıntı ve Telegram bot adımları: `docs/06-bildirimler.md`.
+
+## 10. Güncelleme
 
 ```bash
 git pull
 docker compose up -d --build     # veya: dotnet publish + systemctl restart
 ```
 
-Şema `EnsureCreated` ile kurulur. **Kolon değişikliği içeren bir sürümde EF Migration'a
-geçilmelidir** — bugün migration yoktur, mevcut veritabanı otomatik güncellenmez.
+Şema açılışta **EF Migrations** ile güncellenir (`Database.MigrateAsync`), veri kaybı olmaz.
+Yeni bir sürüm tablo eklediğinde bir şey yapman gerekmez.
+
+⚠️ Yükseltmeden önce yine de `data/` klasörünü yedekle: migration geri alınamaz.

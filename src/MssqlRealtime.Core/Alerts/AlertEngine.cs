@@ -19,6 +19,12 @@ public interface IAlertEngine
     void Forget(string moduleId, string targetId);
 
     IReadOnlyList<AlertState> GetActive();
+
+    /// <summary>
+    /// Reloads alerts that were firing before a restart, including when they were last
+    /// notified — otherwise every restart re-announces problems the user already knows about.
+    /// </summary>
+    void Restore(IEnumerable<AlertState> active);
 }
 
 public sealed record AlertOutcome(
@@ -127,6 +133,22 @@ public sealed class AlertEngine : IAlertEngine
         foreach (var key in _rules.Keys.Where(k => k.StartsWith(prefix, StringComparison.Ordinal)))
         {
             _rules.TryRemove(key, out _);
+        }
+    }
+
+    public void Restore(IEnumerable<AlertState> active)
+    {
+        foreach (var alert in active)
+        {
+            var key = $"{alert.Target.ModuleId}:{alert.Target.TargetId}:{alert.RuleId}";
+
+            _rules[key] = new RuleState
+            {
+                Firing = alert,
+                // Treat it as already past the grace window: the breach was confirmed before
+                // the restart, so a single fresh reading is enough to keep it firing.
+                ConsecutiveBreaches = int.MaxValue / 2
+            };
         }
     }
 

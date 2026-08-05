@@ -7,10 +7,10 @@
 
 | Ne bozulur | Bugün ne olur | Ne olmalı |
 |---|---|---|
-| **Uygulama kapalıyken eşik aşılır** | Sunucu tarafı alarmı üretir ve kaydeder, ama telefona **hiçbir bildirim gitmez** — SignalR bağlantısı yoktur. Kullanıcı uygulamayı açınca alarmı listede görür. | Gerçek push (APNs/FCM) gerekir. Bu **yapılmadı** ve v1'in en büyük eksiğidir. |
-| Telefon uykuda / ağ yok | Yeniden bağlanma sırasında (0/2/5/10/30 sn) kaçırılan **bildirimler kaybolur**; snapshot'lar bir sonraki turda tazelenir. | Sunucuda alarm geçmişi tutulup bağlantı kurulunca "kaçırdıkların" gönderilmeli. |
+| **Uygulama kapalıyken eşik aşılır** | ✅ Çözüldü (v0.2.0): sunucu alarmı **Telegram / e-posta / webhook** ile kendisi gönderir. Ölçüldü 2026-08-05: hiçbir istemci bağlı değilken iki alarm webhook'a ulaştı. Uygulama içi bildirim hâlâ yalnız açıkken çalışır. | Kanal yapılandırılmamışsa hâlâ sessizdir — kurulumda en az bir kanal açılmalı (`docs/06-bildirimler.md`). |
+| Telefon uykuda / ağ yok | Anlık push kaçar ama **kayıp değil**: alarm SQLite'a yazılır ve *Alarm geçmişi* ekranında görünür; kanal bildirimi zaten ayrı yoldan gitmiştir. | ✅ |
 | Bildirim izni reddedilmiş | Alarm yalnız uygulama içi listede görünür; sessizce kaybolmaz. | ✅ Yeterli. Ayarlarda "bildirimler kapalı" uyarısı gösterilebilir. |
-| Servis yeniden başlar | `AlertEngine` durumu bellektedir → tüm alarmlar sıfırlanır, aktif bir sorun **yeniden bildirilir** (spam değil, ama "yeni" görünür). | Alarm durumu SQLite'a yazılmalı. |
+| Servis yeniden başlar | ✅ Çözüldü (v0.2.0): açık alarmlar SQLite'tan geri yüklenir, başlangıç saatleri korunur ve **yeniden bildirilmez**. Ölçüldü 2026-08-05: "Restored 2 alert(s)", sonrasında 0 yeni teslimat. | ✅ |
 
 ## Ölçüm doğruluğu
 
@@ -31,6 +31,16 @@
 | SignalR yerine long-polling'e düşülür | nginx'te WebSocket upgrade yoksa **sessizce** olur; işlev aynı, mobil veri/pil tüketimi artar. | `deploy/nginx/README.md` içindeki 101 testi ile doğrula. |
 | Aynı anda çok istemci | Snapshot her gruba ayrı gönderilir; istemci `(moduleId,targetId,sentAt)` ile tekilleştirir. Çok sayıda istemcide yük ölçülmedi ❓ | |
 
+## Bildirim kanalları
+
+| Ne bozulur | Bugün ne olur | Ne olmalı |
+|---|---|---|
+| Telegram/webhook erişilemez | Dağıtıcı hatayı loglar, **diğer kanallar etkilenmez**; alarm yine geçmişe yazılır. Yeniden deneme **yok** — o bildirim kaçar. | Kalıcı kuyruk + geri çekilmeli yeniden deneme. |
+| Kanal yavaş (SMTP 10 sn) | Teslimat ayrı kuyrukta; poller **beklemez**. | ✅ |
+| Kuyruk dolar (500) | En eski bildirim düşürülür, log'a uyarı yazılır. | Kalıcı kuyruk gerekirse artırılmalı. |
+| Hiçbir kanal açık değil | Uygulama kapalıyken **kimse haber almaz** — sessiz başarısızlık. | Kurulum sonrası uyarı gösterilmeli ❓ |
+| Bot token'ı sızar | Saldırgan yalnız o sohbete mesaj gönderebilir; izleme verisine erişemez. | Token'ı arayüzden değiştir. |
+
 ## Veri ve güvenlik
 
 | Ne bozulur | Bugün ne olur | Ne olmalı |
@@ -47,5 +57,6 @@
 | Ne bozulur | Bugün ne olur | Ne olmalı |
 |---|---|---|
 | Sunucuda yeni modül var, telefon eski | Ana ekranda "bu araç sunucuda var ama uygulamada ekranı yok" diye **soluk** görünür, çökmez. | ✅ |
+| Sunucuda yeni bildirim kanalı var, telefon eski | Ayar formu sunucudan gelen alan tanımlarıyla üretilir; yeni kanal **uygulama güncellemesi olmadan** görünür. | ✅ |
 | Sunucu snapshot'a yeni alan ekler | Eski istemci bilmediği alanı yok sayar. | ✅ |
 | Telefon eski uçları çağırır | Uç kaldırılırsa 404 → ekranda hata. | Uçlar kırılmadan önce sürümlenmeli. |

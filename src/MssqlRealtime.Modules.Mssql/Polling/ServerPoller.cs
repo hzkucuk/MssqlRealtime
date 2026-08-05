@@ -23,6 +23,7 @@ public sealed class ServerPoller(
     ISnapshotCache cache,
     IAlertEngine alerts,
     IRealtimePublisher publisher,
+    IAlertSink alertSink,
     ILogger<ServerPoller> logger)
 {
     private readonly ISqlProbe[] _probes = probes.OrderBy(p => p.Order).ToArray();
@@ -75,7 +76,10 @@ public sealed class ServerPoller(
                 profile.Name,
                 notification.Body);
 
-            await publisher.PublishAlertAsync(notification, ct);
+            // The sink fans this out: connected apps, persisted history, and every configured
+            // notification channel (Telegram, e-mail, webhook) — so an alert still reaches
+            // the user with the app closed.
+            await alertSink.PublishAsync(notification, ct);
         }
 
         return snapshot;

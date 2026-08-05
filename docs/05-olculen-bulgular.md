@@ -85,11 +85,62 @@ olduğu için ürün için engel değil, ama:
 - Oturum sayısı eşiği 1'e çekilince **yeni kural anında bildirim üretti**
   (`🟠 Yerel Test SQL | 2 açık oturum — sınır 1`), CPU alarmı bastırılmaya devam etti.
 
+## 2026-08-05 09:1x — `EnsureCreated` yükseltmeyi sessizce bozar
+
+Bildirim tabloları eklendi, uygulama açıldı, `/api/notifications/channels` **500** döndü:
+
+```
+SQLite Error 1: 'no such table: NotificationChannelSettings'
+```
+
+`Database.EnsureCreatedAsync()` **var olan** bir veritabanına dokunmaz — yeni tablo eklemez.
+Yani şema değiştiren her sürüm yalnız *yükseltmede* patlar, temiz kurulumda çalışır: fark
+edilmesi en zor hata türü.
+
+Düzeltme: **EF Migrations**. Migration'lar `MssqlRealtime.Api` altında (`MigrationsAssembly`
+ile), çünkü şema platform tablolarıyla modül tablolarının birleşimidir ve hangi modüllerin
+derlemede olduğunu yalnız host bilir. Açılışta `Database.MigrateAsync()`.
+
+## 2026-08-05 09:2x — SQLite `DateTimeOffset` ile ORDER BY yapamaz
+
+```
+SQLite does not support expressions of type 'DateTimeOffset' in ORDER BY clauses.
+```
+
+Alarm geçmişi tanımı gereği zamana göre sıralı. Kayıt tipleri UTC `DateTime`'a çevrildi;
+dışarıya hâlâ `DateTimeOffset` veriliyor. (Aynı tuzak `dm_exec_sessions` tarihlerinde yok:
+onlar zaten `DateTime`.)
+
+## 2026-08-05 09:2x — Uygulama kapalıyken bildirim: doğrulandı
+
+Yerel bir webhook alıcısı (`tools/webhook-alici.mjs`) ile, **hiçbir istemci bağlı değilken**:
+
+```
+🟠 Sunucu İzleme | Test: Webhook bildirimi çalışıyor.
+🔴 Yerel Test SQL | İşlemci: İşlemci %100 — sınır %85   | ölçülen=100 sınır=85
+🟠 Yerel Test SQL | Oturum sayısı: 2 açık oturum — sınır 1 | ölçülen=2 sınır=1
+```
+
+HMAC imzası `X-Signature` başlığında geldi. API logu: `Alert delivered via webhook`.
+
+## 2026-08-05 09:2x — Restart alarmları tekrar bildirmiyor
+
+İki alarm aktifken servis yeniden başlatıldı:
+
+```
+[09:29:09 INF] Restored 2 alert(s) that were active before restart
+```
+
+Sonrasında yeni webhook teslimatı: **0**. Başlangıç saatleri korundu, dolayısıyla "6 saattir
+sürüyor" bilgisi restart'ta sıfırlanmıyor.
+
 ## Doğrulanmayı bekleyenler
 
 | Konu | Neden ölçülemedi |
 |---|---|
 | Windows Server 2019 üzerinde CPU ring buffer değeri | Elde Windows sunucu yok |
 | `sys.dm_server_services` tam çıktısı | Linux konteynerde yalnızca SQL Agent listelendi |
-| iOS/Android'de bildirim davranışı | Cihaz/simülatör derlemesi yapılmadı |
+| iOS/Android'de bildirim davranışı | Xcode iOS platform bileşeni kurulu değil (~7 GB) |
+| Telegram kanalı canlı gönderim | Bot token'ı yok; kod webhook ile aynı yoldan geçiyor |
+| SMTP kanalı canlı gönderim | Test edilecek mail sunucusu yok |
 | Yüksek sunucu sayısında poller yükü | Tek sunucuyla ölçüldü |

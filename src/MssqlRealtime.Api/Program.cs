@@ -3,11 +3,14 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using MssqlRealtime.Api.Endpoints;
 using MssqlRealtime.Api.Realtime;
 using MssqlRealtime.Api.Setup;
 using MssqlRealtime.Core.Abstractions;
 using MssqlRealtime.Core.Alerts;
 using MssqlRealtime.Core.Modularity;
+using MssqlRealtime.Core.Notifications;
+using MssqlRealtime.Infrastructure.Notifications;
 using MssqlRealtime.Infrastructure.Persistence;
 using MssqlRealtime.Infrastructure.Security;
 using MssqlRealtime.Modules.Mssql;
@@ -49,7 +52,12 @@ var dataDirectory = builder.Configuration["Storage:DataDirectory"]
 Directory.CreateDirectory(dataDirectory);
 
 var databasePath = Path.Combine(dataDirectory, "mssqlrealtime.db");
-builder.Services.AddDbContext<AppDbContext>(options => options.UseSqlite($"Data Source={databasePath}"));
+// Migrations live in the host, not in Infrastructure: the schema is the union of the
+// platform's tables and every registered module's, and only the host knows which modules
+// are in this build.
+builder.Services.AddDbContext<AppDbContext>(options => options.UseSqlite(
+    $"Data Source={databasePath}",
+    sqlite => sqlite.MigrationsAssembly("MssqlRealtime.Api")));
 
 // Modules resolve the base DbContext so they never reference the host's concrete type.
 builder.Services.AddScoped<DbContext>(sp => sp.GetRequiredService<AppDbContext>());
@@ -64,6 +72,27 @@ builder.Services.AddSingleton<ISecretProtector, DataProtectionSecretProtector>()
 builder.Services.AddSingleton<IAlertEngine, AlertEngine>();
 builder.Services.AddSingleton<IRealtimePublisher, SignalRPublisher>();
 builder.Services.AddSingleton<IModuleRegistry, ModuleRegistry>();
+
+// --- Alerting and notifications -------------------------------------------------------------
+// A raised alert goes three ways: connected apps, persisted history, and the notification
+// channels below — the last one being how it reaches a phone with the app closed.
+builder.Services.AddSingleton<AlertBroadcaster>();
+builder.Services.AddSingleton<IAlertSink>(sp => sp.GetRequiredService<AlertBroadcaster>());
+builder.Services.AddHostedService<AlertDeliveryService>();
+builder.Services.AddHostedService<AlertMaintenanceService>();
+
+builder.Services.AddScoped<IAlertStore, EfAlertStore>();
+builder.Services.AddScoped<INotificationSettingsStore, NotificationSettingsStore>();
+builder.Services.AddSingleton<INotificationDispatcher, NotificationDispatcher>();
+
+// Registering a channel is all it takes for it to appear in the settings screen.
+builder.Services.AddSingleton<INotificationChannel, TelegramChannel>();
+builder.Services.AddSingleton<INotificationChannel, EmailChannel>();
+builder.Services.AddSingleton<INotificationChannel, WebhookChannel>();
+
+// Short timeout: a hanging webhook must not block the delivery queue behind it.
+builder.Services.AddHttpClient(TelegramChannel.ChannelId, c => c.Timeout = TimeSpan.FromSeconds(15));
+builder.Services.AddHttpClient(WebhookChannel.ChannelId, c => c.Timeout = TimeSpan.FromSeconds(15));
 
 // --- Tool modules -------------------------------------------------------------------------
 // Adding a tool is one line here plus its own project. Nothing else in the host changes.
@@ -126,7 +155,10 @@ var app = builder.Build();
 await using (var scope = app.Services.CreateAsyncScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await db.Database.EnsureCreatedAsync();
+
+    // Migrate, not EnsureCreated: measured 2026-08-05, EnsureCreated silently leaves an
+    // existing database untouched, so a release that adds a table breaks on upgrade only.
+    await db.Database.MigrateAsync();
     await AdminSeeder.SeedAsync(scope.ServiceProvider, app.Configuration, app.Logger);
 }
 
@@ -161,6 +193,7 @@ app.MapGet("/api/health", () => Results.Ok(new
 app.MapGet("/api/modules", (IModuleRegistry registry) => Results.Ok(registry.Describe()))
     .RequireAuthorization();
 
+app.MapNotificationEndpoints();
 app.MapToolModules();
 
 app.MapHub<ToolsHub>(ToolsHub.Path);
