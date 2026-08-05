@@ -28,3 +28,10 @@ app/src-tauri/gen/
 # Başka bir projeden kopyalanmış çalışma direktifi; bu depoya ait değil.
 # Yerelde kalır, yayınlanmaz.
 CLAUDE.md
+
+# Ön yüz derleme çıktısı buraya kopyalanır (npm run build + cp). Üretilen dosya, kaynak değil.
+src/MssqlRealtime.Api/wwwroot/
+
+# Çalışma zamanı logları
+logs/
+*.log

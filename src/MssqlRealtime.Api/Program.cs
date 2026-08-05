@@ -86,6 +86,9 @@ builder.Services.AddHostedService<AlertDeliveryService>();
 builder.Services.AddHostedService<AlertMaintenanceService>();
 builder.Services.AddHostedService<NotificationRetryService>();
 
+// An agent that stops reporting must say so; silence is not the same as health.
+builder.Services.AddHostedService<AgentHealthService>();
+
 builder.Services.AddScoped<IAlertStore, EfAlertStore>();
 builder.Services.AddScoped<INotificationSettingsStore, NotificationSettingsStore>();
 builder.Services.AddScoped<INotificationOutbox, NotificationOutbox>();

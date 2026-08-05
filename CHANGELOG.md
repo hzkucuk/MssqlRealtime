@@ -2,6 +2,29 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/)
 
+## [0.5.0] — 2026-08-05
+
+Sessiz kalmayan izleme.
+
+### Eklenen
+
+- **Agent sessizlik alarmı.** Bir agent yapılandırılan süreden (varsayılan 3 dk) uzun süre
+  sessiz kalırsa kritik alarm üretilir ve mesaj sessizliğin bedelini söyler:
+  *"… bu agent'a bağlı N sunucu artık izlenmiyor."*
+  - Hiç bağlanmamış agent için alarm üretilmez (kurulumu bitmemiş, arıza değil).
+  - Sunucu atanmamış agent için alarm üretilmez (sessizliğinin bedeli yok).
+  - Hub yeniden başladığında 45 sn beklenir; agent'lara yeniden bağlanma şansı tanınır.
+  - Karar mantığı `AgentHealthEvaluator` içinde saf bir fonksiyon — doğrudan test edilir.
+- `tools/telegram-chatid.mjs` ve `tools/telegram-kur.sh`: bot kurulumunu arayüz olmadan
+  tamamlayıp test etmek için.
+
+### Ölçülen
+
+- Agent süreci öldürüldü → 1 dk sonra kritik alarm (webhook + Telegram); agent geri geldi →
+  "normale döndü" bildirimi. Her ikisi de loglarla doğrulandı.
+- **Telegram kanalı canlı doğrulandı** — kullanıcı botu kurdu, mesajlar ulaştı.
+- 77 test yeşil (13 yeni).
+
 ## [0.4.0] — 2026-08-05
 
 Agent modu: NAT arkasındaki müşteri sunucuları.

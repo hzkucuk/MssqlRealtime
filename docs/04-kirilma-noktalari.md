@@ -26,7 +26,10 @@
 | Ne bozulur | Bugün ne olur | Ne olmalı |
 |---|---|---|
 | Müşteri sunucusuna erişim yok (NAT/firewall) | ✅ Çözüldü (v0.4.0): **agent modu** — müşteri sunucusundan dışa doğru bağlanılır. `docs/07-agent.md` | ✅ |
-| **Agent çevrimdışı** | O sunucu için ölçüm gelmez ve **alarm da üretilmez** — sessizlik "sorun yok" sanılabilir. Agent listesinde kırmızı görünür. | Agent'ın kendisi için "N dakikadır sessiz" alarmı gerekli. **Yazılmadı.** |
+| **Agent çevrimdışı** | ✅ Çözüldü (v0.5.0): agent N dakika (varsayılan 3) sessiz kalırsa **kritik alarm** üretilir ve mesaj kaç sunucunun izlenmediğini söyler. Ölçüldü 2026-08-05. | ✅ |
+| Agent hiç kurulmadı (anahtar üretildi, kurulmadı) | Alarm üretilmez — bilinçli: her hazırlanan agent için nöbetçi uyandırılmaz. Listede "henüz hiç bağlanmadı" görünür. | ✅ |
+| Agent'a hiç sunucu atanmamış | Alarm üretilmez; sessizliğinin bir bedeli yok. | ✅ |
+| Hub yeniden başlar, agent'lar henüz bağlanmadı | Sağlık servisi 45 sn bekleyip başlar; yeniden bağlanma penceresi tanınır. | ✅ |
 | Agent bağlantısı koparken ölçüm | Biriktirilmez, kaybolur (bilinçli: eski snapshot yanıltıcıdır). | ✅ |
 | Agent protokol sürümü eski | Kayıt reddedilir, agent log'una "güncelleyin" yazılır. | ✅ |
 | Agent kayıt anahtarı sızarsa | Yalnız ölçüm gönderebilir; okuma/komut yetkisi yok. Anahtar arayüzden yenilenir, eskisi anında geçersiz olur. | ✅ |

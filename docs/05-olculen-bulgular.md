@@ -182,6 +182,33 @@ Site/API izleme modülü eklendi. Dokunulan ortak dosya sayısı:
 Modülün kendi dosyaları dışında toplam **4 satır**. Bildirim, alarm bastırma, geçmiş,
 kalıcılık ve ayar ekranı hazır geldi.
 
+## 2026-08-05 14:2x — Telegram canlı doğrulandı
+
+Kullanıcı botu kurdu, token ve chat id'yi arayüzden girdi; **mesajlar geldi**. Bildirim
+zincirinin son doğrulanmamış halkası kapandı: artık üç kanalın (Telegram, webhook, e-posta
+kodu aynı yoldan geçiyor) ikisi canlı ölçülmüş durumda.
+
+## 2026-08-05 14:2x — Agent sessizliği artık sessiz kalmıyor
+
+Agent süreci öldürüldü (müşteri sunucusu kapandı senaryosu). Eşik 1 dakikaya çekilmişti:
+
+```
+[14:27:21 WRN] Agent alert raised:
+  Musteri A sunucusu 1 dakikadır sessiz — bu agent'a bağlı 1 sunucu artık izlenmiyor.
+  ölçülen=1.1 dk · sınır=1 dk · seviye=Critical
+```
+
+Agent geri başlatıldığında:
+
+```
+[14:27:42 INF] Agent Musteri A sunucusu connected
+[14:27:51 WRN] Agent alert cleared: Agent sessiz normale döndü.
+```
+
+> Bu, bir izleme aracının en tehlikeli açığıydı: ölçüm gelmemesi ile "sorun yok" birbirinden
+> ayırt edilemiyordu. Mesajın *"bu agent'a bağlı N sunucu artık izlenmiyor"* demesi kasıtlı —
+> sessizliğin neye mal olduğunu söylemeyen bir alarm eksik bir alarmdır.
+
 ## Doğrulanmayı bekleyenler
 
 | Konu | Neden ölçülemedi |
@@ -189,6 +216,5 @@ kalıcılık ve ayar ekranı hazır geldi.
 | Windows Server 2019 üzerinde CPU ring buffer değeri | Elde Windows sunucu yok |
 | `sys.dm_server_services` tam çıktısı | Linux konteynerde yalnızca SQL Agent listelendi |
 | iOS/Android'de bildirim davranışı | Xcode iOS platform bileşeni kurulu değil (~7 GB) |
-| Telegram kanalı canlı gönderim | Bot token'ı yok; kod webhook ile aynı yoldan geçiyor |
 | SMTP kanalı canlı gönderim | Test edilecek mail sunucusu yok |
 | Yüksek sunucu sayısında poller yükü | Tek sunucuyla ölçüldü |
