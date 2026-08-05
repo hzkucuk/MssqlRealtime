@@ -33,6 +33,13 @@ SIZE=$(du -sh "$OUT" | cut -f1)
 echo
 echo "✅ Hazir: $OUT  ($SIZE)"
 echo
-echo "Sonraki adimlar:"
-echo "  1. $OUT klasorunu Windows sunucuya kopyalayin (or. C:\\SunucuIzleme)"
-echo "  2. Yonetici PowerShell'de:  .\\windows-kur.ps1 -AdminPassword 'guclu-parola'"
+echo "Sonraki adimlar — iki secenek:"
+echo
+echo "  A) Musteriye tek dosya vermek (onerilen)"
+echo "     Windows'ta Inno Setup ile derleyin:"
+echo "       ISCC.exe setup\\SunucuIzleme.iss"
+echo "     Sonuc: setup\\output\\SunucuIzleme-Setup-*.exe  (bkz. setup/README.md)"
+echo
+echo "  B) Elle kurmak"
+echo "     1. $OUT klasorunu Windows sunucuya kopyalayin (or. C:\\SunucuIzleme)"
+echo "     2. Yonetici PowerShell'de:  .\\windows-kur.ps1 -AdminPassword 'guclu-parola'"

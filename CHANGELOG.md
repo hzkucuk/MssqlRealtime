@@ -2,6 +2,34 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/)
 
+## [0.8.0] — 2026-08-05
+
+Tek dağıtım yolu: Windows servisi. Docker kaldırıldı.
+
+### Eklenen
+
+- **`setup/SunucuIzleme.iss`** — Inno Setup betiği. Müşteriye verilecek tek dosya
+  (`SunucuIzleme-Setup-*.exe`): çift tıklanır, kurulumda yönetici hesabı ve genel adres
+  sorulur, servis kurulup başlatılır. Kullanıcı hiçbir yapılandırma dosyası açmaz.
+  - Genel adres girilmezse yalnız loopback'e bağlanır, güvenlik duvarı kuralı açılmaz.
+  - `https://` olmayan adres için uyarır (parolalar ağda açık gider).
+  - Kaldırmada veri klasörü **korunur** — veri koruma anahtarları silinirse kayıtlı SQL
+    parolaları bir daha çözülemez.
+- **`setup/sql-kurulum.sql`** — SSMS'te çalıştırılacak hazır betik: SQL girişi ve Windows
+  hesabı seçenekleri, doğrulama sorgusu, kaldırma bölümü. `GRANT ALTER ANY CONNECTION`
+  yalnız KILL kullanılacaksa gerekir ve ayrı işaretlendi.
+
+### Kaldırılan
+
+- `Dockerfile`, tüm compose dosyaları, Docker teşhis betiği, systemd unit'i ve belgelerdeki
+  Docker bölümleri. Docker Hub depoları da silindi.
+
+### Neden
+
+Müşterilerde Docker bulunmuyor; panel zaten SQL Server'ın yanında Windows servisi olarak
+çalışabiliyordu. İki dağıtım yolunu birden sürdürmek her kurulumda "hangisi?" sorusunu
+doğuruyor ve iki ayrı belge seti gerektiriyordu.
+
 ## [0.7.0] — 2026-08-05
 
 Agent kaldırıldı.

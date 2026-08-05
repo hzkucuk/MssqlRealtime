@@ -1,31 +1,38 @@
 # Mimari
 
-## Karar: merkezi backend, doğrudan SQL bağlantısı
+## Karar: müşteri başına bir panel
 
-Seçilen topoloji (2026-08-04):
+Seçilen topoloji (2026-08-05):
 
 ```
 Telefon / Masaüstü / Tarayıcı
             │  HTTPS + WSS (SignalR)
             ▼
    ┌─────────────────────┐
-   │  nginx (TLS, LE)    │
+   │  Nginx Proxy Mgr    │  TLS, Let's Encrypt
    └──────────┬──────────┘
-              │ 127.0.0.1:5199  ya da  docker: mssqlrealtime:8080
-   ┌──────────▼──────────┐
-   │  .NET 10 servis     │  SQLite: profiller + tek kullanıcı + DP anahtarları
-   │  poller + hub       │
-   └──────────┬──────────┘
-              │ TDS 1433, salt okunur DMV
-   ┌──────────┼──────────┬──────────────┐
-   ▼          ▼          ▼              ▼
-Müşteri A  Müşteri B  Müşteri C  …
+              │ http://<windows-ip>:5199
+   ┌──────────▼──────────────────────────┐
+   │  MÜŞTERİ WINDOWS MAKİNESİ           │
+   │  ┌───────────────────────────────┐  │
+   │  │ Panel (Windows servisi)       │  │  ProgramData: profiller,
+   │  │ poller + hub + bildirim       │  │  kullanıcı, DP anahtarları
+   │  └──────────────┬────────────────┘  │
+   │                 │ TDS 1433, salt okunur DMV
+   │  ┌──────────────▼────────────────┐  │
+   │  │ SQL Server                    │  │
+   │  └───────────────────────────────┘  │
+   └─────────────────────────────────────┘
+
+Her müşteride bu yapıdan bir tane. Telefon uygulaması panelleri kaydeder ve aralarında geçer.
 ```
 
-**Şartı:** servisin müşteri SQL portuna erişebilmesi (VPN, port yönlendirme veya sabit IP).
-Erişemediğin müşteriler için ileride **agent modu** gerekir: müşteri sunucusunda küçük bir
-servis merkeze *dışarı doğru* bağlanır. Bugünkü mimari buna hazır — `ISqlProbe` ve
-`IRealtimePublisher` sınırları agent'ın araya gireceği yerde duruyor — ama **yazılmadı**.
+**Şartı:** panelin izlenecek SQL Server'a erişebilmesi — genelde aynı makinede olduğu için
+sorun olmaz. Panel müşterinin kendi ağında çalışır; dışarıdan erişim yalnız ters vekil
+sunucu üzerinden, TLS ile olur.
+
+Agent modu v0.4.0'da yazılmış, v0.7.0'da kaldırılmıştı: bu topolojide hiç devreye girmiyor.
+Erişilemeyen bir müşteri çıkarsa git geçmişinden (`v0.6.0`) geri alınabilir.
 
 ## Katmanlar
 
@@ -88,7 +95,8 @@ Tek operatör hesabı açılışta seed edilir; `/api/auth/register` middleware 
 
 ## Güvenlik sınırları
 
-- SQL parolaları Data Protection ile şifreli saklanır; anahtar halkası `data/keys` altında —
+- SQL parolaları Data Protection ile şifreli saklanır; anahtar halkası
+  `C:\ProgramData\SunucuIzleme\keys` altında —
   **yedekle**, kaybolursa parolalar okunamaz.
 - Parola hiçbir DTO'da dönmez; yalnızca `hasPassword: true` bilgisi gider.
 - İzlenen sunucuya tek yazma işlemi `KILL <spid>`; session id tamsayı olarak doğrulanır ve

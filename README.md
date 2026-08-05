@@ -62,18 +62,32 @@ deler, ve **servis yeniden başladığında süren alarmlar tekrar bildirilmez**
 İzlenen sunucuya **hiçbir şey kurulmaz** ve **hiçbir şey yazılmaz** — tek istisna, arayüzden
 açıkça onayladığın `KILL <spid>`. Gereken izin: `VIEW SERVER STATE`.
 
-## Hızlı başlangıç (geliştirme)
+## Kurulum
+
+Müşteriye tek dosya: **`SunucuIzleme-Setup-*.exe`** — çift tıklar, e-posta/parola ve genel
+adresi girer, biter. Panel Windows servisi olarak SQL Server'ın yanında çalışır; izlenen
+sunucuya hiçbir şey kurulmaz.
 
 ```bash
-# 1. Backend
+./tools/windows-paketle.sh          # yayın klasörü (self-contained, ~123 MB)
+# Windows'ta, Inno Setup ile:
+#   ISCC.exe setup\SunucuIzleme.iss   →  setup\output\SunucuIzleme-Setup-*.exe
+```
+
+SQL tarafında yapılacaklar: **`setup/sql-kurulum.sql`** (SSMS'te çalıştırılır).
+
+## Geliştirme
+
+```bash
+# Backend
 cd src/MssqlRealtime.Api
 Admin__Password='Guclu-Bir-Parola' ASPNETCORE_URLS=http://localhost:5199 dotnet run
 
-# 2. Ön yüz
+# Ön yüz
 cd app && npm install && npm run dev          # tarayıcı: http://localhost:1420
-npx tauri dev                                  # masaüstü uygulaması
+npx tauri dev                                  # masaüstü
 npx tauri ios dev                              # iOS (Xcode gerekli)
-npx tauri android dev                          # Android (Android SDK + NDK gerekli)
+npx tauri android dev                          # Android (SDK + NDK gerekli)
 ```
 
 İlk çalıştırmada tek yönetici hesabı oluşturulur. `Admin__Password` vermezsen rastgele bir
@@ -81,8 +95,7 @@ parola üretilir ve **bir kez** log'a yazılır. Kayıt (register) ucu kapalıd�
 
 ## Yayına alma
 
-`docs/03-kurulum.md` — nginx + Let's Encrypt, Docker, systemd, Windows servisi.
-Kısa yol: `deploy/nginx/README.md`.
+`docs/03-kurulum.md` — Windows servisi, Nginx Proxy Manager, SSL, yedekleme.
 
 ## Belgeler
 
@@ -107,7 +120,8 @@ src/
 app/
   src/lib/modules/<araç>/        Aracın ekranları
   src-tauri/                     Mobil/masaüstü kabuk
-deploy/                          nginx, systemd
+setup/                           Windows setup.exe + SQL kurulum betiği
+deploy/nginx/                    Nginx Proxy Manager notları
 tools/hub-dogrula.mjs            Canlı akış doğrulama betiği
 tools/webhook-alici.mjs          Bildirim teslimatını yerelde görmek için alıcı
 tools/telegram-chatid.mjs        Telegram chat id'sini bulur
