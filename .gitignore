@@ -31,3 +31,9 @@ src/MssqlRealtime.Api/wwwroot/
 # Çalışma zamanı logları
 logs/
 *.log
+
+# Üretilen paketler
+windows-publish/
+
+# Üretilen paketler
+setup/output/

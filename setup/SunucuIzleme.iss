@@ -13,7 +13,7 @@
 ; disinda okunamaz) ve ilk aciliste veritabanina hash'lenerek kaydedilir.
 
 #define AppName "Sunucu Izleme"
-#define AppVersion "0.9.0"
+#define AppVersion "0.9.1"
 #define AppPublisher "hzkucuk"
 #define ServiceName "SunucuIzleme"
 #define ExeName "MssqlRealtime.Api.exe"
@@ -53,9 +53,9 @@ Name: "{group}\Paneli Ac"; Filename: "http://127.0.0.1:{code:GetPort}/"
 Name: "{group}\{#AppName} Kaldir"; Filename: "{uninstallexe}"
 
 [Run]
-Filename: "{app}\{#ExeName}"; Description: "Paneli tarayicida ac"; \
-    Flags: postinstall shellexec skipifsilent runasoriginaluser; \
-    Filename: "http://127.0.0.1:{code:GetPort}/"
+; shellexec ile URL acilir; Filename tek olmali (Inno birden fazla Filename kabul etmez).
+Filename: "http://127.0.0.1:{code:GetPort}/"; Description: "Paneli tarayicida ac"; \
+    Flags: postinstall shellexec skipifsilent runasoriginaluser
 
 [Code]
 var

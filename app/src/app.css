@@ -104,6 +104,11 @@ select:focus {
 	padding: 0.75rem 0.75rem 4rem;
 }
 
+/* Screens whose main content is a wide table get more room on a desktop. */
+.page.wide {
+	max-width: 1400px;
+}
+
 .card {
 	background: var(--surface);
 	border: 1px solid var(--border);
@@ -289,10 +294,49 @@ td {
 	vertical-align: top;
 }
 
-/* Wide tables scroll inside their own box; the page itself never scrolls sideways. */
+/* Wide tables scroll inside their own box; the page itself never scrolls sideways.
+   The right-edge shading is the only hint that there is more to see — without it people
+   assume the table is cut off rather than scrollable. */
 .scroll-x {
 	overflow-x: auto;
 	-webkit-overflow-scrolling: touch;
+	background:
+		linear-gradient(to right, var(--surface) 30%, transparent),
+		linear-gradient(to right, transparent, var(--surface) 70%) 100% 0,
+		radial-gradient(farthest-side at 0 50%, rgb(0 0 0 / 0.18), transparent),
+		radial-gradient(farthest-side at 100% 50%, rgb(0 0 0 / 0.18), transparent) 100% 0;
+	background-repeat: no-repeat;
+	background-size:
+		40px 100%,
+		40px 100%,
+		14px 100%,
+		14px 100%;
+	background-attachment: local, local, scroll, scroll;
+}
+
+/* Action column pinned to the right edge: the button you came for must stay reachable
+   without scrolling to the end of a wide table. */
+th.pinned,
+td.pinned {
+	position: sticky;
+	right: 0;
+	background: var(--surface);
+	box-shadow: -6px 0 6px -6px rgb(0 0 0 / 0.35);
+	text-align: right;
+}
+
+tr.blocked td.pinned {
+	background: color-mix(in srgb, var(--warn) 10%, var(--surface));
+}
+
+tr.blocker td.pinned {
+	background: color-mix(in srgb, var(--crit) 10%, var(--surface));
+}
+
+/* Keep long application and host names from stretching the table indefinitely. */
+td.clamp {
+	max-width: 16ch;
+	overflow-wrap: anywhere;
 }
 
 .tabs {

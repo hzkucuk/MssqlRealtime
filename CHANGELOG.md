@@ -2,6 +2,23 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/)
 
+## [0.9.1] — 2026-08-06
+
+### Düzeltilen
+
+- **Geniş tablolarda "Kes" düğmesi ekran dışında kalıyordu.** Oturumlar tablosu yatay
+  kaydırılabiliyordu ama bu görünmüyordu, dolayısıyla tablo kesik sanılıyordu. Artık:
+  - İşlem sütunu sağ kenara **sabitlendi** — kaydırmadan hep erişilebilir
+  - Kaydırılabilir alanın kenarında gölge var; devamı olduğu görünüyor
+  - Detay ekranı geniş masaüstlerinde daha fazla yer kullanıyor (1400 px)
+  - Uzun uygulama/makine adları sütunu sonsuza kadar germiyor
+- Inno Setup betiğinde  bölümü iki  içeriyordu ve derlenmiyordu.
+
+### Eklenen
+
+- **** — müşteriye verilecek tek dosya. Artık macOS/Linux
+  üzerinde de derlenebiliyor (Docker içindeki Inno Setup ile); Windows makine gerekmiyor.
+
 ## [0.9.0] — 2026-08-05
 
 Giriş güvenliği ve sıralama.

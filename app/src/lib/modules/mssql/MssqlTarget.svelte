@@ -102,7 +102,7 @@
 	}
 </script>
 
-<div class="page">
+<div class="page wide">
 	{#if !snapshot}
 		<p class="muted">Bu sunucu için henüz veri yok.</p>
 	{:else}
@@ -208,15 +208,15 @@
 							<SortHeader sorter={sessionSort} column="database" label="Veritabanı" />
 							<SortHeader sorter={sessionSort} column="cpu" label="CPU" />
 							<SortHeader sorter={sessionSort} column="idle" label="Boşta" />
-							<th></th>
+							<th class="pinned"></th>
 						</tr>
 					</thead>
 					<tbody>
 						{#each sessionSort.apply(s.sessions) as x (x.sessionId)}
 							<tr class:blocked={x.isBlocked} class:blocker={x.isBlocker}>
 								<td class="mono">{x.sessionId}</td>
-								<td>{x.programName ?? '—'}</td>
-								<td>{x.hostName ?? '—'}<div class="muted mono">{x.clientAddress ?? ''}</div></td>
+								<td class="clamp">{x.programName ?? '—'}</td>
+								<td class="clamp">{x.hostName ?? '—'}<div class="muted mono">{x.clientAddress ?? ''}</div></td>
 								<td>{x.loginName ?? '—'}</td>
 								<td>
 									{x.status ?? '—'}
@@ -229,7 +229,7 @@
 								<td>{x.databaseName ?? '—'}</td>
 								<td class="mono">{num(x.cpuTimeMs)} ms</td>
 								<td>{duration(x.idleSeconds)}</td>
-								<td>
+								<td class="pinned">
 									<button
 										class="btn btn-sm btn-danger"
 										disabled={killing === x.sessionId}
