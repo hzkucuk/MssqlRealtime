@@ -17,7 +17,10 @@ export JAVA_HOME="${JAVA_HOME_OVERRIDE:-/opt/homebrew/opt/openjdk@21/libexec/ope
 export ANDROID_HOME="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
 export NDK_HOME="${NDK_HOME:-$ANDROID_HOME/ndk/27.0.12077973}"
 
-KEYSTORE="${KEYSTORE:-$HOME/.android/sunucuizleme.keystore}"
+# 2026-08-06: yeni anahtar uretildi, eskisinin (sunucuizleme.keystore) parolasi
+# hatirlanmiyordu. Parola dosyasi yaninda durur ve depoya girmez.
+KEYSTORE="${KEYSTORE:-$HOME/.android/sunucuizleme-2026.keystore}"
+KEYSTORE_PASS_FILE="${KEYSTORE_PASS_FILE:-$HOME/.android/sunucuizleme-2026.pass}"
 BUILD_TOOLS="$ANDROID_HOME/build-tools/35.0.0"
 VERSION=$(grep -o '"version": *"[^"]*"' "$ROOT/app/src-tauri/tauri.conf.json" | head -1 | cut -d'"' -f4)
 
@@ -47,9 +50,20 @@ if [ ! -f "$KEYSTORE" ]; then
 	exit 1
 fi
 
-echo "→ Imzalaniyor (keystore parolasi sorulacak)…"
-"$BUILD_TOOLS/apksigner" sign --ks "$KEYSTORE" "$ALIGNED"
-"$BUILD_TOOLS/apksigner" verify --print-certs "$ALIGNED" | head -3
+echo "→ Imzalaniyor…"
+if [ -f "$KEYSTORE_PASS_FILE" ]; then
+	# apksigner'in "file:" kaynagi her sorgu icin bir SATIR tuketir, dolayisiyla ayni
+	# dosya hem --ks-pass hem --key-pass'i cevaplayamaz ("end of file reached").
+	# Olculdu 2026-08-06 14:30.
+	export KSPW
+	KSPW="$(cat "$KEYSTORE_PASS_FILE")"
+	"$BUILD_TOOLS/apksigner" sign --ks "$KEYSTORE" --ks-pass env:KSPW --key-pass env:KSPW "$ALIGNED"
+else
+	echo "  (parola dosyasi yok, sorulacak: $KEYSTORE_PASS_FILE)"
+	"$BUILD_TOOLS/apksigner" sign --ks "$KEYSTORE" "$ALIGNED"
+fi
+
+"$BUILD_TOOLS/apksigner" verify --print-certs "$ALIGNED" 2>&1 | grep -v WARNING | head -3
 
 SIZE=$(du -h "$ALIGNED" | cut -f1)
 echo
