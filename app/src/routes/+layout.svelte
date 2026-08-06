@@ -131,7 +131,14 @@
 
 			<a class="btn btn-sm" href="/bildirimler" title="Bildirim ayarları">⚙️</a>
 			<a class="btn btn-sm" href="/giris" title="Panel değiştir">🔀</a>
-			<button class="btn btn-sm" onclick={signOut} title="Çıkış">⏻</button>
+			<!-- Ölçüldü 2026-08-07 (Android): ⏻ (U+23FB) telefonun yazı tipinde yok ve boş
+			     kutu olarak çıkıyordu. Simge yazı tipine bağlı olmasın diye SVG çizildi. -->
+			<button class="btn btn-sm" onclick={signOut} title="Çıkış" aria-label="Çıkış">
+				<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+					<path d="M12 3v9" />
+					<path d="M6.3 6.3a8 8 0 1 0 11.4 0" />
+				</svg>
+			</button>
 		</div>
 	</header>
 
@@ -327,5 +334,16 @@
 		font-size: 0.85rem;
 		color: var(--accent);
 		border-bottom: 1px solid var(--border);
+	}
+
+	/* currentColor: düğme metniyle aynı renk, tema değişince kendiliğinden uyar. */
+	.icon {
+		width: 1em;
+		height: 1em;
+		display: block;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 2.2;
+		stroke-linecap: round;
 	}
 </style>
