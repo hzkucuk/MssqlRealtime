@@ -2,6 +2,46 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/)
 
+## [0.12.1] — 2026-08-06
+
+### Güvenlik — ölçülerek bulundu, ölçülerek kapatıldı
+
+Windows 11 Pro ARM64 bir VM'de kurulum yapılıp denetim **yönetici olmayan** bir oturumdan
+çalıştırıldı; tehdit modeli budur. Sekiz bulgunun yedisi doğrulandı, ikisi bu sürümde
+kapatılıyor:
+
+- 🔴 **Veri klasörü artık sıradan kullanıcıya kapalı.** `ProgramData\SunucuIzleme`'nin
+  kalıtılan ACL'i `BUILTIN\Users`'a **okuma** veriyordu ve bu, `keys\` altındaki veri
+  koruma anahtar halkasına kadar uzanıyordu — yani kayıtlı SQL parolaları makinedeki
+  herhangi bir yerel hesap için **şifresiz** sayılırdı. Kurulum kalıtımı kesip yalnız
+  SYSTEM ve Yöneticiler bırakıyor (`icacls`, grup adları yerelleştiği için SID ile).
+- 🔴 **Kurulum parolası hesap oluşturulunca siliniyor.** Parola registry'de düz metin
+  duruyordu ve `BUILTIN\Users` okuyabiliyordu; hesap kurulduktan sonra da kalıyordu.
+  Artık ilk açılışta hash'lendikten hemen sonra ortam değişkeninden temizleniyor —
+  yükseltmelerde de (hesap zaten varsa) temizleniyor.
+
+**Kapatılmayan, bilinen borçlar:** servis hâlâ LocalSystem; güvenlik başlıkları yok;
+sahte `X-Forwarded-For` hız sınırını atlıyor (12 denemede `429` görülmedi). Üçü de
+`docs/04-kirilma-noktalari.md`'de açık borç olarak yazılı.
+
+⚠️ **Yükseltme mevcut kurulumu düzeltir**, ama düzeltmeden önce parolayı okumuş biri
+varsa parolayı değiştirin — geçmişe dönük koruma yoktur.
+
+### Araçlar
+
+- **`tools/windows-guvenlik-denetimi.ps1`** — salt okunur denetim: parolanın registry'de
+  olup olmadığı, veri klasörünü kimin okuyabildiği, servis hesabı, güvenlik başlıkları ve
+  sahte `X-Forwarded-For` ile 12 giriş denemesi. Düzeltmeden önce/sonra aynı betik
+  çalıştırılıp `ACIK` satırlarının `TEMIZ` olması beklenir.
+
+### Ölçülen
+
+- Self-contained **win-x64 paketi Windows 11 ARM64'te emülasyonla çalışıyor** — ARM
+  makineler için ayrı paket gerekmiyor.
+- İki kurulum yolu (setup.exe ve `windows-kur.ps1`) aynı ortam değişkenlerini yazıyor ve
+  biri diğerini **sessizce eziyor**; ikisi aynı anda çalıştırılırsa registry karışık bir
+  duruma düşüyor.
+
 ## [0.12.0] — 2026-08-06
 
 ### Eklenen — sanatsal ve ölçülmüş

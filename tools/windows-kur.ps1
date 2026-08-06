@@ -46,6 +46,25 @@ if (-not (Test-Path $exe)) {
 # survives an in-place upgrade.
 New-Item -ItemType Directory -Force -Path $DataDirectory | Out-Null
 
+# Measured 2026-08-06 on Windows 11: the ACL inherited from ProgramData grants BUILTIN\Users
+# read, and that reaches the data-protection key ring — which decrypts every stored SQL
+# password. Inheritance is cut here so an ordinary local account cannot read it.
+# SIDs, not names: on a Turkish Windows the groups are "Yoneticiler" and "Kullanicilar".
+$acl = @($DataDirectory, '/inheritance:r',
+    '/grant:r', '*S-1-5-18:(OI)(CI)F',      # LocalSystem — the service itself
+    '/grant:r', '*S-1-5-32-544:(OI)(CI)F',  # Administrators
+    '/T', '/C', '/Q')
+
+if ($Account) {
+    # A named service account needs its own grant once inheritance is gone.
+    $acl += @('/grant:r', "${Account}:(OI)(CI)M")
+}
+
+& icacls.exe @acl | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    Write-Warning "Veri klasoru izinleri daraltilamadi (icacls $LASTEXITCODE). Kayitli SQL parolalari yerel kullanicilara acik kalabilir."
+}
+
 # Bind to all interfaces when a public origin is set (something proxies to us); otherwise
 # loopback only, so a default install is not exposed on the LAN by accident.
 $urls = if ($PublicOrigin) { "http://0.0.0.0:$Port" } else { "http://127.0.0.1:$Port" }

@@ -17,7 +17,7 @@
 ; hesabi disinda okunamaz" yaziyordu; yanlisti. Bkz. docs/05-olculen-bulgular.md.
 
 #define AppName "Sunucu Izleme"
-#define AppVersion "0.12.0"
+#define AppVersion "0.12.1"
 #define AppPublisher "hzkucuk"
 #define ServiceName "SunucuIzleme"
 #define ExeName "MssqlRealtime.Api.exe"
@@ -159,6 +159,14 @@ begin
     Urls := 'http://0.0.0.0:' + GetPort('')
   else
     Urls := 'http://127.0.0.1:' + GetPort('');
+
+  // Olculdu 2026-08-06 (Windows 11): ProgramData'dan kalitilan ACL BUILTIN\Users'a okuma
+  // veriyor ve bu, veri koruma anahtar halkasina kadar uzaniyor — kayitli SQL parolalari
+  // sifresiz sayilir. Kalitimi kesip yalnizca SYSTEM ve Yoneticiler birakiyoruz.
+  // Grup adlari yerellestigi icin SID kullanilir.
+  Exec(ExpandConstant('{sys}\icacls.exe'),
+    '"' + DataDir + '" /inheritance:r /grant:r *S-1-5-18:(OI)(CI)F /grant:r *S-1-5-32-544:(OI)(CI)F /T /C /Q',
+    '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 
   SetMachineEnv('ASPNETCORE_URLS', Urls);
   SetMachineEnv('ASPNETCORE_ENVIRONMENT', 'Production');

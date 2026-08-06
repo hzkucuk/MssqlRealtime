@@ -18,6 +18,9 @@ public static class AdminSeeder
         var existing = await users.FindByEmailAsync(email);
         if (existing is not null)
         {
+            // Upgrades come through here: the account already exists, so the installer's copy
+            // of the password has no job left and should not be lying around.
+            ClearInstallerPassword(logger);
             return;
         }
 
@@ -43,6 +46,8 @@ public static class AdminSeeder
             return;
         }
 
+        ClearInstallerPassword(logger);
+
         if (string.IsNullOrWhiteSpace(configured))
         {
             logger.LogWarning(
@@ -55,6 +60,45 @@ public static class AdminSeeder
         else
         {
             logger.LogInformation("İlk kurulum: yönetici hesabı ({Email}) yapılandırmadaki parolayla oluşturuldu.", email);
+        }
+    }
+
+    /// <summary>
+    /// Removes the first-run password the installer left in the machine environment.
+    /// </summary>
+    /// <remarks>
+    /// It has to travel that way — a Windows service reads its configuration from the machine
+    /// environment, and nothing else survives between the installer and the first start. But
+    /// measured 2026-08-06 on Windows 11: that registry value is readable by BUILTIN\Users,
+    /// so it must not outlive the account it creates. Nothing reads it after this point; the
+    /// password lives in the database as a hash from here on.
+    /// </remarks>
+    private static void ClearInstallerPassword(ILogger logger)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        try
+        {
+            var current = Environment.GetEnvironmentVariable("Admin__Password", EnvironmentVariableTarget.Machine);
+            if (string.IsNullOrEmpty(current))
+            {
+                return;
+            }
+
+            Environment.SetEnvironmentVariable("Admin__Password", null, EnvironmentVariableTarget.Machine);
+            logger.LogInformation("Kurulum parolası makine ortam değişkeninden silindi.");
+        }
+        catch (Exception ex)
+        {
+            // A service account without registry rights lands here. Say so loudly: the value
+            // staying behind is exactly the finding this method exists to close.
+            logger.LogWarning(
+                ex,
+                "Admin__Password ortam değişkeni silinemedi. Elle silin: "
+                + "[Environment]::SetEnvironmentVariable('Admin__Password', $null, 'Machine')");
         }
     }
 
