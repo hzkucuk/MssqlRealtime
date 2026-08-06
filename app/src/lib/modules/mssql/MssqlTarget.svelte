@@ -114,20 +114,36 @@
 	// every few seconds, so asking the server to filter would add a round trip and make the
 	// list flicker between answers.
 	let sessionQuery = $state('');
-	let sessionGroupBy = $state<'' | 'program' | 'host' | 'login' | 'status' | 'database'>('');
+
+	type GroupKey = 'program' | 'host' | 'login' | 'status' | 'database';
+
+	// Kademeli gruplama: seçim SIRASI hiyerarşiyi belirler. Önce Makine sonra Uygulama demek
+	// ile tersi farklı iki sorudur — "bu makineden hangi uygulamalar bağlı" ve "bu uygulama
+	// hangi makinelerden geliyor". O yüzden sıra korunur, alfabetik değil tıklama sırası.
+	let groupChain = $state<GroupKey[]>([]);
 	let collapsedGroups = $state(new Set<string>());
 
-	const GROUPABLE: [typeof sessionGroupBy, string][] = [
-		['', 'Gruplama yok'],
-		['program', 'Uygulama'],
+	const GROUPABLE: [GroupKey, string][] = [
 		['host', 'Makine'],
+		['program', 'Uygulama'],
 		['login', 'Kullanıcı'],
-		['status', 'Durum'],
-		['database', 'Veritabanı']
+		['database', 'Veritabanı'],
+		['status', 'Durum']
 	];
 
-	function groupValue(x: SessionInfo): string {
-		switch (sessionGroupBy) {
+	const groupLabel = (key: GroupKey) => GROUPABLE.find(([k]) => k === key)?.[1] ?? key;
+
+	function toggleGroupKey(key: GroupKey) {
+		groupChain = groupChain.includes(key)
+			? groupChain.filter((k) => k !== key)
+			: [...groupChain, key];
+
+		// Zincir değişince eski yol anahtarları anlamsız kalır; hepsi açık başlar.
+		collapsedGroups = new Set();
+	}
+
+	function groupValue(x: SessionInfo, key: GroupKey): string {
+		switch (key) {
 			case 'program':
 				return x.programName ?? '(bilinmiyor)';
 			case 'host':
@@ -138,8 +154,6 @@
 				return x.status ?? '(bilinmiyor)';
 			case 'database':
 				return x.databaseName ?? '(bilinmiyor)';
-			default:
-				return '';
 		}
 	}
 
@@ -168,26 +182,46 @@
 		return needle ? rows.filter((x) => matches(x, needle)) : rows;
 	});
 
+	type GroupNode = {
+		/** Yol anahtarı: aynı adlı iki alt grup farklı dallarda çakışmasın diye tam yol. */
+		path: string;
+		label: string;
+		rows: SessionInfo[];
+		children: GroupNode[];
+	};
+
 	// Groups keep the sorted order of their first row, so sorting a column still decides what
 	// comes first — grouping rearranges, it does not re-sort.
-	const sessionGroups = $derived.by(() => {
-		if (!sessionGroupBy) return [];
+	function buildTree(rows: SessionInfo[], depth: number, parentPath: string): GroupNode[] {
+		if (depth >= groupChain.length) return [];
 
+		const key = groupChain[depth];
 		const map = new Map<string, SessionInfo[]>();
-		for (const row of filteredSessions) {
-			const key = groupValue(row);
-			const bucket = map.get(key);
+
+		for (const row of rows) {
+			const value = groupValue(row, key);
+			const bucket = map.get(value);
 			if (bucket) bucket.push(row);
-			else map.set(key, [row]);
+			else map.set(value, [row]);
 		}
 
-		return [...map.entries()];
-	});
+		return [...map.entries()].map(([label, bucket]) => {
+			const path = `${parentPath}/${key}=${label}`;
+			return {
+				path,
+				label,
+				rows: bucket,
+				children: buildTree(bucket, depth + 1, path)
+			};
+		});
+	}
 
-	function toggleGroup(key: string) {
+	const sessionTree = $derived(groupChain.length === 0 ? [] : buildTree(filteredSessions, 0, ''));
+
+	function toggleGroup(path: string) {
 		const next = new Set(collapsedGroups);
-		if (next.has(key)) next.delete(key);
-		else next.add(key);
+		if (next.has(path)) next.delete(path);
+		else next.add(path);
 		collapsedGroups = next;
 	}
 
@@ -284,6 +318,36 @@
 		return clean.length > max ? clean.slice(0, max) + '…' : clean;
 	}
 </script>
+
+{#snippet groupBranch(node: GroupNode, depth: number)}
+	<!-- Kendini çağıran snippet: kaç seviye seçilirse seçilsin aynı kod çiziyor. -->
+	<tr class="group-row">
+		<td colspan={sessionColumns.visible.length}>
+			<button
+				class="group-toggle"
+				style="padding-left:{0.6 + depth * 1.1}rem"
+				onclick={() => toggleGroup(node.path)}
+			>
+				<span class="caret" class:collapsed={collapsedGroups.has(node.path)}>▾</span>
+				<span class="muted level">{groupLabel(groupChain[depth])}</span>
+				<strong>{node.label}</strong>
+				<span class="muted">{node.rows.length}</span>
+			</button>
+		</td>
+	</tr>
+
+	{#if !collapsedGroups.has(node.path)}
+		{#if node.children.length > 0}
+			{#each node.children as child (child.path)}
+				{@render groupBranch(child, depth + 1)}
+			{/each}
+		{:else}
+			{#each node.rows as x (x.sessionId)}
+				{@render sessionRow(x)}
+			{/each}
+		{/if}
+	{/if}
+{/snippet}
 
 {#snippet sessionRow(x: SessionInfo)}
 							<tr class:blocked={x.isBlocked} class:blocker={x.isBlocker}>
@@ -437,14 +501,25 @@
 					aria-label="Oturumlarda ara"
 				/>
 
-				<label class="group-pick">
+				<div class="group-pick">
 					<span class="muted">Grupla:</span>
-					<select bind:value={sessionGroupBy}>
-						{#each GROUPABLE as [key, label] (key)}
-							<option value={key}>{label}</option>
-						{/each}
-					</select>
-				</label>
+					{#each GROUPABLE as [key, label] (key)}
+						{@const order = groupChain.indexOf(key)}
+						<button
+							class="chip"
+							class:on={order >= 0}
+							onclick={() => toggleGroupKey(key)}
+							title={order >= 0 ? `${order + 1}. seviye — kaldırmak için tıklayın` : 'Gruplamaya ekle'}
+						>
+							{#if order >= 0}<span class="order">{order + 1}</span>{/if}{label}
+						</button>
+					{/each}
+					{#if groupChain.length > 0}
+						<button class="chip clear" onclick={() => { groupChain = []; collapsedGroups = new Set(); }}>
+							temizle
+						</button>
+					{/if}
+				</div>
 
 				<span class="muted count">
 					{#if sessionQuery.trim()}
@@ -487,26 +562,11 @@
 							</tr>
 						{/if}
 
-						{#each sessionGroups as [name, rows] (name)}
-							<!-- Grup basligi: kac satir oldugunu soyler, tiklayinca kapanir. -->
-							<tr class="group-row">
-								<td colspan={sessionColumns.visible.length}>
-									<button class="group-toggle" onclick={() => toggleGroup(name)}>
-										<span class="caret" class:collapsed={collapsedGroups.has(name)}>▾</span>
-										<strong>{name}</strong>
-										<span class="muted">{rows.length}</span>
-									</button>
-								</td>
-							</tr>
-
-							{#if !collapsedGroups.has(name)}
-								{#each rows as x (x.sessionId)}
-									{@render sessionRow(x)}
-								{/each}
-							{/if}
+						{#each sessionTree as node (node.path)}
+							{@render groupBranch(node, 0)}
 						{/each}
 
-						{#if !sessionGroupBy}
+						{#if groupChain.length === 0}
 							{#each filteredSessions as x (x.sessionId)}
 								{@render sessionRow(x)}
 							{/each}
@@ -812,5 +872,40 @@
 	.edition {
 		font-size: 0.78rem;
 		opacity: 0.85;
+	}
+
+	.chip {
+		border: 1px solid var(--border);
+		background: var(--surface-2);
+		color: inherit;
+		border-radius: 999px;
+		padding: 0.15rem 0.6rem;
+		font-size: 0.78rem;
+		cursor: pointer;
+	}
+
+	/* Seçili çipteki rakam kaçıncı seviye olduğunu söylüyor — sıra burada anlam taşıyor. */
+	.chip.on {
+		border-color: var(--accent);
+		color: var(--accent);
+	}
+
+	.chip .order {
+		display: inline-block;
+		margin-right: 0.3rem;
+		font-variant-numeric: tabular-nums;
+		opacity: 0.8;
+	}
+
+	.chip.clear {
+		border-style: dashed;
+		opacity: 0.75;
+	}
+
+	/* Hangi alana göre gruplandığı başlıkta yazıyor: iç içe iki seviyede "MUHASEBE-PC" tek
+	   başına hangi soruya cevap verdiğini söylemiyor. */
+	.level {
+		font-size: 0.72rem;
+		text-transform: lowercase;
 	}
 </style>

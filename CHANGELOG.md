@@ -2,6 +2,23 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/)
 
+## [0.14.1] — 2026-08-07
+
+### Eklenen — kademeli (iç içe) gruplama
+
+Oturumlar tablosunda gruplama artık **çok seviyeli**: önce Makine, onun içinde Uygulama,
+onun içinde Kullanıcı… İstediğiniz kadar seviye.
+
+- **Seçim sırası hiyerarşiyi belirler.** "Önce makine sonra uygulama" ile tersi farklı iki
+  sorudur — *bu makineden hangi uygulamalar bağlı* ve *bu uygulama hangi makinelerden
+  geliyor*. Çipteki rakam kaçıncı seviye olduğunu söyler.
+- Her grup başlığı hangi alana göre gruplandığını da yazar; iç içe iki seviyede tek başına
+  `MUHASEBE-PC` hangi soruya cevap verdiğini söylemiyor.
+- Gruplar **yol anahtarıyla** açılıp kapanır: iki farklı makinenin altındaki aynı isimli
+  uygulama birbirini kapatmaz (ölçüldü — `PC-A/rapor.exe` ile `PC-B/rapor.exe` ayrı).
+- Çizim kendini çağıran tek bir parçadan yapılıyor, dolayısıyla seviye sayısı arttıkça kod
+  büyümüyor.
+
 ## [0.14.0] — 2026-08-07
 
 ### Eklenen — Raporlar
