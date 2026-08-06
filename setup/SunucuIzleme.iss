@@ -9,8 +9,12 @@
 ; Sonuc: setup\output\SunucuIzleme-Setup-<surum>.exe — musteriye verilecek tek dosya.
 ;
 ; Kurulum sirasinda operator hesabi ve genel adres sorulur; kullanici hicbir yapilandirma
-; dosyasi duzenlemez. Parola makine seviyesinde ortam degiskenine yazilir (servis hesabi
-; disinda okunamaz) ve ilk aciliste veritabanina hash'lenerek kaydedilir.
+; dosyasi duzenlemez. Parola makine seviyesinde ortam degiskenine yazilir ve ilk aciliste
+; veritabanina hash'lenerek kaydedilir.
+;
+; 🔴 Olculdu 2026-08-06 18:05 (Windows 11 ARM64): bu ortam degiskenini BUILTIN\Users
+; okuyabiliyor ve hesap olusturulduktan sonra da silinmiyor. Burada daha once "servis
+; hesabi disinda okunamaz" yaziyordu; yanlisti. Bkz. docs/05-olculen-bulgular.md.
 
 #define AppName "Sunucu Izleme"
 #define AppVersion "0.12.0"

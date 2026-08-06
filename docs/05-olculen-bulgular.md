@@ -277,6 +277,37 @@ kurulu .NET Framework/Core sürümü ne olursa olsun ürün etkilenmiyor.
 
 Bu sürümlerde dikkat edilecek tek şey indirme adımı (TLS 1.2 ve curl.exe'nin yokluğu).
 
+## 2026-08-06 18:05 — Windows güvenlik bulguları ölçüldü (Windows 11 Pro ARM64, VM)
+
+Kurulum `windows-kur.ps1` ile yapıldı, denetim `tools/windows-guvenlik-denetimi.ps1` ile
+**yönetici olmayan** bir oturumdan çalıştırıldı — tehdit modeli tam olarak bu: makinede
+sıradan bir kullanıcı hesabı olan biri.
+
+| # | Bulgu | Ölçülen |
+|---|---|---|
+| 1 | Yönetici parolası `HKLM\...\Session Manager\Environment` altında düz metin | **`BUILTIN\Users` okuyabiliyor.** Hesap oluşturulduktan sonra da silinmiyor |
+| 2 | Genel adres girilince Kestrel `0.0.0.0`'a bağlanıyor | Doğrulandı; güvenlik duvarı kuralının kaynak kısıtı **`Any`** |
+| 2b | Sahte `X-Forwarded-For` ile hız sınırı | **12 denemede tek bir `429` yok** — hepsi `401`. Başlık her istekte değiştiği için limitleyici her seferinde yeni bir bölüm açıyor |
+| 3 | `ProgramData\SunucuIzleme`, `keys\`, `mssqlrealtime.db` | Üçünde de **`BUILTIN\Users = ReadAndExecute`**. Yani sıradan bir kullanıcı veri koruma anahtar halkasını okuyup kayıtlı SQL parolalarını çözebilir |
+| 4 | Servis hesabı | **LocalSystem** |
+| 5 | Loglarda sır | **Ölçülemedi** — `logs\` boştu, 0 dosya tarandı. "Temiz" değil, "bilinmiyor" |
+| 6 | Güvenlik başlıkları | Dördü de yok: `X-Content-Type-Options`, `X-Frame-Options`, `Content-Security-Policy`, `Referrer-Policy` |
+| 7 | LAN'dan erişim | `http://172.24.80.1:5199` **düz HTTP** ile cevap veriyor |
+
+En ağırı 3 numara: şifreleme var ama anahtarı okuyabilen için şifreleme yok.
+
+**Yan bulgu — x64 paketi ARM64 Windows'ta çalışıyor.** Self-contained win-x64 yayın,
+Windows 11 ARM64 üzerinde emülasyonla sorunsuz kuruldu ve çalıştı (servis ayakta, sağlık
+ucu cevap verdi). ARM makineler için ayrı paket gerekmiyor.
+
+**Ölçüm sırasında karışan şey — iki kurulum yarıştı.** Aynı dakikalarda kullanıcı
+`setup.exe` sihirbazını dolduruyordu; sihirbaz benim betikle yaptığım kurulumun **üzerine
+yazdı** (parola ve `ASPNETCORE_URLS` değişti, `Cors__AllowedOrigins__0` benimki kaldı).
+Sonuç: registry'de tutarsız bir karışım. Kodda hata yok — temiz bir koşuda `0.0.0.0`,
+19 karakterlik parola ve `0.0.0.0` dinleyen soket doğrulandı. Ders: **iki kurulum yolu
+aynı ortam değişkenlerini yazıyor ve biri diğerini sessizce eziyor**; sıra kimdeyse o
+kazanıyor.
+
 ## 2026-08-06 02:20 — setup.exe macOS'ta derleniyor, belgeler tersini söylüyordu
 
 `amake/innosetup` konteyneri (Wine + Inno Setup 6) `SunucuIzleme-Setup-0.12.0.exe`'yi

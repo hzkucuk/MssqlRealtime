@@ -1,4 +1,4 @@
-# Read-only security audit of an installed panel. Changes nothing — it measures, so the
+# Read-only security audit of an installed panel. Changes nothing - it measures, so the
 # findings in docs/04-kirilma-noktalari.md stop being assumptions about Windows defaults.
 #
 #   .\windows-guvenlik-denetimi.ps1
@@ -142,7 +142,7 @@ if ($ip) {
 }
 
 Write-Host ''
-Write-Host "Sunucu Izleme — guvenlik denetimi  $(Get-Date -Format 'yyyy-MM-dd HH:mm')" -ForegroundColor Cyan
+Write-Host "Sunucu Izleme - guvenlik denetimi  $(Get-Date -Format 'yyyy-MM-dd HH:mm')" -ForegroundColor Cyan
 Write-Host ''
 $results | Format-Table -AutoSize -Wrap
 Write-Host ''

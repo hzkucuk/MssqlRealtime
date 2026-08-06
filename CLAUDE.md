@@ -160,6 +160,13 @@ Sonra iki seçenek: müşteriye **tek dosya** (`setup-derle.sh` çıktısı) ya 
   varsayılan kurulum kazara LAN'a açılmasın diye.
 - Veri `ProgramData\SunucuIzleme` altında, program klasörünün **dışında**: yükseltme ve
   kaldırma veritabanına ve veri koruma anahtarlarına dokunmaz.
+- 🔴 **Açık güvenlik borcu** (ölçüldü 2026-08-06 18:05, Windows 11 ARM64 VM): yönetici
+  parolası registry'de düz metin ve `BUILTIN\Users` okuyabiliyor; `ProgramData` altındaki
+  **veri koruma anahtar halkası da `Users` tarafından okunabiliyor** — yani şifrelenmiş
+  SQL parolaları sıradan bir yerel kullanıcı için şifresiz sayılır. Servis LocalSystem,
+  güvenlik başlıkları yok, sahte `X-Forwarded-For` hız sınırını atlıyor. Ayrıntı ve
+  ölçüm yöntemi: `docs/05-olculen-bulgular.md`, denetim aracı
+  `tools/windows-guvenlik-denetimi.ps1`.
 
 ### SQL Server tarafı
 
