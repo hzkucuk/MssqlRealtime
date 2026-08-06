@@ -97,6 +97,87 @@
 		{ key: 'backup', label: 'Son yedek', width: 150 }
 	]);
 
+	// Search and grouping live on the client: the snapshot is already in memory and arrives
+	// every few seconds, so asking the server to filter would add a round trip and make the
+	// list flicker between answers.
+	let sessionQuery = $state('');
+	let sessionGroupBy = $state<'' | 'program' | 'host' | 'login' | 'status' | 'database'>('');
+	let collapsedGroups = $state(new Set<string>());
+
+	const GROUPABLE: [typeof sessionGroupBy, string][] = [
+		['', 'Gruplama yok'],
+		['program', 'Uygulama'],
+		['host', 'Makine'],
+		['login', 'Kullanıcı'],
+		['status', 'Durum'],
+		['database', 'Veritabanı']
+	];
+
+	function groupValue(x: SessionInfo): string {
+		switch (sessionGroupBy) {
+			case 'program':
+				return x.programName ?? '(bilinmiyor)';
+			case 'host':
+				return x.hostName ?? x.clientAddress ?? '(bilinmiyor)';
+			case 'login':
+				return x.loginName ?? '(bilinmiyor)';
+			case 'status':
+				return x.status ?? '(bilinmiyor)';
+			case 'database':
+				return x.databaseName ?? '(bilinmiyor)';
+			default:
+				return '';
+		}
+	}
+
+	// Matched against the fields a person actually types: a SPID, part of a machine name, a
+	// login. Case- and accent-insensitive so "İSTANBUL" finds "istanbul-pc".
+	function matches(x: SessionInfo, needle: string): boolean {
+		const haystack = [
+			String(x.sessionId),
+			x.programName,
+			x.hostName,
+			x.clientAddress,
+			x.loginName,
+			x.status,
+			x.databaseName
+		]
+			.filter(Boolean)
+			.join(' ')
+			.toLocaleLowerCase('tr');
+
+		return haystack.includes(needle);
+	}
+
+	const filteredSessions = $derived.by(() => {
+		const rows = sessionSort.apply(snapshot?.sessions ?? []);
+		const needle = sessionQuery.trim().toLocaleLowerCase('tr');
+		return needle ? rows.filter((x) => matches(x, needle)) : rows;
+	});
+
+	// Groups keep the sorted order of their first row, so sorting a column still decides what
+	// comes first — grouping rearranges, it does not re-sort.
+	const sessionGroups = $derived.by(() => {
+		if (!sessionGroupBy) return [];
+
+		const map = new Map<string, SessionInfo[]>();
+		for (const row of filteredSessions) {
+			const key = groupValue(row);
+			const bucket = map.get(key);
+			if (bucket) bucket.push(row);
+			else map.set(key, [row]);
+		}
+
+		return [...map.entries()];
+	});
+
+	function toggleGroup(key: string) {
+		const next = new Set(collapsedGroups);
+		if (next.has(key)) next.delete(key);
+		else next.add(key);
+		collapsedGroups = next;
+	}
+
 	let killing = $state<number | null>(null);
 	let actionError = $state<string | null>(null);
 	let actionOk = $state<string | null>(null);
@@ -135,6 +216,41 @@
 		return clean.length > max ? clean.slice(0, max) + '…' : clean;
 	}
 </script>
+
+{#snippet sessionRow(x: SessionInfo)}
+							<tr class:blocked={x.isBlocked} class:blocker={x.isBlocker}>
+								{#if sessionColumns.isVisible('sessionId')}<td class="mono">{x.sessionId}</td>{/if}
+								{#if sessionColumns.isVisible('program')}<td class="clamp">{x.programName ?? '—'}</td>{/if}
+								{#if sessionColumns.isVisible('host')}<td class="clamp">{x.hostName ?? '—'}<div class="muted mono">{x.clientAddress ?? ''}</div></td>{/if}
+								{#if sessionColumns.isVisible('login')}<td class="clamp">{x.loginName ?? '—'}</td>{/if}
+								{#if sessionColumns.isVisible('status')}
+								<td>
+									{x.status ?? '—'}
+									{#if x.isBlocker}<span class="badge badge-crit">engelliyor</span>{/if}
+									{#if x.isBlocked}<span class="badge badge-warn">bloke</span>{/if}
+									{#if x.openTransactionCount > 0}
+										<span class="badge">{x.openTransactionCount} açık işlem</span>
+									{/if}
+								</td>
+								{/if}
+								{#if sessionColumns.isVisible('database')}<td class="clamp">{x.databaseName ?? '—'}</td>{/if}
+								{#if sessionColumns.isVisible('cpu')}<td class="mono">{num(x.cpuTimeMs)} ms</td>{/if}
+								{#if sessionColumns.isVisible('reads')}<td class="mono">{num(x.logicalReads)}</td>{/if}
+								{#if sessionColumns.isVisible('writes')}<td class="mono">{num(x.writes)}</td>{/if}
+								{#if sessionColumns.isVisible('memory')}<td class="mono">{num(x.memoryUsageKb)} KB</td>{/if}
+								{#if sessionColumns.isVisible('login-time')}<td class="muted">{dateTime(x.loginTime)}</td>{/if}
+								{#if sessionColumns.isVisible('idle')}<td>{duration(x.idleSeconds)}</td>{/if}
+								<td class="pinned">
+									<button
+										class="btn btn-sm btn-danger"
+										disabled={killing === x.sessionId}
+										onclick={() => kill(x.sessionId)}
+									>
+										{killing === x.sessionId ? '…' : 'Kes'}
+									</button>
+								</td>
+							</tr>
+{/snippet}
 
 <div class="page wide">
 	{#if !snapshot}
@@ -232,8 +348,32 @@
 				</div>
 			{/if}
 		{:else if tab === 'oturumlar'}
-			<div class="row between" style="margin-bottom:0.5rem">
-				<span class="muted">Başlığı sürükleyerek genişliği değiştirebilirsiniz.</span>
+			<div class="toolbar">
+				<input
+					class="search"
+					type="search"
+					placeholder="Ara: SPID, uygulama, makine, kullanıcı, veritabanı…"
+					bind:value={sessionQuery}
+					aria-label="Oturumlarda ara"
+				/>
+
+				<label class="group-pick">
+					<span class="muted">Grupla:</span>
+					<select bind:value={sessionGroupBy}>
+						{#each GROUPABLE as [key, label] (key)}
+							<option value={key}>{label}</option>
+						{/each}
+					</select>
+				</label>
+
+				<span class="muted count">
+					{#if sessionQuery.trim()}
+						{filteredSessions.length} / {s.sessions.length} oturum
+					{:else}
+						{s.sessions.length} oturum
+					{/if}
+				</span>
+
 				<ColumnPicker columns={sessionColumns} />
 			</div>
 
@@ -257,40 +397,40 @@
 						</tr>
 					</thead>
 					<tbody>
-						{#each sessionSort.apply(s.sessions) as x (x.sessionId)}
-							<tr class:blocked={x.isBlocked} class:blocker={x.isBlocker}>
-								{#if sessionColumns.isVisible('sessionId')}<td class="mono">{x.sessionId}</td>{/if}
-								{#if sessionColumns.isVisible('program')}<td class="clamp">{x.programName ?? '—'}</td>{/if}
-								{#if sessionColumns.isVisible('host')}<td class="clamp">{x.hostName ?? '—'}<div class="muted mono">{x.clientAddress ?? ''}</div></td>{/if}
-								{#if sessionColumns.isVisible('login')}<td class="clamp">{x.loginName ?? '—'}</td>{/if}
-								{#if sessionColumns.isVisible('status')}
-								<td>
-									{x.status ?? '—'}
-									{#if x.isBlocker}<span class="badge badge-crit">engelliyor</span>{/if}
-									{#if x.isBlocked}<span class="badge badge-warn">bloke</span>{/if}
-									{#if x.openTransactionCount > 0}
-										<span class="badge">{x.openTransactionCount} açık işlem</span>
-									{/if}
+						{#if filteredSessions.length === 0}
+							<tr>
+								<td colspan={sessionColumns.visible.length} class="muted" style="padding:1rem">
+									{sessionQuery.trim()
+										? `"${sessionQuery}" ile eşleşen oturum yok.`
+										: 'Oturum yok.'}
 								</td>
-								{/if}
-								{#if sessionColumns.isVisible('database')}<td class="clamp">{x.databaseName ?? '—'}</td>{/if}
-								{#if sessionColumns.isVisible('cpu')}<td class="mono">{num(x.cpuTimeMs)} ms</td>{/if}
-								{#if sessionColumns.isVisible('reads')}<td class="mono">{num(x.logicalReads)}</td>{/if}
-								{#if sessionColumns.isVisible('writes')}<td class="mono">{num(x.writes)}</td>{/if}
-								{#if sessionColumns.isVisible('memory')}<td class="mono">{num(x.memoryUsageKb)} KB</td>{/if}
-								{#if sessionColumns.isVisible('login-time')}<td class="muted">{dateTime(x.loginTime)}</td>{/if}
-								{#if sessionColumns.isVisible('idle')}<td>{duration(x.idleSeconds)}</td>{/if}
-								<td class="pinned">
-									<button
-										class="btn btn-sm btn-danger"
-										disabled={killing === x.sessionId}
-										onclick={() => kill(x.sessionId)}
-									>
-										{killing === x.sessionId ? '…' : 'Kes'}
+							</tr>
+						{/if}
+
+						{#each sessionGroups as [name, rows] (name)}
+							<!-- Grup basligi: kac satir oldugunu soyler, tiklayinca kapanir. -->
+							<tr class="group-row">
+								<td colspan={sessionColumns.visible.length}>
+									<button class="group-toggle" onclick={() => toggleGroup(name)}>
+										<span class="caret" class:collapsed={collapsedGroups.has(name)}>▾</span>
+										<strong>{name}</strong>
+										<span class="muted">{rows.length}</span>
 									</button>
 								</td>
 							</tr>
+
+							{#if !collapsedGroups.has(name)}
+								{#each rows as x (x.sessionId)}
+									{@render sessionRow(x)}
+								{/each}
+							{/if}
 						{/each}
+
+						{#if !sessionGroupBy}
+							{#each filteredSessions as x (x.sessionId)}
+								{@render sessionRow(x)}
+							{/each}
+						{/if}
 					</tbody>
 				</table>
 			</div>
@@ -467,5 +607,65 @@
 
 	h1 {
 		font-size: 1.1rem;
+	}
+
+	/* Arama, gruplama ve sutun secici tek satirda; dar ekranda alt alta sarar. */
+	.toolbar {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+		margin-bottom: 0.5rem;
+	}
+
+	.search {
+		flex: 1 1 14rem;
+		min-width: 0;
+	}
+
+	.group-pick {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+	}
+
+	.toolbar .count {
+		font-variant-numeric: tabular-nums;
+	}
+
+	/* Grup basligi bir veri satiri degil; zemini ayirir ama renk tasimaz — renk bu tabloda
+	   durum demek. */
+	.group-row td {
+		background: var(--surface-2, rgba(127, 127, 127, 0.08));
+		padding: 0;
+	}
+
+	.group-toggle {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		width: 100%;
+		padding: 0.4rem 0.6rem;
+		background: none;
+		border: 0;
+		color: inherit;
+		font: inherit;
+		text-align: left;
+		cursor: pointer;
+	}
+
+	.caret {
+		display: inline-block;
+		transition: transform 0.12s ease;
+	}
+
+	.caret.collapsed {
+		transform: rotate(-90deg);
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.caret {
+			transition: none;
+		}
 	}
 </style>
