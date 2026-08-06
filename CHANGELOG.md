@@ -4,6 +4,26 @@ Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme:
 
 ## [0.12.1] — 2026-08-06
 
+### Eklenen — güncelleme uyarısı
+
+Uygulama panelden **eskiyse** başlığın altında bir şerit çıkıyor: *"Panel v0.12.1
+sürümünde, uygulamanız v0.12.0"* + **İndir**. Şerit yalnız uygulama geride kaldığında
+görünür; panel geride kaldığında görünmez, çünkü onu telefondan kimse düzeltmez —
+o durumda başlıktaki sessiz `≠` işareti kalır.
+
+- **Şerit görünürken başlıktaki `≠` işareti gizleniyor.** Aynı olguyu iki yerde söylemek
+  iki ayrı olgu gibi okunuyor.
+- Kapatınca **oturum boyunca** susuyor (`sessionStorage`). Yarın geri gelen bir hatırlatma
+  hatırlatmadır; bir daha hiç gelmeyen, kaçırılmış bir güncellemedir.
+- Tarayıcıdan bakıldığında hiç çıkmaz: paketi zaten panel sunuyor, sürümler tanımı gereği
+  aynı. Platform kontrolü yok — uyuşmazlığın kendisi zaten sinyal.
+
+> **Neden Tauri updater değil:** Tauri v2 updater eklentisi Windows, Linux ve macOS'u
+> destekliyor; **Android ve iOS'u desteklemiyor** (resmî belge, doğrulandı 2026-08-06).
+> Bu ürün telefonda kullanılıyor ve masaüstü paketi yayınlanmıyor, dolayısıyla updater
+> olmayan bir ürünü güncelleyen bir sistem olurdu. Android'de sessiz kurulum da mümkün
+> değil — kullanıcı onayı her hâlükârda şart.
+
 ### Eklenen — sürüm artık ekranda
 
 - **Giriş ekranında `v0.12.1`**, başlıkta ise **panelin sürümü** panel adresinin yanında.

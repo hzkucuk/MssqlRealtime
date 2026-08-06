@@ -5,11 +5,15 @@
 	import { page } from '$app/state';
 	import {
 		appVersion,
+		compareVersions,
 		fetchServerVersion,
 		getActiveServer,
 		getTokens,
-		logout
+		logout,
+		releasePageUrl
 	} from '$lib/api/client';
+
+	const UPDATE_DISMISSED_KEY = 'mr.updateDismissed';
 	import { realtime } from '$lib/api/realtime.svelte';
 	import { ensureNotificationPermission } from '$lib/notify';
 	import { ago } from '$lib/format';
@@ -31,9 +35,28 @@
 	const mismatched = $derived(serverVersion !== null && serverVersion !== appVersion);
 	const versionTitle = $derived(
 		mismatched
-			? `Panel v${serverVersion} · uygulama v${appVersion} — uygulamayı güncelleyin`
+			? `Panel v${serverVersion} · uygulama v${appVersion}`
 			: `Panel ve uygulama v${appVersion}`
 	);
+
+	// Two different situations, and only one of them is the phone's problem:
+	//   app older than hub  → this device can fix it, so offer the download;
+	//   hub older than app  → the server needs upgrading, which nobody does from a phone.
+	// In a browser the bundle is served by the hub itself, so the versions always agree and
+	// this never fires — no platform check needed, the mismatch is the signal.
+	const updateAvailable = $derived(
+		serverVersion !== null && compareVersions(serverVersion, appVersion) > 0
+	);
+
+	// Dismissal lasts the session: a nudge that returns tomorrow is a reminder, one that
+	// never returns is a missed update, and localStorage is not used in this product.
+	let dismissedVersion = $state<string | null>(null);
+	const showUpdate = $derived(updateAvailable && dismissedVersion !== serverVersion);
+
+	function dismissUpdate() {
+		dismissedVersion = serverVersion;
+		if (serverVersion) sessionStorage.setItem(UPDATE_DISMISSED_KEY, serverVersion);
+	}
 
 	const isLogin = $derived(page.url.pathname === '/giris');
 	const unread = $derived(realtime.alerts.filter((a) => !a.isCleared).length);
@@ -52,6 +75,8 @@
 			if (!isLogin) await goto('/giris');
 			return;
 		}
+
+		dismissedVersion = sessionStorage.getItem(UPDATE_DISMISSED_KEY);
 
 		const server = getActiveServer();
 		if (server) serverVersion = await fetchServerVersion(server.url);
@@ -83,7 +108,12 @@
 					<div class="host">
 						{activeServer.url.replace(/^https?:\/\//, '')}
 						{#if serverVersion}<span class="ver" title={versionTitle}>v{serverVersion}</span>{/if}
-						{#if mismatched}<span class="ver warn" title={versionTitle}>≠ v{appVersion}</span>{/if}
+						<!-- Only when the banner is not already saying it: the same fact twice reads
+					     as two facts. Survives the banner's dismissal, and covers the case the
+					     banner does not — a hub older than the app. -->
+					{#if mismatched && !showUpdate}
+						<span class="ver warn" title={versionTitle}>≠ v{appVersion}</span>
+					{/if}
 					</div>
 				{/if}
 			</span>
@@ -104,6 +134,24 @@
 			<button class="btn btn-sm" onclick={signOut} title="Çıkış">⏻</button>
 		</div>
 	</header>
+
+	{#if showUpdate}
+		<!-- Below the header, above the data: an update is worth telling, never worth hiding
+		     a measurement behind. Accent colour, not an alert colour — nothing is wrong. -->
+		<div class="update">
+			<span>
+				Panel <strong>v{serverVersion}</strong> sürümünde, uygulamanız v{appVersion}.
+			</span>
+			<span class="row" style="gap:0.4rem">
+				<a class="btn btn-sm" href={releasePageUrl(serverVersion!)} target="_blank" rel="noreferrer">
+					İndir
+				</a>
+				<button class="btn btn-sm" onclick={dismissUpdate} title="Bu oturumda bir daha sorma">
+					✕
+				</button>
+			</span>
+		</div>
+	{/if}
 
 	{#if showAlerts}
 		<div class="alerts">
@@ -198,6 +246,18 @@
 	.ver.warn {
 		color: var(--warn);
 		opacity: 1;
+	}
+
+	.update {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+		flex-wrap: wrap;
+		padding: 0.55rem 0.9rem;
+		font-size: 0.82rem;
+		border-bottom: 1px solid var(--line);
+		background: color-mix(in srgb, var(--accent) 12%, transparent);
 	}
 
 	.conn {

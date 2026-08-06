@@ -176,6 +176,32 @@ export async function fetchServerVersion(serverUrl: string): Promise<string | nu
 	}
 }
 
+/**
+ * Orders two semver strings: negative when `a` is older, 0 when equal, positive when newer.
+ * Only the numeric parts matter here — this product has never shipped a pre-release tag, and
+ * guessing at one would be worse than ignoring it.
+ */
+export function compareVersions(a: string, b: string): number {
+	const parts = (v: string) => v.replace(/^v/, '').split('.').map((n) => Number.parseInt(n, 10) || 0);
+	const [left, right] = [parts(a), parts(b)];
+
+	for (let i = 0; i < Math.max(left.length, right.length); i++) {
+		const diff = (left[i] ?? 0) - (right[i] ?? 0);
+		if (diff !== 0) return diff;
+	}
+
+	return 0;
+}
+
+/**
+ * Where a phone downloads a newer build. The hub does not carry the APK — it is a server
+ * package — so the release page is the honest destination: it shows what changed before
+ * anything is installed.
+ */
+export function releasePageUrl(version: string): string {
+	return `https://github.com/hzkucuk/MssqlRealtime/releases/tag/v${version.replace(/^v/, '')}`;
+}
+
 export type CaptchaChallenge = { token: string; svg: string };
 
 /** Whether this address already has to solve a captcha before its next attempt. */
