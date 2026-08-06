@@ -42,13 +42,13 @@ verildi** — bir izleme panelinde en güzel şey, bakınca anlaşılan veridir.
 
 ### Araçlar
 
-- **`.github/workflows/apk.yml`** — APK'yı GitHub'da derleyip imzalar ve tag'in release'ine
-  ekler. Android zinciri yerelde en kırılgan halka: makinedeki JDK 25 ile Gradle
-  `:buildSrc`'ta çıplak bir `> 25.0.3` hatasıyla düşüyor (ölçüldü 2026-08-06 11:35),
-  runner'da JDK 21 sabit. Depo **public** olduğu için tetikleyici yalnız tag ve elle
-  çalıştırma — `pull_request` yok, yani bir fork'un PR'ı imzalama anahtarını göremez;
-  üçüncü parti action'lar commit SHA'sına sabitlendi.
-- **`tools/apk-derle.sh`** — aynı işin yerel karşılığı (derle + zipalign + imzala).
+- **`tools/apk-derle.sh`** — APK'yı derler, hizalar ve imzalar. Yerelde en kırılgan halka
+  Android zinciri: makinedeki varsayılan JDK 25 ile Gradle `:buildSrc`'ta çıplak bir
+  `> 25.0.3` hatasıyla düşüyor (ölçüldü 2026-08-06 11:35), betik JDK 21'i sabitliyor.
+  > APK'yı GitHub Actions'ta derleyip imzalayan bir workflow yazılıp **geri alındı**:
+  > uygulama tek bir telefonda kullanılıyor, karşılığında imzalama anahtarı public bir
+  > deponun secret'larına taşınacaktı. Android imzalama anahtarı döndürülemez — tek
+  > kullanıcı için alınacak kalıcı bir risk değil.
   Ölçüldü 2026-08-06 14:23: `--target aarch64` verilse bile çıktı `apk/universal/`
   altına düşüyor, yalnız içeriği arm64'e daralıyor — 36 MB yerine **12 MB**.
 - **`tools/setup-derle.sh`** — setup `.exe`'sini macOS/Linux'ta derler (Inno Setup, Wine
