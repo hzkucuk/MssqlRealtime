@@ -1,0 +1,123 @@
+# Builds and signs the Android APK, then attaches it to the release for the tag.
+#
+# This repository is PUBLIC, so the signing key needs care:
+#   - triggers are tag pushes and manual runs only — never pull_request, so a fork's PR
+#     can never run with these secrets;
+#   - every third-party action is pinned to a commit SHA, so a compromised tag cannot
+#     silently start reading them;
+#   - the keystore is written outside the workspace and removed in a step that always
+#     runs, so a later step (or an artifact upload) cannot pick it up.
+#
+# Secrets (Settings → Secrets and variables → Actions):
+#   ANDROID_KEYSTORE_BASE64    base64 -i ~/.android/sunucuizleme.keystore
+#   ANDROID_KEYSTORE_PASSWORD  keystore password (same value for the key entry)
+name: APK
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Which release tag to attach the APK to (e.g. v0.12.0)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      # Measured 2026-08-06: the Android Gradle Plugin rejects JDK 25 with a bare
+      # "> 25.0.3" at :buildSrc. 21 is what works.
+      JAVA_VERSION: "21"
+      RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Rust toolchain with Android targets
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        with:
+          toolchain: stable
+          targets: aarch64-linux-android
+
+      - name: NDK
+        run: |
+          set -euo pipefail
+          NDK_VERSION=$(ls "$ANDROID_HOME/ndk" | sort -V | tail -1)
+          echo "NDK_HOME=$ANDROID_HOME/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
+
+      - name: Install dependencies
+        working-directory: app
+        run: npm ci
+
+      # gen/ is gitignored (it is generated, not authored), so the Android project has to
+      # be created here before it can be built.
+      - name: Generate the Android project
+        working-directory: app
+        run: npm run tauri android init -- --ci --skip-targets-install
+
+      # arm64 only, matching every APK published so far: a universal build is 36 MB
+      # against 12 MB, and the extra 24 MB is x86 (emulators) plus armv7 (pre-2015 phones).
+      - name: Build APK
+        working-directory: app
+        run: npm run tauri android build -- --apk --target aarch64
+
+      - name: Sign
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 secret is missing — an unsigned APK will not install."
+            exit 1
+          fi
+
+          BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          VERSION=$(echo "$RELEASE_TAG" | sed 's/^v//')
+
+          # Measured 2026-08-06 14:23: even with --target aarch64 the output lands in
+          # apk/universal/ as app-universal-release-unsigned.apk (only its contents narrow
+          # to arm64-v8a), so the path is found rather than assumed.
+          UNSIGNED=$(find app/src-tauri/gen/android/app/build/outputs/apk -name "*-release-unsigned.apk" | head -1)
+          if [ -z "$UNSIGNED" ]; then
+            echo "::error::No unsigned APK found under outputs/apk."
+            exit 1
+          fi
+
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/signing.keystore"
+          mkdir -p dist
+          "$BUILD_TOOLS/zipalign" -f -p 4 "$UNSIGNED" "dist/SunucuIzleme-$VERSION.apk"
+          "$BUILD_TOOLS/apksigner" sign \
+            --ks "$RUNNER_TEMP/signing.keystore" \
+            --ks-pass env:KEYSTORE_PASSWORD \
+            --key-pass env:KEYSTORE_PASSWORD \
+            "dist/SunucuIzleme-$VERSION.apk"
+
+          # Prints the certificate, never the key: this log is public.
+          "$BUILD_TOOLS/apksigner" verify --print-certs "dist/SunucuIzleme-$VERSION.apk"
+
+      - name: Remove the keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/signing.keystore"
+
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$RELEASE_TAG" dist/*.apk --clobber
