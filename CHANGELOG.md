@@ -2,6 +2,49 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/)
 
+## [0.13.0] — 2026-08-07
+
+### 🔴 Düzeltilen — telefon uyuduktan sonra "bağlı değil" kalıyordu
+
+Uygulama ilk açılışta yeşil bağlanıyor, telefon uyuyup uyandığında **kırmızı kalıyor** ve bir
+daha kendiliğinden toparlamıyordu. Üç ayrı eksik vardı:
+
+- **Yeniden bağlanma politikası pes ediyordu.** SignalR'a sabit bir gecikme dizisi
+  verilmişti (`[0, 2s, 5s, 10s, 30s]`); dizi bitince istemci **bir daha hiç denemiyor**.
+  Artık politika sonsuz: gecikme 30 saniyeye kadar büyüyor ama asla durmuyor.
+- **Bağlantı tamamen kapandığında yeniden deneme yoktu.** `onclose` yalnız durumu
+  "bağlı değil" yapıyordu; artık geri sayımı da başlatıyor.
+- **Telefon uyandığında hiçbir şey tetiklemiyordu.** Sayfa uykuya gittiğini haber vermez,
+  sadece çalışmayı bırakır. `visibilitychange`, `online` ve `focus` olaylarında bağlantı
+  kopuksa **anında** yeniden deneniyor — geri sayımı beklemek, karşıda canlı veri varken
+  kırmızı göstergeye bakmak demekti.
+
+### Eklenen — oturumlarda arama ve gruplama
+
+Yirmi oturum ekrana sığar, iki yüz sığmaz. Soru da zaten "hepsini göster" değil: *"şu
+uygulama ne yapıyor"* ya da *"o makineden kim bağlı"*.
+
+- **Arama** tek kutuda SPID, uygulama, makine, IP, kullanıcı, durum ve veritabanında birden
+  arıyor — insanlar alan adı seçmez, parça yazar. Türkçe harf katlaması kullanıldı:
+  `İSTANBUL` yazınca `istanbul-pc` bulunur.
+- **Gruplama**: Uygulama / Makine / Kullanıcı / Durum / Veritabanı. Her grup başlığı satır
+  sayısını taşır ve tıklayınca kapanır.
+- Gruplama **sıralamayı bozmaz** — hangi sütuna göre sıraladıysanız o geçerli kalır;
+  gruplama sıralamaz, toplar.
+- Filtre açıkken sayaç `12 / 340 oturum` der; kaçının gizlendiğini bilmeden liste okunmaz.
+- İkisi de istemcide çalışır: anlık görüntü zaten bellekte ve birkaç saniyede bir yenilenir,
+  sunucuya sormak aynı sorunun iki cevabı arasında listeyi titretirdi.
+- Satır işaretlemesi bir snippet'e taşındı; gruplu ve düz görünüm tek koddan çiziliyor,
+  ikisi birbirinden ayrışamaz.
+
+### Değerlendirilip yapılmayan
+
+**SQL servisini arayüzden yeniden başlatma** istendi, birlikte geri alındı. Servisi
+döndürmek tüm bağlantıları koparır, açık işlemleri geri alır ve büyük bir veritabanında
+recovery dakikalar sürebilir — izleme panelinin önlemesi gereken kesintinin kendisi. Ayrıca
+SQL yetkisi değil **Windows servis yönetimi** yetkisi gerektirir; ürün ilk kez izlenen
+makinede yönetici hakkı isterdi. Sistem sekmesinde servisler görünmeye devam ediyor.
+
 ## [0.12.5] — 2026-08-07
 
 ### 🔴 Kurulum artık `C:\SunucuIzleme` altında — servis nihayet açılıyor

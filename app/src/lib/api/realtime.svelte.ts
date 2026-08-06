@@ -29,11 +29,37 @@ class RealtimeClient {
 	attempts = $state(0);
 
 	#handlers = new Set<Handler>();
+	#wakeBound = false;
 	#subscriptions = new Set<string>();
 	#retryTimer: ReturnType<typeof setTimeout> | null = null;
 	#stopped = false;
 
+	/**
+	 * A phone does not tell the page it fell asleep — it just stops running it. When it comes
+	 * back the socket is long dead, and waiting out a backoff timer means staring at a red
+	 * indicator with live data on the other side. These three events are the moment to try
+	 * again, immediately.
+	 */
+	#bindWakeUp(): void {
+		if (this.#wakeBound || typeof document === 'undefined') return;
+		this.#wakeBound = true;
+
+		const wake = () => {
+			if (this.#stopped) return;
+			if (this.state === 'connected' || this.state === 'connecting') return;
+			void this.reconnect();
+		};
+
+		document.addEventListener('visibilitychange', () => {
+			if (document.visibilityState === 'visible') wake();
+		});
+		window.addEventListener('online', wake);
+		window.addEventListener('focus', wake);
+	}
+
 	async start(): Promise<void> {
+		this.#bindWakeUp();
+
 		if (this.connection && this.connection.state !== HubConnectionState.Disconnected) {
 			return;
 		}
@@ -47,9 +73,17 @@ class RealtimeClient {
 				// travels as a query parameter; the host accepts it only for this path.
 				accessTokenFactory: async () => (await getAccessToken()) ?? ''
 			})
-			// Backing off rather than hammering: a phone that loses signal in a lift should
-			// not spend its battery reconnecting every second.
-			.withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
+			// 🔴 Measured 2026-08-07: an array here means SignalR gives up after the last entry
+			// and never tries again — a phone that slept for a minute came back saying
+			// "bağlı değil" forever. The policy below never returns null, so it never gives up;
+			// the delay still backs off to 30 s so a phone in a lift is not draining its
+			// battery reconnecting every second.
+			.withAutomaticReconnect({
+				nextRetryDelayInMilliseconds: (context) =>
+					context.previousRetryCount === 0
+						? 0
+						: Math.min(30_000, 2000 * 2 ** (context.previousRetryCount - 1))
+			})
 			.configureLogging(LogLevel.Warning)
 			.build();
 
@@ -75,6 +109,10 @@ class RealtimeClient {
 		connection.onclose((error) => {
 			this.state = 'disconnected';
 			this.lastError = error?.message ?? null;
+
+			// Reaching onclose means SignalR is done trying. Without this the indicator stayed
+			// red until the app was killed and reopened.
+			this.#scheduleRetry();
 		});
 
 		try {
