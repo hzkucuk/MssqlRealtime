@@ -2,6 +2,39 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/)
 
+## [0.15.0] — 2026-08-07
+
+### Eklenen — raporlarda alan seçimi, grafik türü, tablo ve tam ekran
+
+- **Hangi alanların çizileceğini siz seçiyorsunuz**: işlemci, SQL işlemci payı, bellek,
+  SQL belleği, oturum, çalışan sorgu, bloke, en uzun sorgu.
+- **Grafik türü**: çizgi (eğilim), alan (hacim), sütun (dönemleri karşılaştırma).
+- **Tam ekran** düğmesi: bir grafiğe odaklanmak için ekranı kaplar.
+- **Tablo görünümü**: aynı veriler satır satır, **her sütundan sıralanabilir**, tarih/saat
+  ile aranabilir (`07.08` ya da `14:` yazmak o günü ya da saati getirir).
+- 🔴 **Grafik başına en fazla iki seri.** Üçüncü bir seri, doğrulanmış renk çifti bittiği
+  için durum renklerine (yeşil/sarı/kırmızı) girmeyi gerektirirdi; onlar bu üründe ölçülmüş
+  durumu anlatıyor. Aynı birimden ikiden fazla alan seçilirse grafik ikişerli bölünür.
+- Farklı birimler asla aynı eksende değil: yüzde, adet, MB ve saniye ayrı kutulara gider.
+
+### Eklenen — sütun sırası sürüklenerek değiştirilir
+
+Sütunlar menüsünde her satırın **⠿ tutamacı** var; sürükleyince sütun yer değiştiriyor ve
+tercih tarayıcıda saklanıyor. HTML5 sürükle-bırak dokunmatikte çalışmadığı için pointer
+olaylarıyla yazıldı — aynı kod parmakla da fareyle de çalışıyor.
+
+- Tablo artık **sütun listesinden** çiziliyor; başlık ve hücreler birlikte taşınıyor.
+- **İşlem sütunu her zaman sonda kalır**: sağa sabitlenmiş bir kolonun ortada durması onu
+  sabitlenmiş olmaktan çıkarırdı.
+- Yeni sürümde eklenen bir sütun, kaydedilmiş sırada yoksa varsayılan yerine yakın kalır.
+
+### Düzeltilen
+
+- 🔴 **Sütunlar menüsü telefonda ekranın dışına taşıyordu** — etiketlerin yarısı kesiliyordu
+  (ölçüldü 2026-08-07, ekran görüntüsüyle). Düğme sola yakınken `right: 0` + sabit genişlik
+  menüyü sola itiyordu. Dar ekranda menü artık **alttan açılan bir sayfa**: konumu ekrana
+  göre kendisi belirleniyor, hiçbir kenardan taşmıyor ve başparmağa yakın duruyor.
+
 ## [0.14.1] — 2026-08-07
 
 ### Eklenen — kademeli (iç içe) gruplama

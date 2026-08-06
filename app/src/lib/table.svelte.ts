@@ -17,7 +17,7 @@ export type ColumnDef = {
 	hiddenByDefault?: boolean;
 };
 
-type StoredState = Record<string, { width?: number; hidden?: boolean }>;
+type StoredState = Record<string, { width?: number; hidden?: boolean; order?: string[] }>;
 
 const MIN_WIDTH = 48;
 const MAX_WIDTH = 640;
@@ -86,6 +86,18 @@ export class TableColumns {
 
 			const stored = JSON.parse(raw) as StoredState;
 
+			const savedOrder = stored.__order?.order;
+			if (Array.isArray(savedOrder)) {
+				const rank = new Map(savedOrder.map((key, i) => [key, i]));
+				// Kaydedilmemiş (yeni eklenmiş) sütunlar sona değil, kendi varsayılan sırasına
+				// yakın kalsın diye büyük ama sıralı bir değer alır.
+				this.columns = [...this.columns].sort(
+					(a, b) =>
+						(rank.get(a.key) ?? savedOrder.length + this.columns.indexOf(a)) -
+						(rank.get(b.key) ?? savedOrder.length + this.columns.indexOf(b))
+				);
+			}
+
 			for (const column of this.columns) {
 				const saved = stored[column.key];
 				if (!saved) continue;
@@ -104,12 +116,34 @@ export class TableColumns {
 		}
 	}
 
+	/**
+	 * Sütunu listede başka bir yere taşır. Sıra, kolonların dizideki sırasıdır; tablo da o
+	 * diziden çizildiği için başlık ve hücreler birlikte yer değiştirir.
+	 */
+	move(key: string, toIndex: number): void {
+		const from = this.columns.findIndex((c) => c.key === key);
+		if (from < 0) return;
+
+		const bounded = Math.min(this.columns.length - 1, Math.max(0, toIndex));
+		if (from === bounded) return;
+
+		const next = [...this.columns];
+		const [moved] = next.splice(from, 1);
+		next.splice(bounded, 0, moved);
+		this.columns = next;
+		this.#save();
+	}
+
 	#save(): void {
 		try {
 			const state: StoredState = {};
 			for (const column of this.columns) {
 				state[column.key] = { width: column.width, hidden: column.hidden };
 			}
+
+			// Sıra ayrı bir anahtarda: sütun listesi sürümle değişebilir, o zaman bilinmeyen
+			// anahtarlar atlanır ve yeni sütunlar varsayılan yerinde kalır.
+			state.__order = { order: this.columns.map((c) => c.key) };
 
 			localStorage.setItem(this.#storageKey, JSON.stringify(state));
 		} catch {

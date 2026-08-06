@@ -280,6 +280,111 @@
 
 	const metricTimes = $derived(metrics.map((m) => m.atUtc));
 
+	// Hangi alanlar çizilecek. Birim burada taşınıyor çünkü çizim kararını o veriyor: yüzde
+	// ile adet aynı eksene konamaz.
+	type MetricField = {
+		key: keyof MetricPoint;
+		label: string;
+		unit: string;
+		/** Yüzdelerde tavan sabit; adetlerde veriden hesaplanır. */
+		max: number | null;
+	};
+
+	const FIELDS: MetricField[] = [
+		{ key: 'cpuPercent', label: 'İşlemci', unit: '%', max: 100 },
+		{ key: 'sqlCpuPercent', label: 'SQL işlemci payı', unit: '%', max: 100 },
+		{ key: 'memoryPercent', label: 'Bellek', unit: '%', max: 100 },
+		{ key: 'sqlMemoryMb', label: 'SQL belleği', unit: ' MB', max: null },
+		{ key: 'sessionCount', label: 'Oturum', unit: '', max: null },
+		{ key: 'requestCount', label: 'Çalışan sorgu', unit: '', max: null },
+		{ key: 'blockedCount', label: 'Bloke', unit: '', max: null },
+		{ key: 'longestQuerySeconds', label: 'En uzun sorgu', unit: ' sn', max: null }
+	];
+
+	let selectedFields = $state<(keyof MetricPoint)[]>([
+		'cpuPercent',
+		'memoryPercent',
+		'sessionCount',
+		'blockedCount'
+	]);
+
+	let chartKind = $state<'line' | 'area' | 'bar'>('line');
+	let expanded = $state<string | null>(null);
+	let showTable = $state(false);
+
+	function toggleField(key: keyof MetricPoint) {
+		selectedFields = selectedFields.includes(key)
+			? selectedFields.filter((k) => k !== key)
+			: [...selectedFields, key];
+	}
+
+	// Aynı birimdekiler bir arada, ama grafik başına EN FAZLA İKİ seri: doğrulanmış renk
+	// çifti iki tane ve üçüncü bir renk eklemek durum renklerine (yeşil/sarı/kırmızı)
+	// girmeyi gerektirirdi — onlar bu üründe ölçülmüş durumu anlatıyor.
+	const chartGroups = $derived.by(() => {
+		const chosen = FIELDS.filter((f) => selectedFields.includes(f.key));
+		const byUnit = new Map<string, MetricField[]>();
+
+		for (const field of chosen) {
+			const bucket = byUnit.get(field.unit);
+			if (bucket) bucket.push(field);
+			else byUnit.set(field.unit, [field]);
+		}
+
+		const groups: { id: string; title: string; unit: string; max: number | null; fields: MetricField[] }[] = [];
+
+		for (const [unit, fields] of byUnit) {
+			for (let i = 0; i < fields.length; i += 2) {
+				const pair = fields.slice(i, i + 2);
+				groups.push({
+					id: `${unit}-${i}`,
+					title: pair.map((f) => f.label).join(' ve '),
+					unit,
+					max: pair.some((f) => f.max === null) ? null : pair[0].max,
+					fields: pair
+				});
+			}
+		}
+
+		return groups;
+	});
+
+	function seriesFor(fields: MetricField[]) {
+		return fields.map((f) => ({
+			label: f.label,
+			values: metrics.map((m) => (m[f.key] as number | null) ?? null)
+		}));
+	}
+
+	// --- Tablo görünümü ---
+	let tableQuery = $state('');
+	const tableSort = new Sorter<MetricPoint>(
+		{
+			at: (m) => m.atUtc,
+			cpuPercent: (m) => m.cpuPercent,
+			sqlCpuPercent: (m) => m.sqlCpuPercent,
+			memoryPercent: (m) => m.memoryPercent,
+			sqlMemoryMb: (m) => m.sqlMemoryMb,
+			sessionCount: (m) => m.sessionCount,
+			requestCount: (m) => m.requestCount,
+			blockedCount: (m) => m.blockedCount,
+			longestQuerySeconds: (m) => m.longestQuerySeconds
+		},
+		'at'
+	);
+
+	const tableRows = $derived.by(() => {
+		const rows = tableSort.apply(metrics);
+		const needle = tableQuery.trim().toLocaleLowerCase('tr');
+		if (!needle) return rows;
+
+		// Tarih metni üzerinden aranıyor: "07.08" ya da "14:" yazmak bir günü ya da saati
+		// getirir. Sayılarda arama yerine sıralama işe yarar, o yüzden orada sütun sıralaması.
+		return rows.filter((m) =>
+			new Date(m.atUtc).toLocaleString('tr').toLocaleLowerCase('tr').includes(needle)
+		);
+	});
+
 	let killing = $state<number | null>(null);
 	let actionError = $state<string | null>(null);
 	let actionOk = $state<string | null>(null);
@@ -350,38 +455,52 @@
 {/snippet}
 
 {#snippet sessionRow(x: SessionInfo)}
-							<tr class:blocked={x.isBlocked} class:blocker={x.isBlocker}>
-								{#if sessionColumns.isVisible('sessionId')}<td class="mono">{x.sessionId}</td>{/if}
-								{#if sessionColumns.isVisible('program')}<td class="clamp">{x.programName ?? '—'}</td>{/if}
-								{#if sessionColumns.isVisible('host')}<td class="clamp">{x.hostName ?? '—'}<div class="muted mono">{x.clientAddress ?? ''}</div></td>{/if}
-								{#if sessionColumns.isVisible('login')}<td class="clamp">{x.loginName ?? '—'}</td>{/if}
-								{#if sessionColumns.isVisible('status')}
-								<td>
-									{x.status ?? '—'}
-									{#if x.isBlocker}<span class="badge badge-crit">engelliyor</span>{/if}
-									{#if x.isBlocked}<span class="badge badge-warn">bloke</span>{/if}
-									{#if x.openTransactionCount > 0}
-										<span class="badge">{x.openTransactionCount} açık işlem</span>
-									{/if}
-								</td>
-								{/if}
-								{#if sessionColumns.isVisible('database')}<td class="clamp">{x.databaseName ?? '—'}</td>{/if}
-								{#if sessionColumns.isVisible('cpu')}<td class="mono">{num(x.cpuTimeMs)} ms</td>{/if}
-								{#if sessionColumns.isVisible('reads')}<td class="mono">{num(x.logicalReads)}</td>{/if}
-								{#if sessionColumns.isVisible('writes')}<td class="mono">{num(x.writes)}</td>{/if}
-								{#if sessionColumns.isVisible('memory')}<td class="mono">{num(x.memoryUsageKb)} KB</td>{/if}
-								{#if sessionColumns.isVisible('login-time')}<td class="muted">{dateTime(x.loginTime)}</td>{/if}
-								{#if sessionColumns.isVisible('idle')}<td>{duration(x.idleSeconds)}</td>{/if}
-								<td class="pinned">
-									<button
-										class="btn btn-sm btn-danger"
-										disabled={killing === x.sessionId}
-										onclick={() => kill(x.sessionId)}
-									>
-										{killing === x.sessionId ? '…' : 'Kes'}
-									</button>
-								</td>
-							</tr>
+	<tr class:blocked={x.isBlocked} class:blocker={x.isBlocker}>
+		{#each sessionColumns.visible.filter((c) => c.key !== 'action') as col (col.key)}
+			{#if col.key === 'sessionId'}
+				<td class="mono">{x.sessionId}</td>
+			{:else if col.key === 'program'}
+				<td class="clamp">{x.programName ?? '—'}</td>
+			{:else if col.key === 'host'}
+				<td class="clamp">{x.hostName ?? '—'}<div class="muted mono">{x.clientAddress ?? ''}</div></td>
+			{:else if col.key === 'login'}
+				<td class="clamp">{x.loginName ?? '—'}</td>
+			{:else if col.key === 'status'}
+				<td>
+					{x.status ?? '—'}
+					{#if x.isBlocker}<span class="badge badge-crit">engelliyor</span>{/if}
+					{#if x.isBlocked}<span class="badge badge-warn">bloke</span>{/if}
+					{#if x.openTransactionCount > 0}
+						<span class="badge">{x.openTransactionCount} açık işlem</span>
+					{/if}
+				</td>
+			{:else if col.key === 'database'}
+				<td class="clamp">{x.databaseName ?? '—'}</td>
+			{:else if col.key === 'cpu'}
+				<td class="mono">{num(x.cpuTimeMs)} ms</td>
+			{:else if col.key === 'reads'}
+				<td class="mono">{num(x.logicalReads)}</td>
+			{:else if col.key === 'writes'}
+				<td class="mono">{num(x.writes)}</td>
+			{:else if col.key === 'memory'}
+				<td class="mono">{num(x.memoryUsageKb)} KB</td>
+			{:else if col.key === 'login-time'}
+				<td class="muted">{dateTime(x.loginTime)}</td>
+			{:else if col.key === 'idle'}
+				<td>{duration(x.idleSeconds)}</td>
+			{/if}
+		{/each}
+
+		<td class="pinned">
+			<button
+				class="btn btn-sm btn-danger"
+				disabled={killing === x.sessionId}
+				onclick={() => kill(x.sessionId)}
+			>
+				{killing === x.sessionId ? '…' : 'Kes'}
+			</button>
+		</td>
+	</tr>
 {/snippet}
 
 <div class="page wide">
@@ -536,18 +655,18 @@
 				<table class="sized">
 					<thead>
 						<tr>
-							{#if sessionColumns.isVisible('sessionId')}<SortHeader sorter={sessionSort} column="sessionId" label="SPID" columns={sessionColumns} />{/if}
-							{#if sessionColumns.isVisible('program')}<SortHeader sorter={sessionSort} column="program" label="Uygulama" columns={sessionColumns} />{/if}
-							{#if sessionColumns.isVisible('host')}<SortHeader sorter={sessionSort} column="host" label="Makine / IP" columns={sessionColumns} />{/if}
-							{#if sessionColumns.isVisible('login')}<SortHeader sorter={sessionSort} column="login" label="Kullanıcı" columns={sessionColumns} />{/if}
-							{#if sessionColumns.isVisible('status')}<SortHeader sorter={sessionSort} column="status" label="Durum" columns={sessionColumns} />{/if}
-							{#if sessionColumns.isVisible('database')}<SortHeader sorter={sessionSort} column="database" label="Veritabanı" columns={sessionColumns} />{/if}
-							{#if sessionColumns.isVisible('cpu')}<SortHeader sorter={sessionSort} column="cpu" label="CPU" columns={sessionColumns} />{/if}
-							{#if sessionColumns.isVisible('reads')}<SortHeader sorter={sessionSort} column="reads" label="Okuma" columns={sessionColumns} />{/if}
-							{#if sessionColumns.isVisible('writes')}<SortHeader sorter={sessionSort} column="writes" label="Yazma" columns={sessionColumns} />{/if}
-							{#if sessionColumns.isVisible('memory')}<SortHeader sorter={sessionSort} column="memory" label="Bellek" columns={sessionColumns} />{/if}
-							{#if sessionColumns.isVisible('login-time')}<SortHeader sorter={sessionSort} column="loginTime" label="Bağlanma" columns={sessionColumns} resizeKey="login-time" />{/if}
-							{#if sessionColumns.isVisible('idle')}<SortHeader sorter={sessionSort} column="idle" label="Boşta" columns={sessionColumns} />{/if}
+							<!-- Başlıklar sütun listesinden çizilir; sıra değişince başlık ve hücre
+							     birlikte taşınır. İşlem sütunu her zaman sonda: sağa sabitlenmiş bir
+							     kolonun ortada durması onu sabitlenmiş olmaktan çıkarır. -->
+							{#each sessionColumns.visible.filter((c) => c.key !== 'action') as col (col.key)}
+								<SortHeader
+									sorter={sessionSort}
+									column={col.key === 'login-time' ? 'loginTime' : col.key}
+									label={col.label}
+									columns={sessionColumns}
+									resizeKey={col.key}
+								/>
+							{/each}
 							<th class="pinned" style="width:{sessionColumns.width('action')}px"></th>
 						</tr>
 					</thead>
@@ -667,8 +786,7 @@
 				</table>
 			</div>
 		{:else if tab === 'raporlar'}
-			<div class="row between" style="margin-bottom:0.6rem">
-				<!-- Zaman aralığı seçici grafiklerin üstünde, tek satırda. -->
+			<div class="row between" style="margin-bottom:0.5rem">
 				<div class="tabs" style="margin:0">
 					{#each RANGES as [key, label] (key)}
 						<button class="tab" class:active={range === key} onclick={() => (range = key)}>
@@ -679,52 +797,135 @@
 				<span class="muted">{metricsBusy ? 'yükleniyor…' : `${metrics.length} ölçüm`}</span>
 			</div>
 
+			<div class="toolbar">
+				<span class="muted">Alanlar:</span>
+				{#each FIELDS as f (f.key)}
+					<button
+						class="chip"
+						class:on={selectedFields.includes(f.key)}
+						onclick={() => toggleField(f.key)}
+					>
+						{f.label}
+					</button>
+				{/each}
+			</div>
+
+			<div class="toolbar">
+				<span class="muted">Görünüm:</span>
+				{#each [['line', 'Çizgi'], ['area', 'Alan'], ['bar', 'Sütun']] as [key, label] (key)}
+					<button
+						class="chip"
+						class:on={chartKind === key}
+						onclick={() => (chartKind = key as typeof chartKind)}
+					>
+						{label}
+					</button>
+				{/each}
+
+				<button class="chip" class:on={showTable} onclick={() => (showTable = !showTable)}>
+					Tablo
+				</button>
+			</div>
+
 			{#if metricsError}<div class="error">{metricsError}</div>{/if}
 
-			<div class="card">
-				<LineChart
-					title="İşlemci ve bellek"
-					unit="%"
-					max={100}
-					times={metricTimes}
-					series={[
-						{ label: 'İşlemci', values: metrics.map((m) => m.cpuPercent) },
-						{ label: 'Bellek', values: metrics.map((m) => m.memoryPercent) }
-					]}
-				/>
-			</div>
+			{#if selectedFields.length === 0}
+				<p class="muted">Çizilecek alan seçin.</p>
+			{/if}
 
-			<!-- Ayrı kutu, ayrı eksen: yüzde ile adet aynı grafikte gösterilemez; iki ölçek tek
-			     çizimde okunamaz hale gelir. -->
-			<div class="card">
-				<LineChart
-					title="Oturumlar"
-					times={metricTimes}
-					series={[{ label: 'Oturum', values: metrics.map((m) => m.sessionCount) }]}
-				/>
-			</div>
+			{#each chartGroups as g (g.id)}
+				<div class="card">
+					<div class="row between">
+						<span></span>
+						<!-- Odaklanma: grafiği tam ekrana alır. Aynı bileşen, yalnız yükseklik ve
+						     genişlik değişir — ikinci bir çizim yolu tutmuyoruz. -->
+						<button class="btn btn-sm" onclick={() => (expanded = g.id)} title="Tam ekran">
+							⤢
+						</button>
+					</div>
+					<LineChart
+						title={g.title}
+						unit={g.unit}
+						max={g.max}
+						kind={chartKind}
+						times={metricTimes}
+						series={seriesFor(g.fields)}
+					/>
+				</div>
+			{/each}
 
-			<div class="card">
-				<LineChart
-					title="Bloke oturumlar"
-					times={metricTimes}
-					series={[{ label: 'Bloke', values: metrics.map((m) => m.blockedCount) }]}
-				/>
-			</div>
+			{#if showTable}
+				<div class="card">
+					<div class="toolbar">
+						<input
+							class="search"
+							type="search"
+							placeholder="Tarih ya da saat ara: 07.08 · 14:"
+							bind:value={tableQuery}
+							aria-label="Ölçümlerde ara"
+						/>
+						<span class="muted count">{tableRows.length} satır</span>
+					</div>
 
-			<div class="card">
-				<LineChart
-					title="En uzun sorgu"
-					unit=" sn"
-					times={metricTimes}
-					series={[{ label: 'Saniye', values: metrics.map((m) => m.longestQuerySeconds) }]}
-				/>
-			</div>
+					<div class="scroll-x" style="max-height:60vh;overflow-y:auto">
+						<table>
+							<thead>
+								<tr>
+									<SortHeader sorter={tableSort} column="at" label="Zaman" />
+									{#each FIELDS.filter((f) => selectedFields.includes(f.key)) as f (f.key)}
+										<SortHeader sorter={tableSort} column={f.key} label={f.label} />
+									{/each}
+								</tr>
+							</thead>
+							<tbody>
+								{#each tableRows as m (m.atUtc)}
+									<tr>
+										<td class="muted">{dateTime(m.atUtc)}</td>
+										{#each FIELDS.filter((f) => selectedFields.includes(f.key)) as f (f.key)}
+											<td class="mono">
+												{m[f.key] === null || m[f.key] === undefined
+													? '—'
+													: `${(m[f.key] as number).toLocaleString('tr', { maximumFractionDigits: 1 })}${f.unit}`}
+											</td>
+										{/each}
+									</tr>
+								{/each}
+							</tbody>
+						</table>
+					</div>
+				</div>
+			{/if}
 
 			<p class="muted" style="font-size:0.78rem">
 				Ölçümler dakikada bir yazılır. Bir haftadan eskiler saatlik, üç aydan eskiler günlük
 				ortalamaya iner; iki yıldan eskiler silinir.
 			</p>
+
+			{#if expanded}
+				{@const g = chartGroups.find((x) => x.id === expanded)}
+				{#if g}
+					<div
+						class="fullscreen"
+						role="dialog"
+						aria-modal="true"
+						aria-label="{g.title} — tam ekran"
+					>
+						<div class="row between" style="margin-bottom:0.5rem">
+							<strong>{g.title}</strong>
+							<button class="btn btn-sm" onclick={() => (expanded = null)}>Kapat ✕</button>
+						</div>
+						<LineChart
+							title={g.title}
+							unit={g.unit}
+							max={g.max}
+							kind={chartKind}
+							height={Math.round(globalThis.innerHeight * 0.62)}
+							times={metricTimes}
+							series={seriesFor(g.fields)}
+						/>
+					</div>
+				{/if}
+			{/if}
 		{:else if tab === 'sistem'}
 			<div class="card">
 				<h3>Örnek</h3>
@@ -907,5 +1108,15 @@
 	.level {
 		font-size: 0.72rem;
 		text-transform: lowercase;
+	}
+
+	/* Tam ekran: veriye odaklanmak için her şeyin üstünü kapatır. */
+	.fullscreen {
+		position: fixed;
+		inset: 0;
+		z-index: 50;
+		padding: 0.9rem;
+		background: var(--bg);
+		overflow: auto;
 	}
 </style>

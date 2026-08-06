@@ -14,13 +14,20 @@
 		values: (number | null)[];
 	};
 
+	/**
+	 * Çizgi / alan / sütun. Üçü de aynı veriyi anlatır; hangisinin doğru olduğu soruya bağlı:
+	 * çizgi eğilim, alan hacim, sütun tek tek dönemleri karşılaştırma içindir.
+	 */
+	type ChartKind = 'line' | 'area' | 'bar';
+
 	let {
 		title,
 		times,
 		series,
 		unit = '',
 		max = null,
-		height = 180
+		height = 180,
+		kind = 'line'
 	}: {
 		title: string;
 		times: string[];
@@ -29,6 +36,7 @@
 		/** Sabit tavan (yüzdelerde 100). null ise veriden hesaplanır. */
 		max?: number | null;
 		height?: number;
+		kind?: ChartKind;
 	} = $props();
 
 	const PAD = { top: 8, right: 8, bottom: 20, left: 34 };
@@ -75,6 +83,35 @@
 
 		return d.trim();
 	}
+
+	/** Alan dolgusu: çizginin altını tabana kadar kapatır, boşluklarda kopar. */
+	function areaPath(values: (number | null)[]): string {
+		const base = PAD.top + plotH;
+		let d = '';
+		let start: number | null = null;
+
+		values.forEach((v, i) => {
+			if (v === null) {
+				if (start !== null) d += `L${x(i - 1).toFixed(1)} ${base.toFixed(1)} Z `;
+				start = null;
+				return;
+			}
+
+			if (start === null) {
+				start = i;
+				d += `M${x(i).toFixed(1)} ${base.toFixed(1)} L${x(i).toFixed(1)} ${y(v).toFixed(1)} `;
+			} else {
+				d += `L${x(i).toFixed(1)} ${y(v).toFixed(1)} `;
+			}
+		});
+
+		if (start !== null) d += `L${x(values.length - 1).toFixed(1)} ${base.toFixed(1)} Z`;
+		return d.trim();
+	}
+
+	// Sütun genişliği: bir yılın günlerinde bile en az 1 piksel kalsın, aralarında 1 piksel
+	// boşlukla — bitişik sütunlar tek blok gibi okunur.
+	const barWidth = $derived(Math.max(1, plotW / Math.max(1, count) - 1));
 
 	// Dört yatay çizgi yeter: ızgara okumaya yardım eder, veriyle yarışmaz.
 	const gridLines = $derived([0, 0.25, 0.5, 0.75, 1].map((f) => ({
@@ -160,7 +197,24 @@
 			{/each}
 
 			{#each series as s, i (s.label)}
-				<path class="line s{i}" d={path(s.values)} />
+				{#if kind === 'bar'}
+					{#each s.values as v, j (j)}
+						{#if v !== null}
+							<rect
+								class="bar s{i}"
+								x={x(j) - barWidth / 2 + (series.length > 1 ? (i - 0.5) * (barWidth / 2) : 0)}
+								y={y(v)}
+								width={series.length > 1 ? barWidth / 2 : barWidth}
+								height={Math.max(0, PAD.top + plotH - y(v))}
+							/>
+						{/if}
+					{/each}
+				{:else}
+					{#if kind === 'area'}
+						<path class="area s{i}" d={areaPath(s.values)} />
+					{/if}
+					<path class="line s{i}" d={path(s.values)} />
+				{/if}
 			{/each}
 
 			{#if hover !== null}
@@ -293,5 +347,22 @@
 		color: var(--muted);
 		font-size: 0.85rem;
 		margin: 0.5rem 0 1rem;
+	}
+
+	:global(.chart .area) {
+		stroke: none;
+		fill-opacity: 0.16;
+	}
+
+	:global(.chart .bar) {
+		stroke: none;
+	}
+
+	:global(.area.s0), :global(.bar.s0) { fill: #4f8ff0; }
+	:global(.area.s1), :global(.bar.s1) { fill: #d75f9e; }
+
+	@media (prefers-color-scheme: light) {
+		:global(.area.s0), :global(.bar.s0) { fill: #2570e8; }
+		:global(.area.s1), :global(.bar.s1) { fill: #c02d7d; }
 	}
 </style>
