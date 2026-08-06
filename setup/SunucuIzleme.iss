@@ -17,7 +17,7 @@
 ; parolayi BUILTIN\Users okuyabiliyordu. Bkz. docs/05-olculen-bulgular.md.
 
 #define AppName "Sunucu Izleme"
-#define AppVersion "0.12.4"
+#define AppVersion "0.12.5"
 #define AppPublisher "hzkucuk"
 #define ServiceName "SunucuIzleme"
 #define ExeName "MssqlRealtime.Api.exe"
@@ -29,7 +29,10 @@ AppId={{8F3C2A61-4D7E-4B93-9C15-6E2A7F8B1D40}
 AppName={#AppName}
 AppVersion={#AppVersion}
 AppPublisher={#AppPublisher}
-DefaultDirName={autopf}\SunucuIzleme
+; Program Files degil: oradaki ve ProgramData'daki izinler servisin kendi
+; veritabanini acamamasina kadar gitti (0.12.1-0.12.4). Kok altindaki kendi
+; klasorumuzde izinler yumusak ve her sey tek yerde.
+DefaultDirName={sd}\SunucuIzleme
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
 OutputDir=output
@@ -51,7 +54,7 @@ Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs 
 
 [Dirs]
 ; Veritabani ve veri koruma anahtarlari burada durur; kaldirmada SILINMEZ.
-Name: "{commonappdata}\SunucuIzleme"; Permissions: service-full
+Name: "{app}\data"
 
 [Icons]
 Name: "{group}\Paneli Ac"; Filename: "http://127.0.0.1:{code:GetPort}/"
@@ -114,9 +117,15 @@ end;
 // Yukseltme mi? Veritabani varsa hesap zaten kurulmus demektir; o zaman e-posta/parola
 // sormak anlamsiz (girilen parola kullanilmaz, hesap zaten var) ve sessiz guncellemeyi
 // imkansiz kilar. Olculdu 2026-08-06: her yukseltmede tekrar soruluyordu.
+function DataDirectory: string;
+begin
+  Result := ExpandConstant('{app}\data');
+end;
+
 function IsUpgrade: Boolean;
 begin
-  Result := FileExists(ExpandConstant('{commonappdata}\SunucuIzleme\mssqlrealtime.db'));
+  Result := FileExists(DataDirectory + '\mssqlrealtime.db')
+    or FileExists(ExpandConstant('{commonappdata}\SunucuIzleme\mssqlrealtime.db'));
 end;
 
 function ShouldSkipPage(PageID: Integer): Boolean;
@@ -203,7 +212,15 @@ var
   ResultCode: Integer;
   Urls, Origin, DataDir, BinPath: string;
 begin
-  DataDir := ExpandConstant('{commonappdata}\SunucuIzleme');
+  DataDir := DataDirectory;
+
+  // 0.12.4 ve oncesi veriyi ProgramData altinda tutuyordu. Veritabani ve veri koruma
+  // anahtarlari tasinir — anahtarlar tasinmazsa kayitli SQL parolalari bir daha cozulemez.
+  if FileExists(ExpandConstant('{commonappdata}\SunucuIzleme\mssqlrealtime.db'))
+     and not FileExists(DataDir + '\mssqlrealtime.db') then
+    Exec(ExpandConstant('{sys}\robocopy.exe'),
+      '"' + ExpandConstant('{commonappdata}\SunucuIzleme') + '" "' + DataDir + '" /E /COPY:DAT /R:1 /W:1 /NFL /NDL /NJH /NJS',
+      '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Origin := OriginPage.Values[0];
 
   // Genel adres verilmediyse yalniz loopback: varsayilan kurulum kazara aga acilmasin.
@@ -211,14 +228,6 @@ begin
     Urls := 'http://0.0.0.0:' + GetPort('')
   else
     Urls := 'http://127.0.0.1:' + GetPort('');
-
-  // Olculdu 2026-08-06 (Windows 11): ProgramData'dan kalitilan ACL BUILTIN\Users'a okuma
-  // veriyor ve bu, veri koruma anahtar halkasina kadar uzaniyor — kayitli SQL parolalari
-  // sifresiz sayilir. Kalitimi kesip yalnizca SYSTEM ve Yoneticiler birakiyoruz.
-  // Grup adlari yerellestigi icin SID kullanilir.
-  Exec(ExpandConstant('{sys}\icacls.exe'),
-    '"' + DataDir + '" /inheritance:r /grant:r *S-1-5-18:(OI)(CI)F /grant:r *S-1-5-32-544:(OI)(CI)F /T /C /Q',
-    '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 
   // 🔴 Olculdu 2026-08-06: servisler onyuklemeden SONRA yazilan makine ortam degiskenlerini
   // gormuyor (services.exe blogu onbellekliyor). 0.12.1 kurulumu bu yuzden servisi acilista
@@ -353,7 +362,7 @@ begin
     // Veri klasoru bilerek birakilir: icinde izlenen sunucu profilleri ve veri koruma
     // anahtarlari var. Anahtarlar silinirse kayitli SQL parolalari geri getirilemez.
     MsgBox('Kaldirma tamamlandi.' + #13#10 + #13#10 +
-           'Veriler korundu: ' + ExpandConstant('{commonappdata}\SunucuIzleme') + #13#10 +
+           'Veriler korundu: ' + ExpandConstant('{app}\data') + #13#10 +
            'Tamamen silmek isterseniz bu klasoru elle kaldirin.', mbInformation, MB_OK);
   end;
 end;

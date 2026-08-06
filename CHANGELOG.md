@@ -2,6 +2,33 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/)
 
+## [0.12.5] — 2026-08-07
+
+### 🔴 Kurulum artık `C:\SunucuIzleme` altında — servis nihayet açılıyor
+
+**Belirti (0.12.1–0.12.4):** kurulum "servis kuruldu ama sağlık ucu cevap vermedi" diyor,
+servis Durduruldu, `logs\` boş.
+
+**Sebep:** 0.12.1'de veri klasörünün izinleri daraltılmıştı (`icacls /inheritance:r`).
+Servis LocalSystem olmasına rağmen kendi veritabanını açamadı —
+`SQLite Error 14: unable to open database file` — ve log klasörü de aynı yerin altında
+olduğu için **tek satır iz bırakmadan** öldü. Üç sürüm boyunca kurulumu kırdı.
+
+**Çözüm:** izinlerle boğuşmak yerine yer değişti. Program **`C:\SunucuIzleme`** altına
+kuruluyor, veri de **`C:\SunucuIzleme\data`** içinde. Program Files ve ProgramData'nın
+kısıtlayıcı izinleri denklemden çıktı; özel ACL işi yapılmıyor.
+
+- Eski kurulumdan **veri taşınıyor**: `ProgramData\SunucuIzleme` altındaki veritabanı ve
+  veri koruma anahtarları yeni klasöre kopyalanıyor (anahtarlar taşınmazsa kayıtlı SQL
+  parolaları bir daha çözülemezdi).
+- Veritabanı açılamazsa uygulama artık **ne olduğunu söyleyerek** duruyor: yol ve
+  düzeltme komutu Olay Görüntüleyici'de görünüyor. Sessiz ölüm yok.
+- Doğrulandı (Windows 11, VM): kök altında klasör oluşuyor, uygulama açılıyor,
+  `/api/health` → `ok`, veritabanı ve anahtarlar oluşuyor.
+
+⚠️ **Açık borç:** veri klasörü artık sıradan yerel kullanıcıya okunabilir. Sertleştirme
+denendi ve ürünü kırdı; doğru çözüm ölçülmeden tekrar denenmeyecek.
+
 ## [0.12.4] — 2026-08-06
 
 ### Düzeltilen — yükseltme artık hiçbir şey sormuyor

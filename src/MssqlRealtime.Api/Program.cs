@@ -245,7 +245,22 @@ await using (var scope = app.Services.CreateAsyncScope())
 
     // Migrate, not EnsureCreated: measured 2026-08-05, EnsureCreated silently leaves an
     // existing database untouched, so a release that adds a table breaks on upgrade only.
-    await db.Database.MigrateAsync();
+    try
+    {
+        await db.Database.MigrateAsync();
+    }
+    catch (Exception ex)
+    {
+        // Measured 2026-08-06: when the data directory's permissions are wrong this throws
+        // "SQLite Error 14: unable to open database file" and the service dies with nothing
+        // written anywhere — the log file lives in the same unreachable directory. Naming the
+        // path and the fix turns a silent death into a five-second diagnosis in Event Viewer.
+        throw new InvalidOperationException(
+            $"Veritabanı açılamadı: {databasePath}. Servis bu dosyaya yazamıyor. "
+            + "Yönetici PowerShell'de izinleri varsayılana döndürün: "
+            + $"icacls \"{dataDirectory}\" /reset /T /C /Q",
+            ex);
+    }
     await AdminSeeder.SeedAsync(scope.ServiceProvider, app.Configuration, app.Logger);
 }
 

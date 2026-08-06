@@ -20,7 +20,9 @@ param(
     [string]$ProxyAddress,
     [string]$ServiceName = 'SunucuIzleme',
     [string]$DisplayName = 'Sunucu Izleme Paneli',
-    [string]$DataDirectory = 'C:\ProgramData\SunucuIzleme',
+    # Kurulum klasorunun altinda: Program Files ve ProgramData izinleri servisin kendi
+    # veritabanini acamamasina kadar gitti (0.12.1-0.12.4).
+    [string]$DataDirectory,
     [string]$Account,
     [SecureString]$AccountPassword
 )
@@ -38,6 +40,7 @@ if ($AdminPassword.Length -lt 10) {
 }
 
 $root = if ($PSScriptRoot) { $PSScriptRoot } else { (Get-Location).Path }
+if (-not $DataDirectory) { $DataDirectory = Join-Path $root 'data' }
 $exe = Join-Path $root 'MssqlRealtime.Api.exe'
 
 if (-not (Test-Path $exe)) {
@@ -48,26 +51,6 @@ if (-not (Test-Path $exe)) {
 # makes every stored SQL password unreadable, so it lives outside the program folder and
 # survives an in-place upgrade.
 New-Item -ItemType Directory -Force -Path $DataDirectory | Out-Null
-
-# Measured 2026-08-06 on Windows 11: the ACL inherited from ProgramData grants BUILTIN\Users
-# read, and that reaches the data-protection key ring — which decrypts every stored SQL
-# password. Inheritance is cut here so an ordinary local account cannot read it.
-# SIDs, not names: on a Turkish Windows the groups are "Yoneticiler" and "Kullanicilar".
-$acl = @($DataDirectory, '/inheritance:r',
-    '/grant:r', '*S-1-5-18:(OI)(CI)F',      # LocalSystem — the service itself
-    '/grant:r', '*S-1-5-32-544:(OI)(CI)F',  # Administrators
-    '/T', '/C', '/Q')
-
-if ($Account) {
-    # A named service account needs its own grant once inheritance is gone; LocalSystem is
-    # already covered by the SYSTEM grant above.
-    $acl += @('/grant:r', "${Account}:(OI)(CI)M")
-}
-
-& icacls.exe @acl | Out-Null
-if ($LASTEXITCODE -ne 0) {
-    Write-Warning "Veri klasoru izinleri daraltilamadi (icacls $LASTEXITCODE). Kayitli SQL parolalari yerel kullanicilara acik kalabilir."
-}
 
 # Bind to all interfaces when a public origin is set (something proxies to us); otherwise
 # loopback only, so a default install is not exposed on the LAN by accident.
