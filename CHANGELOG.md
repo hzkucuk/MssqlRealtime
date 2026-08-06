@@ -2,6 +2,27 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/)
 
+## [0.12.4] — 2026-08-06
+
+### Düzeltilen — yükseltme artık hiçbir şey sormuyor
+
+Kurulum **her seferinde** e-posta ve parola soruyordu. Yükseltmede hesap zaten var;
+girilen parola hiçbir işe yaramıyordu (uygulama mevcut hesabı görüp geçiyor) ve bu, sessiz
+güncellemeyi imkânsız kılıyordu.
+
+- Veritabanı varsa kurulum bunu **yükseltme** sayar: hesap ekranı **atlanır**, e-posta
+  üzerine yazılmaz, parola dosyası hiç yazılmaz. Mevcut hesap ve parola aynen kalır.
+- Ağ ayarları (port, genel adres, vekil IP) `HKLM\SOFTWARE\SunucuIzleme` altında saklanıyor
+  ve yükseltmede **geri yükleniyor** — kullanıcı hiçbir şeyi yeniden yazmıyor.
+- Böylece yükseltme **tam sessiz** yapılabiliyor:
+
+  ```
+  SunucuIzleme-Setup-0.12.4.exe /VERYSILENT
+  ```
+
+  Otomatik güncelleme için gereken buydu: soru soran bir kurulum otomatikleştirilemez.
+- Kaldırma kendi ayar anahtarını da temizliyor.
+
 ## [0.12.3] — 2026-08-06
 
 ### 🔴 Düzeltilen — kaldırma yarıda kalıyordu

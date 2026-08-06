@@ -17,7 +17,7 @@
 ; parolayi BUILTIN\Users okuyabiliyordu. Bkz. docs/05-olculen-bulgular.md.
 
 #define AppName "Sunucu Izleme"
-#define AppVersion "0.12.3"
+#define AppVersion "0.12.4"
 #define AppPublisher "hzkucuk"
 #define ServiceName "SunucuIzleme"
 #define ExeName "MssqlRealtime.Api.exe"
@@ -65,12 +65,15 @@ Filename: "http://127.0.0.1:{code:GetPort}/"; Description: "Paneli tarayicida ac
 [Code]
 const
   EnvKey = '{#EnvKey}';
+  SettingsKey = 'SOFTWARE\SunucuIzleme';
 
 var
   ConfigPage: TInputQueryWizardPage;
   OriginPage: TInputQueryWizardPage;
 
 procedure InitializeWizard;
+var
+  Saved: string;
 begin
   ConfigPage := CreateInputQueryPage(wpSelectDir,
     'Yonetici hesabi',
@@ -93,7 +96,32 @@ begin
   // yalniz loopback'ten kabul edilir; olculdu 2026-08-06: herkesten kabul edildiginde
   // sahte baslikla giris hiz siniri tamamen atlaniyor.
   OriginPage.Add('Ters vekil sunucu IP (ayni makinedeyse bos birakin):', False);
-  OriginPage.Values[1] := '5199';
+
+  // Yukseltmede eski ayarlar geri yuklenir: kullanici hicbir seyi yeniden yazmaz ve
+  // /VERYSILENT ile guncelleme mumkun olur. Values[] bir ozelliktir, var parametresi
+  // olamaz — bu yuzden once yerel degiskene okunur.
+  if not RegQueryStringValue(HKEY_LOCAL_MACHINE, SettingsKey, 'Port', Saved) then
+    Saved := '5199';
+  OriginPage.Values[1] := Saved;
+
+  if RegQueryStringValue(HKEY_LOCAL_MACHINE, SettingsKey, 'PublicOrigin', Saved) then
+    OriginPage.Values[0] := Saved;
+
+  if RegQueryStringValue(HKEY_LOCAL_MACHINE, SettingsKey, 'ProxyAddress', Saved) then
+    OriginPage.Values[2] := Saved;
+end;
+
+// Yukseltme mi? Veritabani varsa hesap zaten kurulmus demektir; o zaman e-posta/parola
+// sormak anlamsiz (girilen parola kullanilmaz, hesap zaten var) ve sessiz guncellemeyi
+// imkansiz kilar. Olculdu 2026-08-06: her yukseltmede tekrar soruluyordu.
+function IsUpgrade: Boolean;
+begin
+  Result := FileExists(ExpandConstant('{commonappdata}\SunucuIzleme\mssqlrealtime.db'));
+end;
+
+function ShouldSkipPage(PageID: Integer): Boolean;
+begin
+  Result := IsUpgrade and (PageID = ConfigPage.ID);
 end;
 
 function GetPort(Param: string): string;
@@ -108,7 +136,7 @@ var
 begin
   Result := True;
 
-  if CurPageID = ConfigPage.ID then
+  if (CurPageID = ConfigPage.ID) and not IsUpgrade then
   begin
     if Length(ConfigPage.Values[1]) < 10 then
     begin
@@ -199,11 +227,22 @@ begin
   // gordugu tek kanal. Ortam degiskenleri elle calistirma icin birakildi.
   SetMachineEnv('ASPNETCORE_ENVIRONMENT', 'Production');
   SetMachineEnv('Storage__DataDirectory', DataDir);
-  SetMachineEnv('Admin__Email', ConfigPage.Values[0]);
 
-  // Parola registry'ye YAZILMAZ (BUILTIN\Users okuyabiliyordu). Kilitlenmis veri klasorune
-  // dosya olarak birakilir; uygulama hesabi kurar kurmaz dosyayi siler.
-  SaveStringToFile(DataDir + '\ilk-parola', ConfigPage.Values[1], False);
+  // Bir sonraki yukseltmenin hicbir sey sormadan gecebilmesi icin ayarlar saklanir.
+  RegWriteStringValue(HKEY_LOCAL_MACHINE, SettingsKey, 'Port', GetPort(''));
+  RegWriteStringValue(HKEY_LOCAL_MACHINE, SettingsKey, 'PublicOrigin', Origin);
+  RegWriteStringValue(HKEY_LOCAL_MACHINE, SettingsKey, 'ProxyAddress', OriginPage.Values[2]);
+
+  // Hesap yalnizca ILK kurulumda olusur. Yukseltmede e-posta uzerine yazilmaz ve parola
+  // dosyasi hic yazilmaz — mevcut hesap ve parola aynen kalir.
+  if not IsUpgrade then
+  begin
+    SetMachineEnv('Admin__Email', ConfigPage.Values[0]);
+
+    // Parola registry'ye YAZILMAZ (BUILTIN\Users okuyabiliyordu). Kilitlenmis veri
+    // klasorune dosya olarak birakilir; uygulama hesabi kurar kurmaz dosyayi siler.
+    SaveStringToFile(DataDir + '\ilk-parola', ConfigPage.Values[1], False);
+  end;
 
   if Origin <> '' then
     SetMachineEnv('Cors__AllowedOrigins__0', Origin);
@@ -306,6 +345,7 @@ begin
     RegDeleteValue(HKEY_LOCAL_MACHINE, EnvKey, 'Storage__DataDirectory');
     RegDeleteValue(HKEY_LOCAL_MACHINE, EnvKey, 'Cors__AllowedOrigins__0');
     RegDeleteValue(HKEY_LOCAL_MACHINE, EnvKey, 'ForwardedHeaders__KnownProxies__0');
+    RegDeleteKeyIncludingSubkeys(HKEY_LOCAL_MACHINE, SettingsKey);
   end;
 
   if CurUninstallStep = usPostUninstall then
