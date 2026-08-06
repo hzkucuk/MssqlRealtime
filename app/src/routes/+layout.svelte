@@ -3,7 +3,13 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { getActiveServer, getTokens, logout } from '$lib/api/client';
+	import {
+		appVersion,
+		fetchServerVersion,
+		getActiveServer,
+		getTokens,
+		logout
+	} from '$lib/api/client';
 	import { realtime } from '$lib/api/realtime.svelte';
 	import { ensureNotificationPermission } from '$lib/notify';
 	import { ago } from '$lib/format';
@@ -15,6 +21,19 @@
 	// Which customer's panel is on screen — with one hub per customer, this is the first
 	// thing you need to know before reading any number on it.
 	const activeServer = $derived(getActiveServer());
+
+	// Which build answers on the other end. Worth showing next to the address: with one hub
+	// per customer, "hangi sürüm bu müşteride?" is the first question of every support call.
+	let serverVersion = $state<string | null>(null);
+
+	// The phone app is updated by hand, so it can lag behind the hub. Say so when it does —
+	// a screen that hides the difference turns "eski uygulama" into an hour of debugging.
+	const mismatched = $derived(serverVersion !== null && serverVersion !== appVersion);
+	const versionTitle = $derived(
+		mismatched
+			? `Panel v${serverVersion} · uygulama v${appVersion} — uygulamayı güncelleyin`
+			: `Panel ve uygulama v${appVersion}`
+	);
 
 	const isLogin = $derived(page.url.pathname === '/giris');
 	const unread = $derived(realtime.alerts.filter((a) => !a.isCleared).length);
@@ -33,6 +52,9 @@
 			if (!isLogin) await goto('/giris');
 			return;
 		}
+
+		const server = getActiveServer();
+		if (server) serverVersion = await fetchServerVersion(server.url);
 
 		// Ask before the first alert arrives, not with it.
 		await ensureNotificationPermission();
@@ -57,7 +79,13 @@
 			{#if page.url.pathname !== '/'}<span class="back" aria-hidden="true">‹</span>{/if}
 			<span style="min-width:0">
 				<strong>{activeServer?.label ?? 'Sunucu İzleme'}</strong>
-				{#if activeServer}<div class="host">{activeServer.url.replace(/^https?:\/\//, '')}</div>{/if}
+				{#if activeServer}
+					<div class="host">
+						{activeServer.url.replace(/^https?:\/\//, '')}
+						{#if serverVersion}<span class="ver" title={versionTitle}>v{serverVersion}</span>{/if}
+						{#if mismatched}<span class="ver warn" title={versionTitle}>≠ v{appVersion}</span>{/if}
+					</div>
+				{/if}
 			</span>
 		</a>
 
@@ -156,6 +184,20 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+
+	/* Deliberately quiet: the version is reference material, not a reading. It sits next to
+	   the address because that is the pair support asks for — which panel, which build. */
+	.ver {
+		margin-left: 0.35rem;
+		opacity: 0.75;
+		font-variant-numeric: tabular-nums;
+	}
+
+	/* A lagging app is worth noticing, but it is not an alarm — no alert colour, no pulse. */
+	.ver.warn {
+		color: var(--warn);
+		opacity: 1;
 	}
 
 	.conn {

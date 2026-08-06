@@ -156,6 +156,26 @@ function storeIdentityTokens(response: IdentityTokenResponse): Tokens {
 	return tokens;
 }
 
+/** The build this bundle was compiled from — injected by Vite from Directory.Build.props. */
+export const appVersion = __APP_VERSION__;
+
+/**
+ * Which build the hub is running. Needed before sign-in (support calls start with "which
+ * version is on that box?"), so it comes from the unauthenticated health endpoint.
+ */
+export async function fetchServerVersion(serverUrl: string): Promise<string | null> {
+	try {
+		const response = await fetch(`${normaliseUrl(serverUrl)}/api/health`);
+		if (!response.ok) return null;
+
+		return ((await response.json()) as { version?: string }).version ?? null;
+	} catch {
+		// Unreachable server: the connection indicator already says so; a missing version
+		// number must not put an error on screen by itself.
+		return null;
+	}
+}
+
 export type CaptchaChallenge = { token: string; svg: string };
 
 /** Whether this address already has to solve a captcha before its next attempt. */

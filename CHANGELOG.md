@@ -4,6 +4,21 @@ Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme:
 
 ## [0.12.1] — 2026-08-06
 
+### Eklenen — sürüm artık ekranda
+
+- **Giriş ekranında `v0.12.1`**, başlıkta ise **panelin sürümü** panel adresinin yanında.
+  "Hangi sürüm bu müşteride?" her destek görüşmesinin ilk sorusu; cevabı ekranda olmalı,
+  klasörlerde değil.
+- **Uygulama panelden eskiyse fark söyleniyor** (`≠ v0.12.0`, sarı). Telefon uygulaması
+  elle güncelleniyor, dolayısıyla geride kalabiliyor; farkı gizleyen bir ekran "eski
+  uygulama" meselesini bir saatlik hata ayıklamaya çevirir. Alarm rengi değil, nabız yok —
+  bilgi, uyarı değil.
+- Sürüm `/api/health` ile **kimlik doğrulamadan önce** de okunabiliyor; giriş yapamayan
+  birinin de sunucunun sürümünü görebilmesi gerekir.
+- 🔴 Sayı tek kaynaktan geliyor: ön yüz derlemede `Directory.Build.props`'u okuyor,
+  sunucu kendi assembly'sinden. Dördüncü bir kopya tutulmadı — bu projede iki kopyanın
+  birbirinden kaydığı bir sürüm zaten yayınlandı (0.12.0 / 0.11.0).
+
 ### Güvenlik — ölçülerek bulundu, ölçülerek kapatıldı
 
 Windows 11 Pro ARM64 bir VM'de kurulum yapılıp denetim **yönetici olmayan** bir oturumdan

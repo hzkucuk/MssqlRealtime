@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import {
+		appVersion,
 		fetchCaptcha,
 		getServers,
 		getServerUrl,
@@ -136,6 +137,9 @@
 
 		<h1>Sunucu İzleme</h1>
 		<p class="tagline">Sunucularınız ne yapıyor — şu anda.</p>
+		<!-- The build in your hand. The hub's own version shows in the header after sign-in;
+		     before that there is no hub to ask. -->
+		<p class="build">v{appVersion}</p>
 	</header>
 
 	{#if error}<div class="error">{error}</div>{/if}
@@ -286,6 +290,15 @@
 		margin: 0;
 		color: var(--muted);
 		font-size: 0.88rem;
+	}
+
+	/* Faint on purpose: on the cover screen the version is a footnote, not a headline. */
+	.build {
+		margin: 0.35rem 0 0;
+		color: var(--muted);
+		opacity: 0.6;
+		font-size: 0.72rem;
+		font-variant-numeric: tabular-nums;
 	}
 
 	@media (prefers-reduced-motion: reduce) {

@@ -1,3 +1,4 @@
+using System.Reflection;
 using Microsoft.AspNetCore.Authentication.BearerToken;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -226,9 +227,18 @@ app.MapGet("/api/auth/captcha/required", (HttpContext context) =>
     Results.Ok(new { required = CaptchaMiddleware.RequiresCaptcha(CaptchaMiddleware.Key(context)) }))
     .RequireRateLimiting("auth");
 
+// The version ships here rather than behind authorisation: "which build is on this box"
+// is the first question of every support call, and it has to be answerable before sign-in.
+// It is read from the assembly, so Directory.Build.props stays the only place it is set.
+var serverVersion = typeof(Program).Assembly
+    .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+    .Split('+')[0]  // strip the source-revision suffix the SDK appends
+    ?? "bilinmiyor";
+
 app.MapGet("/api/health", () => Results.Ok(new
 {
     status = "ok",
+    version = serverVersion,
     utc = DateTimeOffset.UtcNow
 }));
 
