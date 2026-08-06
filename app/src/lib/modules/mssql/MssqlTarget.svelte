@@ -8,7 +8,18 @@
 	import SortHeader from '$lib/components/SortHeader.svelte';
 	import ColumnPicker from '$lib/components/ColumnPicker.svelte';
 	import type { DatabaseInfo, RequestInfo, SessionInfo, SqlServiceInfo } from '$lib/types';
-	import { ago, clock, dateTime, duration, mb, num, pct, statusText } from '$lib/format';
+	import {
+		ago,
+		clock,
+		dateTime,
+		duration,
+		mb,
+		num,
+		pct,
+		sqlEdition,
+		sqlServerName,
+		statusText
+	} from '$lib/format';
 	import Sparkline from '$lib/components/Sparkline.svelte';
 
 	const serverId = $derived(page.params.target!);
@@ -262,7 +273,19 @@
 				<span class="dot sev-{s.summary.severity}"></span>
 				<div style="min-width:0">
 					<h1>{s.serverName}</h1>
-					<div class="muted">{s.customerName} · {statusText[s.status]} · {ago(s.capturedAt)}</div>
+					<div class="muted">
+						{s.customerName} · {statusText[s.status]} · {ago(s.capturedAt)}
+						<!-- Surum ve edisyon basligin altinda: "Express mi?" sorusu her destek
+						     gorusmesinde soruluyor ve cevabi Sistem sekmesinde gomuluydu. -->
+						{#if sqlServerName(s.instance?.productVersion)}
+							<br />
+							<span class="edition">
+								{sqlServerName(s.instance?.productVersion)}
+								{#if sqlEdition(s.instance?.edition)} · {sqlEdition(s.instance?.edition)}{/if}
+								{#if s.instance?.productLevel} · {s.instance.productLevel}{/if}
+							</span>
+						{/if}
+					</div>
 				</div>
 			</div>
 			<a class="btn btn-sm" href="/m/mssql/{serverId}/ayarlar">Ayarlar</a>
@@ -667,5 +690,11 @@
 		.caret {
 			transition: none;
 		}
+	}
+
+	/* Surum satiri: bilgi, olcum degil — o yuzden sessiz. */
+	.edition {
+		font-size: 0.78rem;
+		opacity: 0.85;
 	}
 </style>

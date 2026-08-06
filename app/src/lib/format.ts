@@ -63,3 +63,38 @@ export const severityText: Record<number, string> = {
 	1: 'Uyarı',
 	2: 'Kritik'
 };
+
+/**
+ * "15.0.4123.1" → "SQL Server 2019". The major number is the only reliable marker: the
+ * build changes with every cumulative update and nobody recognises it, while "2019" is what
+ * people call the thing in conversation.
+ */
+export function sqlServerName(productVersion: string | null | undefined): string | null {
+	const major = Number.parseInt((productVersion ?? '').split('.')[0] ?? '', 10);
+	if (!major) return null;
+
+	const names: Record<number, string> = {
+		17: 'SQL Server 2025',
+		16: 'SQL Server 2022',
+		15: 'SQL Server 2019',
+		14: 'SQL Server 2017',
+		13: 'SQL Server 2016',
+		12: 'SQL Server 2014',
+		11: 'SQL Server 2012',
+		10: 'SQL Server 2008'
+	};
+
+	return names[major] ?? `SQL Server (sürüm ${major})`;
+}
+
+/**
+ * The Edition string is a mouthful — "Express Edition (64-bit)", "Enterprise Edition: Core-based
+ * Licensing (64-bit)". Only the first word decides what the server can do, and that is what
+ * belongs next to a server's name.
+ */
+export function sqlEdition(edition: string | null | undefined): string | null {
+	if (!edition) return null;
+
+	const known = ['Express', 'Standard', 'Enterprise', 'Developer', 'Web', 'Business Intelligence', 'Azure'];
+	return known.find((e) => edition.startsWith(e)) ?? edition.replace(/ Edition.*$/, '');
+}
