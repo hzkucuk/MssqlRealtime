@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
@@ -29,9 +30,30 @@ public sealed class ServerPoller(
 {
     private readonly ISqlProbe[] _probes = probes.OrderBy(p => p.Order).ToArray();
 
+    /// <summary>
+    /// Yavaş probların son değerleri. 🔴 Ölçüldü 2026-08-07: sürüm/edisyon, veritabanı ve
+    /// servis listesi 60 turda bir okunuyor ama anlık görüntü her turda sıfırdan kuruluyordu.
+    /// Sonuç: bu alanlar 60 turun 59'unda BOŞ gidiyordu — arayüzde sürüm satırı hiç
+    /// görünmüyor, bir kez belirip kayboluyordu. Koddaki yorum "builder taşır" diyordu;
+    /// taşımıyordu.
+    /// </summary>
+    private readonly ConcurrentDictionary<Guid, (SqlInstanceInfo? Instance,
+        IReadOnlyList<DatabaseInfo> Databases,
+        IReadOnlyList<SqlServiceInfo> Services)> _slowValues = new();
+
     public async Task<ServerSnapshot> PollAsync(ServerProfile profile, long pollNumber, CancellationToken ct)
     {
         var builder = new SnapshotBuilder(profile);
+
+        // Yavaş probların bu turda çalışmayacağı değerler önceki turdan taşınır; prob
+        // çalışırsa üzerine yazar.
+        if (_slowValues.TryGetValue(profile.Id, out var carried))
+        {
+            builder.Instance = carried.Instance;
+            builder.Databases = carried.Databases;
+            builder.Services = carried.Services;
+        }
+
         var started = Stopwatch.GetTimestamp();
         var capturedAt = DateTimeOffset.UtcNow;
 
@@ -64,6 +86,13 @@ public sealed class ServerPoller(
 
         var elapsedMs = (int)Stopwatch.GetElapsedTime(started).TotalMilliseconds;
         var snapshot = builder.Build(capturedAt, elapsedMs, outcome.Active);
+
+        // Yalnız erişilebilen turda sakla: kapalı sunucudan boş liste taşımak, sonraki turda
+        // "veritabanı yok" göstermek olurdu.
+        if (builder.Status == ServerStatus.Online)
+        {
+            _slowValues[profile.Id] = (builder.Instance, builder.Databases, builder.Services);
+        }
 
         cache.Set(snapshot);
 

@@ -2,6 +2,25 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/)
 
+## [0.15.1] — 2026-08-07
+
+### 🔴 Düzeltilen — sürüm, veritabanı ve servis bilgisi çoğu zaman boş geliyordu
+
+**Belirti:** SQL Server sürümü ve edisyonu (`SQL Server 2019 · Express`) sunucu detayında
+hiç görünmüyor.
+
+**Sebep (kod okunarak bulundu):** bu üç bilgi pahalı sorgulardan geliyor ve **60 turda bir**
+okunuyor. Ama anlık görüntü her turda sıfırdan kuruluyordu; probun çalışmadığı 59 turda
+alanlar **boş** gidiyordu. Yani bilgi 15 dakikada bir bir kez belirip hemen kayboluyordu.
+Koddaki yorum "builder önceki değerleri taşır" diyordu — taşımıyordu.
+
+**Düzeltme:** yavaş probların son değerleri sunucu bazında saklanıyor ve her anlık görüntüye
+taşınıyor; prob çalıştığında üzerine yazıyor. Yalnız erişilebilen turlarda saklanıyor —
+kapalı bir sunucudan boş liste taşımak, sonraki turda "veritabanı yok" demek olurdu.
+
+Aynı hata **Veritabanları** ve **Sistem → Servisler** listelerini de etkiliyordu; ikisi de
+düzeldi.
+
 ## [0.15.0] — 2026-08-07
 
 ### Eklenen — raporlarda alan seçimi, grafik türü, tablo ve tam ekran
