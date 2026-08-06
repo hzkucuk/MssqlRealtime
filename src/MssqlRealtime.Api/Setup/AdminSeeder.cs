@@ -20,7 +20,7 @@ public static class AdminSeeder
         {
             // Upgrades come through here: the account already exists, so the installer's copy
             // of the password has no job left and should not be lying around.
-            ClearInstallerPassword(logger);
+            ClearInstallerPassword(configuration, logger);
             return;
         }
 
@@ -46,7 +46,7 @@ public static class AdminSeeder
             return;
         }
 
-        ClearInstallerPassword(logger);
+        ClearInstallerPassword(configuration, logger);
 
         if (string.IsNullOrWhiteSpace(configured))
         {
@@ -73,13 +73,29 @@ public static class AdminSeeder
     /// so it must not outlive the account it creates. Nothing reads it after this point; the
     /// password lives in the database as a hash from here on.
     /// </remarks>
-    private static void ClearInstallerPassword(ILogger logger)
+    private static void ClearInstallerPassword(IConfiguration configuration, ILogger logger)
     {
+        var passwordFile = configuration["Admin:PasswordFile"];
+
+        if (!string.IsNullOrWhiteSpace(passwordFile) && File.Exists(passwordFile))
+        {
+            try
+            {
+                File.Delete(passwordFile);
+                logger.LogInformation("Kurulum parola dosyası silindi.");
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Kurulum parola dosyası silinemedi: {Path}", passwordFile);
+            }
+        }
+
         if (!OperatingSystem.IsWindows())
         {
             return;
         }
 
+        // Installs from 0.12.1 and earlier put it in the machine environment; clean that up too.
         try
         {
             var current = Environment.GetEnvironmentVariable("Admin__Password", EnvironmentVariableTarget.Machine);

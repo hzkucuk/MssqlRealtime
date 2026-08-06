@@ -15,6 +15,9 @@ param(
     [string]$AdminEmail = 'admin@local',
     [int]$Port = 5199,
     [string]$PublicOrigin,
+    # Only needed when the reverse proxy runs on another machine: X-Forwarded-For is believed
+    # from loopback and from this address, nowhere else.
+    [string]$ProxyAddress,
     [string]$ServiceName = 'SunucuIzleme',
     [string]$DisplayName = 'Sunucu Izleme Paneli',
     [string]$DataDirectory = 'C:\ProgramData\SunucuIzleme',
@@ -56,7 +59,8 @@ $acl = @($DataDirectory, '/inheritance:r',
     '/T', '/C', '/Q')
 
 if ($Account) {
-    # A named service account needs its own grant once inheritance is gone.
+    # A named service account needs its own grant once inheritance is gone; LocalSystem is
+    # already covered by the SYSTEM grant above.
     $acl += @('/grant:r', "${Account}:(OI)(CI)M")
 }
 
@@ -69,16 +73,34 @@ if ($LASTEXITCODE -ne 0) {
 # loopback only, so a default install is not exposed on the LAN by accident.
 $urls = if ($PublicOrigin) { "http://0.0.0.0:$Port" } else { "http://127.0.0.1:$Port" }
 
+# Measured 2026-08-06: a service does not see machine environment variables written after
+# boot, so the settings that must reach it travel in the service's command line instead (see
+# $binaryPath below). These stay for anyone running the exe by hand.
 $machine = [EnvironmentVariableTarget]::Machine
-[Environment]::SetEnvironmentVariable('ASPNETCORE_URLS', $urls, $machine)
 [Environment]::SetEnvironmentVariable('ASPNETCORE_ENVIRONMENT', 'Production', $machine)
 [Environment]::SetEnvironmentVariable('Storage__DataDirectory', $DataDirectory, $machine)
 [Environment]::SetEnvironmentVariable('Admin__Email', $AdminEmail, $machine)
-[Environment]::SetEnvironmentVariable('Admin__Password', $AdminPassword, $machine)
+
+# The password never goes to the registry: BUILTIN\Users could read it there. It waits in the
+# locked-down data directory until the app creates the account and deletes it.
+Set-Content -Path (Join-Path $DataDirectory 'ilk-parola') -Value $AdminPassword -NoNewline -Encoding utf8
 
 if ($PublicOrigin) {
     # Must match the address the phone connects to, scheme included, or sign-in fails on CORS.
     [Environment]::SetEnvironmentVariable('Cors__AllowedOrigins__0', $PublicOrigin, $machine)
+}
+
+# Believed only from here and from loopback. Measured 2026-08-06: trusting the header from
+# anyone let a forged X-Forwarded-For walk past the sign-in rate limiter, twelve attempts
+# without a single 429.
+[Environment]::SetEnvironmentVariable(
+    'ForwardedHeaders__KnownProxies__0',
+    $(if ($ProxyAddress) { $ProxyAddress } else { $null }),
+    $machine)
+
+if ($PublicOrigin -and -not $ProxyAddress) {
+    Write-Warning ("Ters vekil sunucu adresi verilmedi. Vekil bu makinede degilse " +
+        "-ProxyAddress <ip> ile verin; verilmezse istemci adresleri vekilin adresi gorunur.")
 }
 
 if (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue) {
@@ -90,9 +112,14 @@ if (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue) {
 
 Write-Host "Servis olusturuluyor: $ServiceName"
 
+# Everything the service must know, on the one channel it always receives.
+$binaryPath = "`"$exe`" --Storage:DataDirectory=`"$DataDirectory`" --urls=`"$urls`""
+if ($PublicOrigin) { $binaryPath += " --Cors:AllowedOrigins:0=`"$PublicOrigin`"" }
+if ($ProxyAddress) { $binaryPath += " --ForwardedHeaders:KnownProxies:0=`"$ProxyAddress`"" }
+
 $arguments = @{
     Name           = $ServiceName
-    BinaryPathName = "`"$exe`""
+    BinaryPathName = $binaryPath
     DisplayName    = $DisplayName
     Description    = 'MSSQL ve site izleme paneli. Izlenen sunuculara yalnizca salt okunur baglanir.'
     StartupType    = 'Automatic'
@@ -139,6 +166,11 @@ while ((Get-Date) -lt $deadline) {
 Write-Host ''
 
 if ($ok) {
+    # The app deletes the password file itself once the account exists; close it here too in
+    # case it could not. Also clears the registry copy that 0.12.1 and earlier left behind.
+    Remove-Item (Join-Path $DataDirectory 'ilk-parola') -Force -ErrorAction SilentlyContinue
+    [Environment]::SetEnvironmentVariable('Admin__Password', $null, $machine)
+
     Write-Host "✅ Panel calisiyor: http://127.0.0.1:$Port"
     Write-Host "   Kullanici: $AdminEmail"
     if ($PublicOrigin) {

@@ -2,6 +2,49 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/)
 
+## [0.12.2] — 2026-08-06
+
+### 🔴 Düzeltilen — 0.12.1 kurulumdan sonra açılmıyordu
+
+**Belirti:** yükseltmeden sonra servis başlamıyor, elle başlatınca da `127.0.0.1:5199`
+açılmıyor, `logs\` klasöründe **tek satır yok**.
+
+**Sebep (ölçüldü, Windows 11):** uygulama veri klasörünün yerini makine ortam
+değişkeninden okuyordu. Windows'ta `services.exe` ortam bloğunu **önyüklemede** alır;
+kurulumdan sonra yazılan değişkeni servis göremez. Göremeyince kod
+`C:\Program Files\SunucuIzleme\data`'ya düşüyor, oraya yazamıyor ve
+`UnauthorizedAccessException` ile ölüyordu. Log da yazamıyordu, çünkü log klasörü aynı
+yerin altında — sessiz ölüm.
+
+**Düzeltme:**
+
+- Ayarlar artık **servisin komut satırında** gidiyor (`--Storage:DataDirectory`, `--urls`,
+  CORS, vekil IP) — servisin her zaman gördüğü tek kanal.
+- Yapılandırma hiç gelmezse Windows'ta varsayılan `C:\ProgramData\SunucuIzleme`; kod
+  artık program klasörüne yazmayı **hiçbir koşulda** denemiyor.
+- Klasör yine de açılamazsa ne yapılacağını söyleyen bir hata veriyor.
+- **Kurulum parolası registry'ye hiç yazılmıyor.** Kilitli veri klasörüne dosya olarak
+  bırakılıyor, uygulama hesabı kurar kurmaz siliyor (ölçüldü: dosya kayboldu, hesap
+  kuruldu). Bu, 0.12.1'deki "parolayı `BUILTIN\Users` okuyabiliyor" bulgusunu da kapatıyor.
+
+### Güvenlik
+
+- 🔴 **Sahte `X-Forwarded-For` artık hız sınırını atlamıyor.** Başlık yalnız loopback'ten ve
+  kurulumda verilen vekil IP'sinden kabul ediliyor. Ölçüldü: LAN üzerinden 14 denemenin
+  sonunda **429** geldi (düzeltmeden önce 12 denemede tek bir 429 yoktu).
+- Kurulum sihirbazına **ters vekil sunucu IP** alanı eklendi (aynı makinedeyse boş bırakılır).
+- Güvenlik başlıkları: `X-Content-Type-Options`, `X-Frame-Options: DENY`,
+  `Referrer-Policy`, `CSP: frame-ancestors 'none'`. Tam CSP yazılmadı — tarayıcı istemcisi
+  hangi müşteri paneline bağlanacağı önceden bilinmediği için `connect-src` sayılamıyor.
+- **Kurulum artık sağlık ucunu bekliyor** (setup.exe de). "Servis başladı" demek yetmiyordu;
+  başlayıp hemen ölen bir servis de başlamış görünüyor — bu sürümde tam olarak o oldu.
+
+### Geri alınan
+
+Servisi sanal hesaba (`NT SERVICE\SunucuIzleme`) almak yazıldı ve **geri alındı**:
+doğrulanmadan gönderilemez. Bugünkü arıza tam olarak doğrulanmamış bir varsayımdan çıktı.
+LocalSystem açık borç olarak duruyor.
+
 ## [0.12.1] — 2026-08-06
 
 ### Eklenen — güncelleme uyarısı

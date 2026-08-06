@@ -1,3 +1,4 @@
+using System.Net;
 using System.Reflection;
 using Microsoft.AspNetCore.Authentication.BearerToken;
 using Microsoft.AspNetCore.DataProtection;
@@ -33,15 +34,33 @@ builder.Host.UseWindowsService();
 
 // Behind nginx the app only sees the proxy: without this the scheme looks like http even on
 // an HTTPS site, generated links come out wrong and the client IP in the logs is 127.0.0.1.
+// Which machines are allowed to say "the real client is somebody else". Measured 2026-08-06:
+// with this list empty and the headers trusted from anyone, twelve sign-in attempts carrying
+// a different forged X-Forwarded-For each time never produced a 429 — the per-IP rate limiter
+// opened a fresh partition for every made-up address. The header is only believed from the
+// addresses named here.
+var trustedProxies = builder.Configuration.GetSection("ForwardedHeaders:KnownProxies").Get<string[]>()
+    ?? [];
+
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
 
-    // The proxy is not in the known-network list by default — and when nginx runs in its own
-    // container it arrives from an arbitrary bridge address. Clearing these accepts the
-    // headers from it. Safe only because Kestrel is never exposed directly (see deploy/).
     options.KnownIPNetworks.Clear();
     options.KnownProxies.Clear();
+
+    // The usual deployment: the reverse proxy sits on this machine and reaches Kestrel over
+    // loopback. Nothing else can forge a loopback source address without already being here.
+    options.KnownProxies.Add(IPAddress.Loopback);
+    options.KnownProxies.Add(IPAddress.IPv6Loopback);
+
+    foreach (var candidate in trustedProxies)
+    {
+        if (IPAddress.TryParse(candidate, out var address))
+        {
+            options.KnownProxies.Add(address);
+        }
+    }
 });
 
 builder.Host.UseSerilog((context, services, configuration) => configuration
@@ -52,9 +71,50 @@ builder.Host.UseSerilog((context, services, configuration) => configuration
 // --- Storage ------------------------------------------------------------------------------
 // Everything the product owns lives under one data directory, so a backup is a folder copy
 // and a container only needs one volume.
-var dataDirectory = builder.Configuration["Storage:DataDirectory"]
-    ?? Path.Combine(builder.Environment.ContentRootPath, "data");
-Directory.CreateDirectory(dataDirectory);
+// 🔴 Measured 2026-08-06 (Windows 11): a Windows service does not reliably see machine
+// environment variables written after boot — services.exe caches the block — so a freshly
+// installed service can start without Storage:DataDirectory ever reaching it. The old
+// fallback then pointed at C:\Program Files\SunucuIzleme\data, which is not writable, and the
+// service died with an unhandled exception before Serilog had a file to write to: no log, no
+// clue, "servis başlamıyor". The installer now passes this on the command line, which a
+// service always gets, and the fallback below never points inside the program folder.
+var dataDirectory = builder.Configuration["Storage:DataDirectory"];
+
+if (string.IsNullOrWhiteSpace(dataDirectory))
+{
+    dataDirectory = OperatingSystem.IsWindows()
+        ? Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+            "SunucuIzleme")
+        : Path.Combine(builder.Environment.ContentRootPath, "data");
+}
+
+try
+{
+    Directory.CreateDirectory(dataDirectory);
+}
+catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
+{
+    // Nothing can be logged to a file when the file's own directory is the problem, so make
+    // the console and the event log carry a sentence someone can act on.
+    throw new InvalidOperationException(
+        $"Veri klasörü açılamadı: {dataDirectory}. Servis bu klasöre yazamıyor. "
+        + "Kurulumu yeniden çalıştırın ya da servisi "
+        + "--Storage:DataDirectory=\"C:\\ProgramData\\SunucuIzleme\" argümanıyla kurun.",
+        ex);
+}
+
+// The first password cannot ride in the machine environment either — same invisibility, and
+// the registry copy was readable by BUILTIN\Users on top of it. It arrives as a file inside
+// the locked-down data directory, and the seeder deletes it the moment the account exists.
+var firstRunPasswordFile = Path.Combine(dataDirectory, "ilk-parola");
+
+if (string.IsNullOrWhiteSpace(builder.Configuration["Admin:Password"]) && File.Exists(firstRunPasswordFile))
+{
+    builder.Configuration["Admin:Password"] = File.ReadAllText(firstRunPasswordFile).Trim();
+}
+
+builder.Configuration["Admin:PasswordFile"] = firstRunPasswordFile;
 
 var databasePath = Path.Combine(dataDirectory, "mssqlrealtime.db");
 // Migrations live in the host, not in Infrastructure: the schema is the union of the
@@ -191,6 +251,32 @@ await using (var scope = app.Services.CreateAsyncScope())
 
 // Must run before anything that reads the scheme or the client address.
 app.UseForwardedHeaders();
+
+// A proxy on another machine has to be named, or every client behind it shares one rate-limit
+// bucket and the logs show the proxy instead of the caller. Silence here would look like it
+// worked, so say it once at startup where the operator can see it.
+if (trustedProxies.Length == 0
+    && (app.Configuration["ASPNETCORE_URLS"] ?? string.Empty).Contains("0.0.0.0", StringComparison.Ordinal))
+{
+    app.Logger.LogWarning(
+        "Panel dış arayüze bağlı ama tanımlı ters vekil sunucu yok. Vekil başka bir makinedeyse "
+        + "ForwardedHeaders__KnownProxies__0 ile IP'sini verin; verilmezse istemci adresi vekilin "
+        + "adresi olarak görünür ve hız sınırı hepsini tek kovaya koyar.");
+}
+
+// Set on every response, including static files and errors. No CSP beyond frame-ancestors:
+// the browser client connects to whichever customer hub you sign in to, so connect-src cannot
+// be enumerated ahead of time — a list that guesses would break panel switching silently.
+app.Use(async (context, next) =>
+{
+    var headers = context.Response.Headers;
+    headers["X-Content-Type-Options"] = "nosniff";
+    headers["Referrer-Policy"] = "no-referrer";
+    headers["X-Frame-Options"] = "DENY";
+    headers["Content-Security-Policy"] = "frame-ancestors 'none'";
+
+    await next();
+});
 
 app.UseSerilogRequestLogging();
 app.UseCors(CorsPolicy);

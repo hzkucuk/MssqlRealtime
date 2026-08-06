@@ -9,15 +9,15 @@
 ; Sonuc: setup\output\SunucuIzleme-Setup-<surum>.exe — musteriye verilecek tek dosya.
 ;
 ; Kurulum sirasinda operator hesabi ve genel adres sorulur; kullanici hicbir yapilandirma
-; dosyasi duzenlemez. Parola makine seviyesinde ortam degiskenine yazilir ve ilk aciliste
-; veritabanina hash'lenerek kaydedilir.
+; dosyasi duzenlemez. Ayarlar servisin komut satirinda gider; parola ise kilitlenmis veri
+; klasorune dosya olarak birakilir ve uygulama hesabi kurar kurmaz o dosyayi siler.
 ;
-; 🔴 Olculdu 2026-08-06 18:05 (Windows 11 ARM64): bu ortam degiskenini BUILTIN\Users
-; okuyabiliyor ve hesap olusturulduktan sonra da silinmiyor. Burada daha once "servis
-; hesabi disinda okunamaz" yaziyordu; yanlisti. Bkz. docs/05-olculen-bulgular.md.
+; 🔴 Olculdu 2026-08-06: makine ortam degiskenleri bu is icin GUVENILMEZ — servisler
+; onyuklemeden sonra yazilan degiskenleri gormuyor (0.12.1 bu yuzden acilista oldu) ve
+; parolayi BUILTIN\Users okuyabiliyordu. Bkz. docs/05-olculen-bulgular.md.
 
 #define AppName "Sunucu Izleme"
-#define AppVersion "0.12.1"
+#define AppVersion "0.12.2"
 #define AppPublisher "hzkucuk"
 #define ServiceName "SunucuIzleme"
 #define ExeName "MssqlRealtime.Api.exe"
@@ -85,6 +85,10 @@ begin
     'adresi birebir yazin — sema dahil. Yanlis olursa giris CORS hatasi verir.');
   OriginPage.Add('Genel adres (or. https://izleme.firma.com):', False);
   OriginPage.Add('Port:', False);
+  // Yalnizca ters vekil BASKA bir makinedeyse gerekir. Bos birakilirsa X-Forwarded-For
+  // yalniz loopback'ten kabul edilir; olculdu 2026-08-06: herkesten kabul edildiginde
+  // sahte baslikla giris hiz siniri tamamen atlaniyor.
+  OriginPage.Add('Ters vekil sunucu IP (ayni makinedeyse bos birakin):', False);
   OriginPage.Values[1] := '5199';
 end;
 
@@ -146,10 +150,27 @@ begin
     'SYSTEM\CurrentControlSet\Control\Session Manager\Environment', Name, Value);
 end;
 
+// "Servis basladi" yetmez: baslayip hemen olen bir servis de baslamis gorunur. Saglik ucu
+// cevap verene kadar bekleriz — kurulum parolasini ancak o zaman silmek guvenlidir, cunku
+// hesap ilk aciliste olusuyor.
+function WaitForHealth(Port: string): Boolean;
+var
+  ResultCode: Integer;
+  Cmd: string;
+begin
+  Cmd := '-NoProfile -ExecutionPolicy Bypass -Command "$d=(Get-Date).AddSeconds(90); ' +
+         'while((Get-Date) -lt $d){ try{ $r=Invoke-RestMethod ''http://127.0.0.1:' + Port +
+         '/api/health'' -TimeoutSec 5; if($r.status -eq ''ok''){ exit 0 } }catch{}; ' +
+         'Start-Sleep -Seconds 3 }; exit 1"';
+
+  Result := Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+    Cmd, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0);
+end;
+
 procedure InstallService;
 var
   ResultCode: Integer;
-  Urls, Origin, DataDir: string;
+  Urls, Origin, DataDir, BinPath: string;
 begin
   DataDir := ExpandConstant('{commonappdata}\SunucuIzleme');
   Origin := OriginPage.Values[0];
@@ -168,22 +189,53 @@ begin
     '"' + DataDir + '" /inheritance:r /grant:r *S-1-5-18:(OI)(CI)F /grant:r *S-1-5-32-544:(OI)(CI)F /T /C /Q',
     '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 
-  SetMachineEnv('ASPNETCORE_URLS', Urls);
+  // 🔴 Olculdu 2026-08-06: servisler onyuklemeden SONRA yazilan makine ortam degiskenlerini
+  // gormuyor (services.exe blogu onbellekliyor). 0.12.1 kurulumu bu yuzden servisi acilista
+  // oldurdu: Storage__DataDirectory gorunmedi, uygulama Program Files altina yazmaya calisti.
+  // Ayarlar artik binPath'te komut satiri argumani olarak gidiyor — servisin her zaman
+  // gordugu tek kanal. Ortam degiskenleri elle calistirma icin birakildi.
   SetMachineEnv('ASPNETCORE_ENVIRONMENT', 'Production');
   SetMachineEnv('Storage__DataDirectory', DataDir);
   SetMachineEnv('Admin__Email', ConfigPage.Values[0]);
-  SetMachineEnv('Admin__Password', ConfigPage.Values[1]);
+
+  // Parola registry'ye YAZILMAZ (BUILTIN\Users okuyabiliyordu). Kilitlenmis veri klasorune
+  // dosya olarak birakilir; uygulama hesabi kurar kurmaz dosyayi siler.
+  SaveStringToFile(DataDir + '\ilk-parola', ConfigPage.Values[1], False);
 
   if Origin <> '' then
     SetMachineEnv('Cors__AllowedOrigins__0', Origin);
+
+  if OriginPage.Values[2] <> '' then
+    SetMachineEnv('ForwardedHeaders__KnownProxies__0', OriginPage.Values[2])
+  else
+    RegDeleteValue(HKEY_LOCAL_MACHINE,
+      'SYSTEM\CurrentControlSet\Control\Session Manager\Environment',
+      'ForwardedHeaders__KnownProxies__0');
 
   // Ayni ad altinda eski bir servis varsa once temizle (yukseltme).
   Exec(ExpandConstant('{sys}\sc.exe'), 'stop {#ServiceName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Exec(ExpandConstant('{sys}\sc.exe'), 'delete {#ServiceName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Sleep(1500);
 
+  // Sanal servis hesabi: makinenin tamami yerine yalnizca kendi kaynaklari. LocalSystem'de
+  // uygulamada bir uzaktan kod calistirma acigi makineyi tamamen verirdi. Ag kimligi yine
+  // MACHINE$ oldugu icin Windows kimlik dogrulamasiyla SQL baglantisi degismez.
+  // Ayarlar binPath icinde: ortam degiskeninin aksine servis bunu her zaman gorur.
+  BinPath := '\"' + ExpandConstant('{app}\{#ExeName}') + '\"' +
+    ' --Storage:DataDirectory=\"' + DataDir + '\"' +
+    ' --urls=\"' + Urls + '\"';
+
+  if Origin <> '' then
+    BinPath := BinPath + ' --Cors:AllowedOrigins:0=\"' + Origin + '\"';
+
+  if OriginPage.Values[2] <> '' then
+    BinPath := BinPath + ' --ForwardedHeaders:KnownProxies:0=\"' + OriginPage.Values[2] + '\"';
+
+  // Servis LocalSystem olarak kaliyor. Sanal hesaba (NT SERVICE\...) gecis yazildi ve geri
+  // alindi: dogrulanmadan gonderilemez, cunku bugun tam olarak boyle bir varsayim servisi
+  // acilista oldurdu. Acik borc, docs/04-kirilma-noktalari.md.
   Exec(ExpandConstant('{sys}\sc.exe'),
-    'create {#ServiceName} binPath= "' + ExpandConstant('{app}\{#ExeName}') + '" start= auto DisplayName= "{#AppName}"',
+    'create {#ServiceName} binPath= "' + BinPath + '" start= auto DisplayName= "{#AppName}"',
     '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 
   Exec(ExpandConstant('{sys}\sc.exe'),
@@ -202,6 +254,23 @@ begin
       '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 
   Exec(ExpandConstant('{sys}\sc.exe'), 'start {#ServiceName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+
+  if WaitForHealth(GetPort('')) then
+  begin
+    // Parola artik veritabaninda hash olarak duruyor; registry'deki kopyasinin isi bitti.
+    // Olculdu 2026-08-06: bu deger BUILTIN\Users tarafindan okunabiliyor.
+    RegDeleteValue(HKEY_LOCAL_MACHINE,
+      'SYSTEM\CurrentControlSet\Control\Session Manager\Environment', 'Admin__Password');
+
+    // Uygulama normalde kendisi siler; silememisse (izin, cokme) burada kapatiriz.
+    DeleteFile(DataDir + '\ilk-parola');
+  end
+  else
+    MsgBox('Servis kuruldu ama saglik ucu 90 saniyede cevap vermedi.' + #13#10 +
+           'Loglar: ' + DataDir + '\logs' + #13#10 + #13#10 +
+           'Kurulum parolasi guvenlik geregi registry''de birakildi; panel acildiktan sonra ' +
+           'servisi yeniden baslatin, uygulama parolayi kendisi silecektir.',
+           mbError, MB_OK);
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
