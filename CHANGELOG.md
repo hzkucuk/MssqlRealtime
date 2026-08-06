@@ -2,6 +2,41 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/)
 
+## [0.14.0] — 2026-08-07
+
+### Eklenen — Raporlar
+
+Sunucu detayında yeni bir sekme: **gün / hafta / ay / yıl** aralıklarıyla dört grafik —
+işlemci+bellek (%), oturum sayısı, bloke oturumlar, en uzun sorgu. Ekranda kaldığı sürece
+dakikada bir tazeleniyor.
+
+- **Ölçümler artık saklanıyor.** Şimdiye kadar hiçbir şey diske yazılmıyordu (sparkline'ın
+  geçmişi bile yalnız telefonun belleğindeydi), dolayısıyla "geçen ay nasıldı?" sorusunun
+  cevabı yoktu. Poller'lar ölçümlerini bir toplayıcıya veriyor, o da **dakikada bir satır**
+  yazıyor: poller disk beklemiyor, yoğun sunucu boştakiyle aynı maliyette.
+- **Kayıtlar yaşlanıyor:** bir haftadan eskiler saatlik, üç aydan eskiler günlük ortalamaya
+  iniyor, **iki yıldan eskiler siliniyor**. Katlama ham örnek sayısına göre ağırlıklı —
+  yarım kalan bir saat, tam saatle aynı ağırlıkta sayılmıyor. "En uzun sorgu" ortalama değil
+  **maksimum** olarak taşınıyor, çünkü o sütun "ne kadar kötüleşti?" sorusunu cevaplıyor.
+- 🔴 **Yalnız erişilebilen turlar kaydediliyor.** Ulaşılamayan sunucu için sıfır yazmak,
+  kesintinin üstüne sakin bir ay çizerdi — bir izleme geçmişinin söyleyemeyeceği tek yalan.
+- Okuma tarafı çözünürlüğü pencereye göre seçiyor: bir günlük pencere 1440 nokta (telefon
+  çizebilir), bir yıllık ham veri yarım milyon nokta olurdu (çizemez, okunmaz da).
+
+### Grafik kararları — hesaplanmış, göz kararı değil
+
+- Seri renkleri `dataviz` doğrulayıcısından geçirildi. Koyu tema `#4f8ff0`/`#d75f9e`:
+  en kötü renk körlüğü çifti **ΔE 13,1**, normal görme **23,3**. Açık tema kendi adımlarını
+  aldı (`#2570e8`/`#c02d7d`, ΔE 18,1 / 28,3) — otomatik çevirme değil, ayrı seçim.
+- **Durum renkleri (yeşil/sarı/kırmızı) seri rengi olarak kullanılmadı.** Bu üründe onlar
+  ölçülmüş durumu anlatıyor; seri kimliği için harcanırsa alarm anlamını yitirir.
+- **Yüzde ile adet aynı grafikte gösterilmedi.** İki ölçekli tek çizim en sık yapılan grafik
+  hatası; ayrı kutulara alındı.
+- **Ölçüm olmayan aralıkta çizgi kopuyor.** Boşluğu düz çizgiyle örtmek, olmayan bir ölçümü
+  varmış gibi göstermek olurdu.
+- İki serili grafikte gösterge var, tek serilide yok (başlık zaten adını söylüyor). İmleç
+  değerleri metin renginde; seri rengini yalnız yanındaki nokta taşıyor.
+
 ## [0.13.0] — 2026-08-07
 
 ### 🔴 Düzeltilen — telefon uyuduktan sonra "bağlı değil" kalıyordu

@@ -21,11 +21,13 @@
 		statusText
 	} from '$lib/format';
 	import Sparkline from '$lib/components/Sparkline.svelte';
+	import LineChart from '$lib/components/LineChart.svelte';
+	import { api } from '$lib/api/client';
 
 	const serverId = $derived(page.params.target!);
 	const snapshot = $derived(mssql.snapshot(serverId));
 
-	type Tab = 'ozet' | 'oturumlar' | 'calisan' | 'bloke' | 'veritabani' | 'sistem';
+	type Tab = 'ozet' | 'oturumlar' | 'calisan' | 'bloke' | 'veritabani' | 'raporlar' | 'sistem';
 	let tab = $state<Tab>('ozet');
 	// Sorting is applied to every incoming snapshot, not once to the DOM: rows are replaced
 	// every few seconds and the chosen order has to survive that.
@@ -189,6 +191,61 @@
 		collapsedGroups = next;
 	}
 
+	// --- Raporlar ---------------------------------------------------------------------------
+	type MetricPoint = {
+		atUtc: string;
+		cpuPercent: number | null;
+		sqlCpuPercent: number | null;
+		memoryPercent: number | null;
+		sqlMemoryMb: number | null;
+		sessionCount: number | null;
+		requestCount: number | null;
+		blockedCount: number | null;
+		longestQuerySeconds: number | null;
+	};
+
+	const RANGES: [string, string][] = [
+		['gun', 'Gün'],
+		['hafta', 'Hafta'],
+		['ay', 'Ay'],
+		['yil', 'Yıl']
+	];
+
+	let range = $state('gun');
+	let metrics = $state<MetricPoint[]>([]);
+	let metricsBusy = $state(false);
+	let metricsError = $state<string | null>(null);
+
+	async function loadMetrics() {
+		metricsBusy = true;
+		metricsError = null;
+
+		try {
+			const result = await api<{ points: MetricPoint[] }>(
+				`/api/metrics/${MSSQL_MODULE_ID}/${serverId.replace(/-/g, '')}?aralik=${range}`
+			);
+			metrics = result.points;
+		} catch (e) {
+			metricsError = e instanceof Error ? e.message : String(e);
+		} finally {
+			metricsBusy = false;
+		}
+	}
+
+	// Sekmeye girildiğinde ve aralık değiştiğinde çekilir; ekranda kaldığı sürece dakikada bir
+	// tazelenir — kayıtlar da dakikada bir yazıldığı için daha sık sormak boşuna trafik.
+	$effect(() => {
+		if (tab !== 'raporlar') return;
+
+		void range;
+		void loadMetrics();
+
+		const timer = setInterval(() => void loadMetrics(), 60_000);
+		return () => clearInterval(timer);
+	});
+
+	const metricTimes = $derived(metrics.map((m) => m.atUtc));
+
 	let killing = $state<number | null>(null);
 	let actionError = $state<string | null>(null);
 	let actionOk = $state<string | null>(null);
@@ -304,7 +361,7 @@
 		{/each}
 
 		<div class="tabs">
-			{#each [['ozet', 'Özet'], ['oturumlar', `Oturumlar (${s.sessions.length})`], ['calisan', `Çalışan (${s.requests.length})`], ['bloke', `Bloke (${s.blocking.length})`], ['veritabani', 'Veritabanları'], ['sistem', 'Sistem']] as [key, label] (key)}
+			{#each [['ozet', 'Özet'], ['oturumlar', `Oturumlar (${s.sessions.length})`], ['calisan', `Çalışan (${s.requests.length})`], ['bloke', `Bloke (${s.blocking.length})`], ['veritabani', 'Veritabanları'], ['raporlar', 'Raporlar'], ['sistem', 'Sistem']] as [key, label] (key)}
 				<button class="tab" class:active={tab === key} onclick={() => (tab = key as Tab)}>
 					{label}
 				</button>
@@ -549,6 +606,65 @@
 					</tbody>
 				</table>
 			</div>
+		{:else if tab === 'raporlar'}
+			<div class="row between" style="margin-bottom:0.6rem">
+				<!-- Zaman aralığı seçici grafiklerin üstünde, tek satırda. -->
+				<div class="tabs" style="margin:0">
+					{#each RANGES as [key, label] (key)}
+						<button class="tab" class:active={range === key} onclick={() => (range = key)}>
+							{label}
+						</button>
+					{/each}
+				</div>
+				<span class="muted">{metricsBusy ? 'yükleniyor…' : `${metrics.length} ölçüm`}</span>
+			</div>
+
+			{#if metricsError}<div class="error">{metricsError}</div>{/if}
+
+			<div class="card">
+				<LineChart
+					title="İşlemci ve bellek"
+					unit="%"
+					max={100}
+					times={metricTimes}
+					series={[
+						{ label: 'İşlemci', values: metrics.map((m) => m.cpuPercent) },
+						{ label: 'Bellek', values: metrics.map((m) => m.memoryPercent) }
+					]}
+				/>
+			</div>
+
+			<!-- Ayrı kutu, ayrı eksen: yüzde ile adet aynı grafikte gösterilemez; iki ölçek tek
+			     çizimde okunamaz hale gelir. -->
+			<div class="card">
+				<LineChart
+					title="Oturumlar"
+					times={metricTimes}
+					series={[{ label: 'Oturum', values: metrics.map((m) => m.sessionCount) }]}
+				/>
+			</div>
+
+			<div class="card">
+				<LineChart
+					title="Bloke oturumlar"
+					times={metricTimes}
+					series={[{ label: 'Bloke', values: metrics.map((m) => m.blockedCount) }]}
+				/>
+			</div>
+
+			<div class="card">
+				<LineChart
+					title="En uzun sorgu"
+					unit=" sn"
+					times={metricTimes}
+					series={[{ label: 'Saniye', values: metrics.map((m) => m.longestQuerySeconds) }]}
+				/>
+			</div>
+
+			<p class="muted" style="font-size:0.78rem">
+				Ölçümler dakikada bir yazılır. Bir haftadan eskiler saatlik, üç aydan eskiler günlük
+				ortalamaya iner; iki yıldan eskiler silinir.
+			</p>
 		{:else if tab === 'sistem'}
 			<div class="card">
 				<h3>Örnek</h3>
