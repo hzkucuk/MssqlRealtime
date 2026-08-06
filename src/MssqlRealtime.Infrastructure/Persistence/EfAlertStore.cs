@@ -46,6 +46,7 @@ public sealed class EfAlertStore(AppDbContext db) : IAlertStore
                 Value = alert.Value,
                 Threshold = alert.Threshold,
                 Unit = alert.Unit,
+                Context = alert.Context is null ? null : Truncate(alert.Context, 400),
                 RaisedAtUtc = alert.SinceUtc.UtcDateTime,
                 LastNotifiedUtc = alert.LastNotifiedUtc?.UtcDateTime
             });
@@ -55,6 +56,12 @@ public sealed class EfAlertStore(AppDbContext db) : IAlertStore
             open.Severity = alert.Severity;
             open.Message = Truncate(alert.Message, 1000);
             open.Value = alert.Value;
+            // The first capture is the one that matters: it names who caused the alert, not
+            // who happens to be busiest now that it has been firing for an hour.
+            if (open.Context is null && alert.Context is not null)
+            {
+                open.Context = Truncate(alert.Context, 400);
+            }
             open.TargetName = alert.Target.TargetName;
             open.LastNotifiedUtc = alert.LastNotifiedUtc?.UtcDateTime;
         }
@@ -85,6 +92,7 @@ public sealed class EfAlertStore(AppDbContext db) : IAlertStore
             Value = r.Value,
             Threshold = r.Threshold,
             Unit = r.Unit,
+            Context = r.Context,
             SinceUtc = new DateTimeOffset(r.RaisedAtUtc, TimeSpan.Zero),
             LastNotifiedUtc = r.LastNotifiedUtc is null ? null : new DateTimeOffset(r.LastNotifiedUtc.Value, TimeSpan.Zero)
         }).ToList();
@@ -112,6 +120,7 @@ public sealed class EfAlertStore(AppDbContext db) : IAlertStore
             Value = r.Value,
             Threshold = r.Threshold,
             Unit = r.Unit,
+            Context = r.Context,
             RaisedAtUtc = new DateTimeOffset(r.RaisedAtUtc, TimeSpan.Zero),
             ClearedAtUtc = r.ClearedAtUtc is null ? null : new DateTimeOffset(r.ClearedAtUtc.Value, TimeSpan.Zero)
         }).ToList();

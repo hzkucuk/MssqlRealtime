@@ -85,6 +85,13 @@ public sealed class AlertRecord
     public double? Threshold { get; set; }
     public string? Unit { get; set; }
 
+    /// <summary>
+    /// Who was consuming the server when this fired. Nullable on purpose: records written
+    /// before this existed have no answer, and inventing one would be worse than saying
+    /// nothing.
+    /// </summary>
+    public string? Context { get; set; }
+
     // Stored as UTC DateTime, not DateTimeOffset: measured 2026-08-05, SQLite cannot ORDER BY
     // a DateTimeOffset column and the history query is ordered by time by definition.
     public DateTime RaisedAtUtc { get; set; }

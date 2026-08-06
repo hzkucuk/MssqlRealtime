@@ -43,6 +43,10 @@ public sealed record AlertHistoryEntry
     public double? Value { get; init; }
     public double? Threshold { get; init; }
     public string? Unit { get; init; }
+
+    /// <summary>Who was consuming the server when it fired; null for older records.</summary>
+    public string? Context { get; init; }
+
     public required DateTimeOffset RaisedAtUtc { get; init; }
     public DateTimeOffset? ClearedAtUtc { get; init; }
     public bool IsActive => ClearedAtUtc is null;

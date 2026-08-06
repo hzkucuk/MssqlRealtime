@@ -92,6 +92,12 @@
 
 			<div style="margin-top:0.35rem">{entry.message}</div>
 
+			<!-- Alarmın sebebi: sayı sunucunun meşgul olduğunu söyler, bu satır ne yapılacağını.
+			     Eski kayıtlarda yok — uydurmak yerine hiç göstermiyoruz. -->
+			{#if entry.context}
+				<div class="context">{entry.context}</div>
+			{/if}
+
 			<div class="muted" style="margin-top:0.3rem">
 				{dateTime(entry.raisedAtUtc)} · {lasted(entry)} sürdü
 				{#if entry.clearedAtUtc}· bitiş {dateTime(entry.clearedAtUtc)}{/if}
@@ -111,5 +117,15 @@
 
 	.check input {
 		width: auto;
+	}
+
+	/* Sebep satırı: mesajın altında, ölçüm değil bağlam olduğu için sessiz ve tek satır. */
+	.context {
+		margin-top: 0.3rem;
+		padding: 0.3rem 0.5rem;
+		border-left: 2px solid var(--line);
+		font-size: 0.8rem;
+		opacity: 0.9;
+		overflow-wrap: anywhere;
 	}
 </style>

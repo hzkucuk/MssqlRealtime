@@ -257,6 +257,8 @@ export type AlertHistoryEntry = {
 	value?: number | null;
 	threshold?: number | null;
 	unit?: string | null;
+	/** Alarm anında sunucuyu kim tüketiyordu — eski kayıtlarda boş. */
+	context?: string | null;
 	raisedAtUtc: string;
 	clearedAtUtc?: string | null;
 	isActive: boolean;

@@ -22,6 +22,36 @@ public static class MssqlAlertRules
     public const string SessionCount = "session-count";
     public const string Offline = "offline";
 
+
+    /// <summary>
+    /// One line naming the heaviest consumer at this instant: SPID, application, login and
+    /// machine. Captured while the rule fires, because ten minutes later — when someone reads
+    /// the notification — the session is usually gone.
+    /// </summary>
+    private static string? Describe(SessionInfo? session, string? measure = null)
+    {
+        if (session is null)
+        {
+            return null;
+        }
+
+        var parts = new List<string> { $"SPID {session.SessionId}" };
+
+        if (!string.IsNullOrWhiteSpace(session.ProgramName)) parts.Add(session.ProgramName!);
+        if (!string.IsNullOrWhiteSpace(session.LoginName)) parts.Add(session.LoginName!);
+        if (!string.IsNullOrWhiteSpace(session.HostName)) parts.Add(session.HostName!);
+        if (!string.IsNullOrWhiteSpace(measure)) parts.Add(measure!);
+
+        return string.Join(" · ", parts);
+    }
+
+    /// <summary>The session burning the most CPU right now, ignoring system sessions.</summary>
+    private static SessionInfo? TopCpu(SnapshotBuilder builder) =>
+        builder.Sessions.Where(x => x.SessionId > 50).MaxBy(x => x.CpuTimeMs);
+
+    private static SessionInfo? TopMemory(SnapshotBuilder builder) =>
+        builder.Sessions.Where(x => x.SessionId > 50).MaxBy(x => x.MemoryUsageKb);
+
     public static IReadOnlyList<AlertCandidate> Evaluate(ServerProfile profile, SnapshotBuilder builder)
     {
         var candidates = new List<AlertCandidate>();
@@ -68,6 +98,7 @@ public static class MssqlAlertRules
                 Value = cpu,
                 Threshold = cpuLimit,
                 Unit = "%",
+                Context = Describe(TopCpu(builder), $"CPU {TopCpu(builder)?.CpuTimeMs:N0} ms"),
                 RequiredConsecutiveBreaches = profile.AlertConsecutiveBreaches,
                 RenotifyMinutes = profile.AlertRenotifyMinutes
             });
@@ -88,6 +119,7 @@ public static class MssqlAlertRules
                 Value = mem,
                 Threshold = memLimit,
                 Unit = "%",
+                Context = Describe(TopMemory(builder), $"{TopMemory(builder)?.MemoryUsageKb:N0} KB"),
                 RequiredConsecutiveBreaches = profile.AlertConsecutiveBreaches,
                 RenotifyMinutes = profile.AlertRenotifyMinutes
             });
@@ -105,6 +137,7 @@ public static class MssqlAlertRules
                 Value = sqlMem,
                 Threshold = sqlMemLimit,
                 Unit = "MB",
+                Context = Describe(TopMemory(builder), $"{TopMemory(builder)?.MemoryUsageKb:N0} KB"),
                 RequiredConsecutiveBreaches = profile.AlertConsecutiveBreaches,
                 RenotifyMinutes = profile.AlertRenotifyMinutes
             });
@@ -130,6 +163,10 @@ public static class MssqlAlertRules
                     : $"{blocked} oturum bloke durumda — engelleyen: {head}",
                 Value = blocked,
                 Threshold = blockLimit,
+                Context = Describe(
+                    builder.Sessions.FirstOrDefault(x =>
+                        x.SessionId == builder.Blocking.Select(b => b.BlockingSessionId).FirstOrDefault()),
+                    "engelleyen"),
                 RequiredConsecutiveBreaches = profile.AlertConsecutiveBreaches,
                 RenotifyMinutes = profile.AlertRenotifyMinutes
             });
@@ -152,6 +189,16 @@ public static class MssqlAlertRules
                 Value = seconds,
                 Threshold = longLimit,
                 Unit = "sn",
+                Context = longest is null
+                    ? null
+                    : string.Join(" · ", new[]
+                        {
+                            $"SPID {longest.SessionId}",
+                            longest.ProgramName,
+                            longest.LoginName,
+                            longest.HostName,
+                            $"{seconds} sn"
+                        }.Where(x => !string.IsNullOrWhiteSpace(x))),
                 RequiredConsecutiveBreaches = profile.AlertConsecutiveBreaches,
                 RenotifyMinutes = profile.AlertRenotifyMinutes
             });

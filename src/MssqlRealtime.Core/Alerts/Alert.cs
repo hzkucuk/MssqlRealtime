@@ -28,6 +28,13 @@ public sealed record AlertCandidate
     public double? Threshold { get; init; }
     public string? Unit { get; init; }
 
+    /// <summary>
+    /// Who was consuming the server when this fired — a session, a login, an application.
+    /// A number says the server is busy; this says what to do about it. An alert history
+    /// without it cannot answer "peki 03:14'te ne oluyordu?" the next morning.
+    /// </summary>
+    public string? Context { get; init; }
+
     /// <summary>Consecutive breached cycles before firing. 1 fires immediately.</summary>
     public int RequiredConsecutiveBreaches { get; init; } = 1;
 
@@ -65,6 +72,7 @@ public sealed record AlertState
     public double? Value { get; init; }
     public double? Threshold { get; init; }
     public string? Unit { get; init; }
+    public string? Context { get; init; }
     public required DateTimeOffset SinceUtc { get; init; }
     public DateTimeOffset? LastNotifiedUtc { get; init; }
 

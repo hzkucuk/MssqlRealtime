@@ -99,6 +99,9 @@ public sealed class AlertEngine : IAlertEngine
                     Value = candidate.Value,
                     Threshold = candidate.Threshold,
                     Unit = candidate.Unit,
+                    // Recovery keeps the context that was captured when it fired: knowing who
+                    // caused it is the point, and by the time it clears they are gone.
+                    Context = candidate.Context ?? state.Firing?.Context,
                     SinceUtc = since,
                     LastNotifiedUtc = lastNotified
                 };
