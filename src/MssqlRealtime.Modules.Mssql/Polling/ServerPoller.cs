@@ -24,6 +24,7 @@ public sealed class ServerPoller(
     IAlertEngine alerts,
     IRealtimePublisher publisher,
     IAlertSink alertSink,
+    IMetricSink metrics,
     ILogger<ServerPoller> logger)
 {
     private readonly ISqlProbe[] _probes = probes.OrderBy(p => p.Order).ToArray();
@@ -65,6 +66,26 @@ public sealed class ServerPoller(
         var snapshot = builder.Build(capturedAt, elapsedMs, outcome.Active);
 
         cache.Set(snapshot);
+
+        // History for the reports screen. Only when the server actually answered: writing
+        // zeros for an unreachable server would draw a calm month where there was an outage.
+        if (builder.Status == ServerStatus.Online)
+        {
+            metrics.Report(MssqlModule.ModuleId, target.TargetId, new MetricPoint
+            {
+                CpuPercent = builder.Resources?.CpuPercent,
+                SqlCpuPercent = builder.Resources?.SqlCpuPercent,
+                MemoryPercent = builder.Resources?.MemoryUsedPercent,
+                SqlMemoryMb = (int?)builder.Resources?.SqlProcessMemoryMb,
+                SessionCount = builder.Sessions.Count,
+                RequestCount = builder.Requests.Count,
+                BlockedCount = builder.Blocking.Select(b => b.BlockedSessionId).Distinct().Count(),
+                LongestQuerySeconds = builder.Requests.Count == 0
+                    ? 0
+                    : builder.Requests.Max(r => r.ElapsedSeconds)
+            });
+        }
+
         await publisher.PublishAsync(MssqlModule.ModuleId, target.TargetId, "snapshot", snapshot, ct);
 
         foreach (var notification in outcome.ToNotify)

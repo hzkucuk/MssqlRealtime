@@ -149,6 +149,15 @@ builder.Services.AddHostedService<NotificationRetryService>();
 
 
 builder.Services.AddScoped<IAlertStore, EfAlertStore>();
+
+// History for the reports screen: the recorder buffers what pollers measure and writes a
+// row a minute; maintenance folds those into hours and days and drops anything past two
+// years. Both are hosted services, so a panel nobody opens still builds its history.
+builder.Services.AddSingleton<MetricRecorder>();
+builder.Services.AddSingleton<IMetricSink>(sp => sp.GetRequiredService<MetricRecorder>());
+builder.Services.AddHostedService(sp => sp.GetRequiredService<MetricRecorder>());
+builder.Services.AddHostedService<MetricMaintenanceService>();
+builder.Services.AddScoped<IMetricStore, EfMetricStore>();
 builder.Services.AddScoped<INotificationSettingsStore, NotificationSettingsStore>();
 builder.Services.AddScoped<INotificationOutbox, NotificationOutbox>();
 builder.Services.AddSingleton<INotificationDispatcher, NotificationDispatcher>();
@@ -348,6 +357,7 @@ app.MapGet("/api/modules", (IModuleRegistry registry) => Results.Ok(registry.Des
     .RequireAuthorization();
 
 app.MapNotificationEndpoints();
+app.MapMetricEndpoints();
 app.MapToolModules();
 
 app.MapHub<ToolsHub>(ToolsHub.Path);

@@ -98,3 +98,45 @@ public sealed class AlertRecord
     public DateTime? ClearedAtUtc { get; set; }
     public DateTime? LastNotifiedUtc { get; set; }
 }
+
+/// <summary>
+/// One measurement of a target, kept so the reports screen can answer "what did last month
+/// look like?". Module-agnostic on purpose: the platform stores numbers and a module decides
+/// what they mean, exactly like alerts.
+/// </summary>
+/// <remarks>
+/// Rows are thinned rather than kept forever. A sample a minute is 525.600 rows per server
+/// per year, which is both slow to chart and pointless at that age — nobody asks what the CPU
+/// did at 03:47 last March, they ask what March looked like. So samples age into hourly and
+/// then daily averages, and everything older than two years is deleted.
+/// </remarks>
+public sealed class MetricSample
+{
+    public long Id { get; set; }
+    public string ModuleId { get; set; } = string.Empty;
+    public string TargetId { get; set; } = string.Empty;
+
+    /// <summary>Start of the bucket this row covers (UTC).</summary>
+    public DateTime TakenAtUtc { get; set; }
+
+    public MetricResolution Resolution { get; set; }
+
+    public double? CpuPercent { get; set; }
+    public double? SqlCpuPercent { get; set; }
+    public double? MemoryPercent { get; set; }
+    public int? SqlMemoryMb { get; set; }
+    public int? SessionCount { get; set; }
+    public int? RequestCount { get; set; }
+    public int? BlockedCount { get; set; }
+    public int? LongestQuerySeconds { get; set; }
+
+    /// <summary>How many minute samples this row was folded from; 1 while it is still raw.</summary>
+    public int SampleCount { get; set; } = 1;
+}
+
+public enum MetricResolution
+{
+    Minute = 0,
+    Hour = 1,
+    Day = 2
+}

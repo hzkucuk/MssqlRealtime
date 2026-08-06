@@ -32,6 +32,7 @@ public sealed class AppDbContext(
     public DbSet<NotificationChannelState> NotificationChannelStates => Set<NotificationChannelState>();
     public DbSet<AlertRecord> AlertRecords => Set<AlertRecord>();
     public DbSet<NotificationOutboxEntry> NotificationOutbox => Set<NotificationOutboxEntry>();
+    public DbSet<MetricSample> MetricSamples => Set<MetricSample>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -72,6 +73,19 @@ public sealed class AppDbContext(
             // "What is firing right now" and "what happened lately" are the only two queries.
             e.HasIndex(x => new { x.ModuleId, x.TargetId, x.RuleId, x.ClearedAtUtc });
             e.HasIndex(x => x.RaisedAtUtc);
+        });
+
+        builder.Entity<MetricSample>(e =>
+        {
+            e.ToTable("MetricSamples");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.ModuleId).HasMaxLength(64).IsRequired();
+            e.Property(x => x.TargetId).HasMaxLength(128).IsRequired();
+            e.Property(x => x.Resolution).HasConversion<int>();
+
+            // Every report query is "this target, this resolution, this window", and the
+            // roll-up walks the same order. One index covers both.
+            e.HasIndex(x => new { x.ModuleId, x.TargetId, x.Resolution, x.TakenAtUtc });
         });
 
         builder.Entity<NotificationOutboxEntry>(e =>
