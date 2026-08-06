@@ -37,3 +37,8 @@ windows-publish/
 
 # Üretilen paketler
 setup/output/
+
+# Imzalama anahtarlari ve parola dosyalari asla depoya girmez (depo public).
+*.keystore
+*.jks
+*.pass
