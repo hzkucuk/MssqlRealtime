@@ -52,9 +52,9 @@
 | Sorgu metninde hassas veri | İfade metni 4000 karakterde kesilir, **loglanmaz**, ama arayüzde görünür ve WebSocket üzerinden akar. | ✅ TLS altında kabul edilebilir; maskeleme gerekirse prob seviyesinde yapılmalı. |
 | `KILL` yanlış oturuma basılır | Onay sorulur; `session_id ≤ 50` reddedilir; işlem `LogWarning` ile denetim kaydına yazılır. | Kullanıcı bazlı yetki ayrımı yok (tek kullanıcı var). |
 | **Makinede sıradan bir yerel kullanıcı hesabı var** | v0.12.0'a kadar: `ProgramData` altındaki anahtar halkasını okuyup kayıtlı SQL parolalarını çözebiliyordu, yönetici parolasını registry'den düz metin okuyabiliyordu (ölçüldü 2026-08-06 18:05). v0.12.1'den itibaren kalıtım kesiliyor (yalnız SYSTEM + Yöneticiler) ve parola hesap kurulunca siliniyor. | ⚠️ **Yükseltme mevcut kurulumları düzeltir**, ama düzeltmeden önce parolayı okumuş biri varsa parola değişmeli. |
-| Servis LocalSystem olarak çalışıyor | Uygulamada uzaktan kod çalıştırma olursa makinenin tamamı gider. | Sanal servis hesabı (`NT SERVICE\SunucuIzleme`) — **açık borç**. |
-| Sahte `X-Forwarded-For` | Hız sınırı bölümlemesi başlığa bakıyor; başlığı her istekte değiştiren biri sınırı hiç görmüyor (ölçüldü: 12 denemede `429` yok). Identity'nin 5 denemede hesap kilidi devrede kalıyor. | `KnownProxies` kurulumda sorulan vekil IP'siyle doldurulmalı — **açık borç**. |
-| Güvenlik başlıkları yok | Panel bir iframe'e gömülebilir; MIME sniffing açık. | `X-Frame-Options`/CSP + `X-Content-Type-Options` — **açık borç**. |
+| Servis LocalSystem olarak çalışıyor | Uygulamada uzaktan kod çalıştırma olursa makinenin tamamı gider. | Sanal servis hesabına (`NT SERVICE\SunucuIzleme`) geçilmeli — **yapılmadı**, acil değil. Yazıldı ve geri alındı: Windows'ta doğrulanmadan gönderilemez. |
+| Sahte `X-Forwarded-For` | ✅ v0.12.2'de kapandı: başlık yalnız loopback'ten ve kurulumda girilen vekil IP'sinden kabul ediliyor. Ölçüldü — LAN'dan 14 denemede `429` geldi (öncesinde 12 denemede hiç gelmiyordu). | ✅ |
+| Güvenlik başlıkları | ✅ v0.12.2'de eklendi: `X-Frame-Options: DENY`, `X-Content-Type-Options`, `Referrer-Policy`, CSP `frame-ancestors 'none'`. Tam CSP yazılmadı — tarayıcı istemcisi hangi panele bağlanacağı önceden bilinmediği için `connect-src` sayılamıyor. | ✅ |
 
 ## Sürüm uyumu
 
