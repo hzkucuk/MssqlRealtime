@@ -17,11 +17,12 @@
 ; parolayi BUILTIN\Users okuyabiliyordu. Bkz. docs/05-olculen-bulgular.md.
 
 #define AppName "Sunucu Izleme"
-#define AppVersion "0.12.2"
+#define AppVersion "0.12.3"
 #define AppPublisher "hzkucuk"
 #define ServiceName "SunucuIzleme"
 #define ExeName "MssqlRealtime.Api.exe"
 #define SourceDir "..\windows-publish"
+#define EnvKey "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"
 
 [Setup]
 AppId={{8F3C2A61-4D7E-4B93-9C15-6E2A7F8B1D40}
@@ -62,6 +63,9 @@ Filename: "http://127.0.0.1:{code:GetPort}/"; Description: "Paneli tarayicida ac
     Flags: postinstall shellexec skipifsilent runasoriginaluser
 
 [Code]
+const
+  EnvKey = '{#EnvKey}';
+
 var
   ConfigPage: TInputQueryWizardPage;
   OriginPage: TInputQueryWizardPage;
@@ -146,8 +150,7 @@ end;
 
 procedure SetMachineEnv(const Name, Value: string);
 begin
-  RegWriteStringValue(HKEY_LOCAL_MACHINE,
-    'SYSTEM\CurrentControlSet\Control\Session Manager\Environment', Name, Value);
+  RegWriteStringValue(HKEY_LOCAL_MACHINE, EnvKey, Name, Value);
 end;
 
 // "Servis basladi" yetmez: baslayip hemen olen bir servis de baslamis gorunur. Saglik ucu
@@ -208,9 +211,7 @@ begin
   if OriginPage.Values[2] <> '' then
     SetMachineEnv('ForwardedHeaders__KnownProxies__0', OriginPage.Values[2])
   else
-    RegDeleteValue(HKEY_LOCAL_MACHINE,
-      'SYSTEM\CurrentControlSet\Control\Session Manager\Environment',
-      'ForwardedHeaders__KnownProxies__0');
+    RegDeleteValue(HKEY_LOCAL_MACHINE, EnvKey, 'ForwardedHeaders__KnownProxies__0');
 
   // Ayni ad altinda eski bir servis varsa once temizle (yukseltme).
   Exec(ExpandConstant('{sys}\sc.exe'), 'stop {#ServiceName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
@@ -259,8 +260,7 @@ begin
   begin
     // Parola artik veritabaninda hash olarak duruyor; registry'deki kopyasinin isi bitti.
     // Olculdu 2026-08-06: bu deger BUILTIN\Users tarafindan okunabiliyor.
-    RegDeleteValue(HKEY_LOCAL_MACHINE,
-      'SYSTEM\CurrentControlSet\Control\Session Manager\Environment', 'Admin__Password');
+    RegDeleteValue(HKEY_LOCAL_MACHINE, EnvKey, 'Admin__Password');
 
     // Uygulama normalde kendisi siler; silememisse (izin, cokme) burada kapatiriz.
     DeleteFile(DataDir + '\ilk-parola');
@@ -289,9 +289,23 @@ begin
     Sleep(2000);
     Exec(ExpandConstant('{sys}\sc.exe'), 'delete {#ServiceName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 
-    Exec(ExpandConstant('{sys}\netsh.exe'),
-      'advfirewall firewall delete rule name="{#AppName} (' + GetPort('') + ')"',
+    // 🔴 Olculdu 2026-08-06: burada GetPort() cagriliyordu, o da sihirbazin ag ayarlari
+    // sayfasindan port okuyor. Kaldirmada sihirbaz sayfalari YOKTUR; cagri
+    // "Runtime error: Could not call proc" ile patliyor ve kaldirma yarida kaliyordu.
+    // Kural adi joker ile silinir, hicbir sihirbaz nesnesine dokunulmaz.
+    Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+      '-NoProfile -ExecutionPolicy Bypass -Command "Get-NetFirewallRule -DisplayName ''{#AppName} (*'' ' +
+      '-ErrorAction SilentlyContinue | Remove-NetFirewallRule"',
       '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+
+    // Eski surumlerin (0.12.1 ve oncesi) biraktigi ayarlar; parola da bunlarin arasindaydi.
+    RegDeleteValue(HKEY_LOCAL_MACHINE, EnvKey, 'Admin__Password');
+    RegDeleteValue(HKEY_LOCAL_MACHINE, EnvKey, 'Admin__Email');
+    RegDeleteValue(HKEY_LOCAL_MACHINE, EnvKey, 'ASPNETCORE_URLS');
+    RegDeleteValue(HKEY_LOCAL_MACHINE, EnvKey, 'ASPNETCORE_ENVIRONMENT');
+    RegDeleteValue(HKEY_LOCAL_MACHINE, EnvKey, 'Storage__DataDirectory');
+    RegDeleteValue(HKEY_LOCAL_MACHINE, EnvKey, 'Cors__AllowedOrigins__0');
+    RegDeleteValue(HKEY_LOCAL_MACHINE, EnvKey, 'ForwardedHeaders__KnownProxies__0');
   end;
 
   if CurUninstallStep = usPostUninstall then

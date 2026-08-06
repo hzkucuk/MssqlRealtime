@@ -2,6 +2,25 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/)
 
+## [0.12.3] — 2026-08-06
+
+### 🔴 Düzeltilen — kaldırma yarıda kalıyordu
+
+**Belirti:** *"Runtime error (at 6:47): Could not call proc"* — kaldırma penceresi hatayla
+duruyor, ürün sistemden kalkmıyor.
+
+**Sebep:** kaldırma kodu güvenlik duvarı kuralını silerken port numarasını **kurulum
+sihirbazının ağ ayarları sayfasından** okuyordu. Kaldırmada sihirbaz sayfaları yoktur;
+çağrı patlıyor ve kaldırma orada kesiliyordu. Hata v0.9.1'den beri koddaydı, ilk kez
+kaldırma denendiğinde ortaya çıktı.
+
+**Düzeltme:** kural adı jokerle (`Sunucu Izleme (*`) siliniyor, hiçbir sihirbaz nesnesine
+dokunulmuyor. Kaldırma ayrıca eski sürümlerin registry'de bıraktığı ayarları da
+temizliyor — **0.12.1 ve öncesinin bıraktığı yönetici parolası dahil**.
+
+> Kaldırmadan önce bunu deneyenler için: kaldırmaya gerek yok, yeni setup mevcut kurulumun
+> üzerine çalışır ve servisi yeniden kurar.
+
 ## [0.12.2] — 2026-08-06
 
 ### 🔴 Düzeltilen — 0.12.1 kurulumdan sonra açılmıyordu
