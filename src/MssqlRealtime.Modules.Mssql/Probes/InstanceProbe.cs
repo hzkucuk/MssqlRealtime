@@ -29,16 +29,21 @@ public sealed class InstanceProbe : ISqlProbe
             CONVERT(nvarchar(128), SERVERPROPERTY('Edition'))        AS Edition;
         """;
 
+    // sys.dm_os_sys_info her surumde var (cekirdek sayisi ve baslangic zamani buradan gelir).
     private const string HostSql = """
         SELECT
             si.sqlserver_start_time                              AS StartedAt,
             DATEDIFF(minute, si.sqlserver_start_time, GETDATE()) AS UptimeMinutes,
-            si.cpu_count                                         AS CpuCount,
-            -- Measured 2026-08-04: SERVERPROPERTY('HostPlatform') returns NULL on SQL 2022;
-            -- sys.dm_os_host_info is the view that actually carries it. It exists from
-            -- SQL Server 2017 on, so its absence must not cost us the version.
-            (SELECT TOP 1 host_platform FROM sys.dm_os_host_info) AS HostPlatform
+            si.cpu_count                                         AS CpuCount
         FROM sys.dm_os_sys_info si;
+        """;
+
+    // 🔴 Olculdu 2026-08-07 (musteri: SQL Server 2016, 13.0.5108.50): sys.dm_os_host_info
+    // yalnizca SQL 2017+ vardir ve BIR ALT SORGUDA gecmesi bile tum ifadeyi ayristirma
+    // aninda dusuruyordu — cekirdek sayisi ve calisma suresi onunla birlikte kayboluyordu.
+    // Kendi sorgusuna alindi: yoksa yalniz isletim sistemi adi eksik kalir.
+    private const string PlatformSql = """
+        SELECT TOP 1 host_platform AS HostPlatform FROM sys.dm_os_host_info;
         """;
 
     public async Task ExecuteAsync(ProbeContext context, CancellationToken cancellationToken)
@@ -67,6 +72,21 @@ public sealed class InstanceProbe : ISqlProbe
             context.Builder.AddProbeError(Name, $"host bilgisi okunamadi: {ex.Message}");
         }
 
+        string? platform = null;
+
+        try
+        {
+            platform = await context.Connection.QuerySingleOrDefaultAsync<string?>(
+                new CommandDefinition(PlatformSql, commandTimeout: context.CommandTimeoutSeconds,
+                    cancellationToken: cancellationToken));
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // SQL 2016 ve oncesinde bu gorunum yok. Isletim sistemi adi eksik kalir, gerisi
+            // etkilenmez — bu yuzden prob hatasi olarak da yazilmaz, beklenen bir durum.
+            _ = ex;
+        }
+
         context.Builder.Instance = new SqlInstanceInfo
         {
             ServerName = identity.ServerName,
@@ -76,7 +96,7 @@ public sealed class InstanceProbe : ISqlProbe
             StartedAt = host?.StartedAt is null ? null : new DateTimeOffset(host.StartedAt.Value, TimeSpan.Zero),
             UptimeMinutes = host?.UptimeMinutes,
             CpuCount = host?.CpuCount,
-            HostPlatform = host?.HostPlatform
+            HostPlatform = platform
         };
     }
 

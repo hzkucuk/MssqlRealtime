@@ -2,6 +2,21 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/)
 
+## [0.16.2] — 2026-08-07
+
+### 🔴 Düzeltilen — SQL Server 2016'da çekirdek sayısı ve çalışma süresi boş kalıyordu
+
+0.16.1 sürüm ve edisyonu kurtardı ama çekirdek/çalışma süresi hâlâ boştu. Sebep aynı
+görünüm: `sys.dm_os_host_info` **bir alt sorguda** geçiyordu ve o görünüm yoksa ifade
+**ayrıştırma anında** düşüyordu — alt sorguda olması onu kurtarmıyor. Böylece her sürümde
+bulunan `sys.dm_os_sys_info`'dan gelecek çekirdek sayısı da onunla birlikte kayboluyordu.
+
+Ölçüldü: müşteri sunucusu **SQL Server 2016 (13.0.5108.50)**; bu görünüm SQL 2017'de geldi.
+
+- İşletim sistemi adı artık kendi sorgusunda; yoksa yalnız o eksik kalıyor.
+- Çekirdek ve çalışma süresi **okunamadığında satır hiç yazılmıyor**. `— çekirdek · 0 sn
+  açık` yazmak, ölçüm varmış gibi okunuyordu.
+
 ## [0.16.1] — 2026-08-07
 
 ### 🔴 Düzeltilen — bazı sunucularda sürüm/edisyon hiç gelmiyordu

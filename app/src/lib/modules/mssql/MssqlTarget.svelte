@@ -942,10 +942,15 @@
 				{:else}
 				<div class="muted">
 					{s.instance?.serverName ?? '—'} · {s.instance?.edition ?? '—'}<br />
-					Sürüm {s.instance?.productVersion ?? '—'} ({s.instance?.productLevel ?? '—'}) ·
-					{s.instance?.hostPlatform ?? '—'}<br />
-					{s.instance?.cpuCount ?? '—'} çekirdek · {duration((s.instance?.uptimeMinutes ?? 0) * 60)} açık
-					({dateTime(s.instance?.startedAt)})<br />
+					Sürüm {s.instance?.productVersion ?? '—'}
+					{#if s.instance?.productLevel}({s.instance.productLevel}){/if}
+					{#if s.instance?.hostPlatform} · {s.instance.hostPlatform}{/if}<br />
+					<!-- Okunamayan satır hiç yazılmaz: "— çekirdek · 0 sn açık" ölçüm varmış gibi
+					     okunuyor, oysa değer gelmemiş. -->
+					{#if s.instance?.cpuCount || s.instance?.uptimeMinutes}
+						{s.instance?.cpuCount ?? '—'} çekirdek · {duration((s.instance?.uptimeMinutes ?? 0) * 60)} açık
+						({dateTime(s.instance?.startedAt)})<br />
+					{/if}
 					Toplam bellek {mb(s.resources?.totalPhysicalMemoryMb)} ·
 					SQL hedefi {mb(s.resources?.sqlTargetMemoryMb)} ·
 					{s.resources?.systemMemoryState ?? '—'}
