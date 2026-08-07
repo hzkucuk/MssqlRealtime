@@ -517,10 +517,13 @@
 						{s.customerName} · {statusText[s.status]} · {ago(s.capturedAt)}
 						<!-- Surum ve edisyon basligin altinda: "Express mi?" sorusu her destek
 						     gorusmesinde soruluyor ve cevabi Sistem sekmesinde gomuluydu. -->
-						{#if sqlServerName(s.instance?.productVersion)}
+						<!-- Ölçüldü 2026-08-07: koşul yalnız sürüm numarasına bakıyordu; numara
+						     okunamayınca edisyon da gizleniyordu. Artık ikisinden biri varsa satır
+						     çiziliyor — elde ne varsa o gösterilir. -->
+						{#if s.instance?.productVersion || s.instance?.edition}
 							<br />
 							<span class="edition">
-								{sqlServerName(s.instance?.productVersion)}
+								{sqlServerName(s.instance?.productVersion) ?? s.instance?.productVersion ?? ''}
 								{#if sqlEdition(s.instance?.edition)} · {sqlEdition(s.instance?.edition)}{/if}
 								{#if s.instance?.productLevel} · {s.instance.productLevel}{/if}
 							</span>

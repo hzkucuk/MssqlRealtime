@@ -194,12 +194,15 @@ export function compareVersions(a: string, b: string): number {
 }
 
 /**
- * Where a phone downloads a newer build. The hub does not carry the APK — it is a server
- * package — so the release page is the honest destination: it shows what changed before
- * anything is installed.
+ * Where a phone downloads a newer build.
+ *
+ * 🔴 Ölçüldü 2026-08-07: burada panelin sürümüne ait etiket sayfası açılıyordu, ama o
+ * sürümde APK yayınlanmamışsa (yalnız sunucu tarafı değiştiyse) kullanıcı boş bir sayfaya
+ * düşüyordu — "yeni sürüm var" diyen bir şerit, indirilecek bir şey göstermeden. Artık her
+ * zaman **en son yayın** açılıyor; orada APK her zaman bulunur.
  */
-export function releasePageUrl(version: string): string {
-	return `https://github.com/hzkucuk/MssqlRealtime/releases/tag/v${version.replace(/^v/, '')}`;
+export function releasePageUrl(_version: string): string {
+	return 'https://github.com/hzkucuk/MssqlRealtime/releases/latest';
 }
 
 export type CaptchaChallenge = { token: string; svg: string };

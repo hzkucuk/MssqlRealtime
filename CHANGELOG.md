@@ -4,6 +4,15 @@ Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme:
 
 ## [0.16.0] — 2026-08-07
 
+### Düzeltilen
+
+- 🔴 **"Yeni sürüm var" şeridi boş sayfaya götürüyordu.** Şerit, panelin sürümüne ait yayın
+  sayfasını açıyordu; o sürümde APK yayınlanmamışsa (yalnız sunucu tarafı değiştiyse)
+  indirilecek bir şey bulunmuyordu — 0.15.1'de tam olarak bu oldu. Artık **en son yayın**
+  açılıyor. Ayrıca bundan sonra her yayında APK da var.
+- **Sürüm/edisyon satırı**, sürüm numarası okunamadığında edisyonu da gizliyordu. Artık
+  ikisinden biri varsa satır çiziliyor.
+
 ### Eklenen — sessiz saatler
 
 Bildirimler ekranında yeni bölüm: çalışma günleri, çalışma saatleri, tatiller.
