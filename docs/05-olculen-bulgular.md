@@ -3,6 +3,23 @@
 > Buradaki her satır **çalıştırılarak** bulundu, belgeden okunarak değil. Tarih ve saat
 > taşır, çünkü aynı gün içinde davranış değişebilir.
 
+## 2026-08-08 03:05 — sürüm üç yerde duruyor, ikisini bilmek yetmiyor
+
+`Directory.Build.props` ve `setup/SunucuIzleme.iss` 0.18.4'e çekildikten sonra
+`./tools/apk-derle.sh` çalıştırıldı ve çıktı:
+
+```
+✅ Hazir: setup/output/SunucuIzleme-0.18.3.apk  ( 12M)
+```
+
+Betik sürümü `app/src-tauri/tauri.conf.json` içinden okuyor
+(`tools/apk-derle.sh:25`). Hata yok, uyarı yok — **yeni kod, eski etiketle** paketlendi.
+APK 0.18.4 içeriği taşıyor ama adı ve Android'in gördüğü sürüm 0.18.3; telefondaki
+"güncelleme var mı" karşılaştırması bunu yükseltme saymaz.
+
+`tauri.conf.json` düzeltilip APK yeniden derlendi. `CLAUDE.md` release tarifi üç sürüm
+dosyasını da sayacak şekilde güncellendi; APK ve win-x64 zip adımları da eksikti.
+
 ## 2026-08-08 02:35 — sessiz saatler yazılmış ama hiç devreye girmemiş
 
 Gece 02:35'te (Cumartesi) Telegram alarmı **sesli** geldi. Sebep saat penceresi değil:

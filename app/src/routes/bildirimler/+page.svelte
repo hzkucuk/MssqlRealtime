@@ -67,6 +67,27 @@
 		}
 	}
 
+	// Girilen aralık mesaidir, sessiz aralık değil — 22:00–06:00 yazmak "gece sessiz olsun"
+	// değil "gece vardiyası" demektir ve o kurulumda sessiz olan öğlendir. Etiket bunu
+	// söylüyor ama asıl güveni veren, hesaplanan sonucun ekranda yazması.
+	const quietSummary = $derived.by(() => {
+		if (!schedule) return '';
+
+		const work = schedule.workDays.length > 0 ? schedule.workDays : [1, 2, 3, 4, 5];
+		const offDays = DAYS.filter(([day]) => !work.includes(day)).map(([, label]) => label);
+
+		// Mesai [start, end) ise sessiz olan [end, start) — gece yarısını aşan vardiyada da.
+		const parts =
+			schedule.start === schedule.end
+				? ['her saat']
+				: [`çalışma günlerinde ${schedule.end}–${schedule.start}`];
+
+		if (offDays.length > 0) parts.push(`${offDays.join(', ')} tüm gün`);
+		if (schedule.quietOnHolidays) parts.push('resmî tatil ve bayramlarda tüm gün');
+
+		return parts.join(' · ');
+	});
+
 	function toggleDay(day: number) {
 		if (!schedule) return;
 		schedule.workDays = schedule.workDays.includes(day)
@@ -189,16 +210,20 @@
 					</div>
 				</div>
 
-				<div class="row" style="gap:0.75rem;flex-wrap:wrap">
-					<label class="field">
-						<span class="label">Başlangıç</span>
-						<input type="time" bind:value={schedule.start} />
-					</label>
-					<label class="field">
-						<span class="label">Bitiş</span>
-						<input type="time" bind:value={schedule.end} />
-					</label>
+				<div class="field">
+					<span class="label">Mesai saatleri</span>
+					<div class="row" style="gap:0.75rem;flex-wrap:wrap;align-items:center">
+						<input type="time" bind:value={schedule.start} aria-label="Mesai başlangıcı" />
+						<span class="muted">–</span>
+						<input type="time" bind:value={schedule.end} aria-label="Mesai bitişi" />
+					</div>
+					<p class="muted help">
+						Girilen aralık <strong>mesaidir</strong>, sessiz aralık değil. Gece vardiyası için
+						22:00–06:00 yazılabilir; o durumda sessiz olan gündüzdür.
+					</p>
 				</div>
+
+				<p class="quiet-summary">Sessiz gidecek: <strong>{quietSummary}</strong></p>
 
 				<label class="check">
 					<input type="checkbox" bind:checked={schedule.quietOnHolidays} />
@@ -371,5 +396,17 @@
 	.small {
 		font-size: 0.75rem;
 		overflow-wrap: anywhere;
+	}
+
+	/* Hesaplanan sonuç ayarların yanında değil, altında durur: girilen mesai aralığının ne
+	   anlama geldiğini kullanıcı kaydetmeden önce okuyabilsin. */
+	.quiet-summary {
+		margin: 0.2rem 0 0;
+		padding: 0.45rem 0.6rem;
+		border-left: 2px solid var(--border);
+		background: var(--surface-2);
+		border-radius: 0 6px 6px 0;
+		font-size: 0.8rem;
+		color: var(--muted);
 	}
 </style>

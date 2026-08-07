@@ -109,7 +109,7 @@ Bildirimler ekranından ayarlanır:
 |---|---|---|
 | **Sessiz saatler** | **açık** | 0.18.4'e kadar **kapalıydı**: ayar yazılmıştı ama hiç devreye girmiyordu |
 | Çalışma günleri | Pzt–Cum | Çiplerden seçilir |
-| Çalışma saatleri | 08:30–18:00 | Gece yarısını aşan aralık da çalışır (22:00–06:00) |
+| Çalışma saatleri | 08:30–18:00 | Girilen aralık **mesaidir**, sessiz aralık değil. 22:00–06:00 yazmak gece vardiyası tanımlar; o kurulumda sessiz olan **gündüzdür**. Ekranda hesaplanmış sonuç gösterilir. |
 | Tatillerde sessiz | açık | Resmî tatiller + Ramazan/Kurban bayramları |
 | Ek tatil günleri | — | Şirket tatili, idari izin, bayram düzeltmesi |
 | Kritikleri her zaman sesli | **kapalı** | Açılırsa kritik alarmlar mesai dışında da titretir |

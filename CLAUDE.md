@@ -248,13 +248,20 @@ Her anlamlı değişiklikten sonra **otomatik**:
 
 Kullanıcı **"build ve release"** dediğinde, sırayla:
 
-1. Sürümü `Directory.Build.props` **ve** `setup/SunucuIzleme.iss` içinde eşitle
+1. Sürümü **üç** yerde eşitle — `Directory.Build.props`, `setup/SunucuIzleme.iss` ve
+   `app/src-tauri/tauri.conf.json`.
+   🔴 Ölçüldü 2026-08-08 03:0x: `tauri.conf.json` atlanırsa hiçbir yerde hata çıkmaz,
+   `apk-derle.sh` sürümü **oradan** okur ve APK bir önceki sürümün adıyla derlenir —
+   telefona yeni kod, eski etiketle iner.
 2. `./tools/windows-paketle.sh` → `windows-publish/`
 3. `./tools/setup-derle.sh` → `setup/output/SunucuIzleme-Setup-<sürüm>.exe` (Docker+Wine,
    Windows makine gerekmez)
-4. CHANGELOG'u yaz, commit + push
-5. **GitHub release'i de aç** — bu adım unutulmasın:
-   `gh release create v<sürüm> --title "…" --notes-file <notlar> <setup.exe> <zip>`.
+4. `./tools/apk-derle.sh` → `setup/output/SunucuIzleme-<sürüm>.apk`
+5. Elle kurulum paketi:
+   `cd windows-publish && zip -qr ../setup/output/SunucuIzleme-<sürüm>-win-x64.zip .`
+6. CHANGELOG'u yaz, commit + push
+7. **GitHub release'i de aç** — bu adım unutulmasın. Release **üç** varlık taşır:
+   `gh release create v<sürüm> --title "…" --notes-file <notlar> <setup.exe> <zip> <apk>`.
    Müşteri ürünü release sayfasından indiriyor; push edilmiş ama release'i açılmamış bir
    sürüm **yayınlanmamış** demektir.
 

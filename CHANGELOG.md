@@ -20,12 +20,27 @@ alarmlar (kritikler dahil, `criticalAlwaysLoud` varsayılanı `false`) artık se
 Gece uyandırılmak isteyen *Bildirimler → Kritik alarmları mesai dışında da sesli gönder*
 kutusunu açar.
 
+### Değişen — "Başlangıç / Bitiş" neyin başlangıcı olduğunu söylemiyordu
+
+Alanlar **mesai** aralığını alıyor, sessiz aralığı değil. 22:00–06:00 yazan biri "gece
+sessiz olsun" dediğini sanır; oysa gece vardiyası tanımlamış olur ve o kurulumda sessiz
+olan **gündüzdür**. Regresyon testi yazılırken bu beklenti bizzat ters kuruldu — arayüzü
+okuyan kullanıcının da aynı yere düşmemesi için sebep yok.
+
+Etiket **"Mesai saatleri"** oldu ve altına hesaplanmış sonuç yazılıyor:
+*"Sessiz gidecek: çalışma günlerinde 18:00–08:30 · Cmt, Paz tüm gün · resmî tatil ve
+bayramlarda tüm gün"*. Kullanıcı kaydetmeden önce ne olacağını okuyor.
+
 ### Belgelenen
 
 - `docs/06-bildirimler.md` tablosunda **"Sessiz saatler: açık"** satırı yoktu; tablo,
   özellik açıkmış gibi okunuyordu. Eklendi.
 - Sessizliğin **panelin kurulu olduğu makinenin yerel saatiyle** hesaplandığı yazıldı
   (`DateTimeOffset.Now`) — Windows'un saat dilimi Türkiye değilse pencere kayar.
+- 🔴 Sürüm **üç** dosyada duruyor: `Directory.Build.props`, `setup/SunucuIzleme.iss` ve
+  `app/src-tauri/tauri.conf.json`. Sonuncusu bu sürümde atlandı ve APK sessizce
+  `0.18.3` adıyla derlendi — hata yok, uyarı yok, yalnız yanlış etiket. Yeniden derlendi
+  ve `CLAUDE.md` release tarifi (APK + win-x64 zip adımlarıyla birlikte) düzeltildi.
 
 ## [0.18.3] — 2026-08-07
 
