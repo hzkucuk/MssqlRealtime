@@ -2,6 +2,26 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/)
 
+## [0.18.1] — 2026-08-07
+
+### Değişen — özet artık sütun başına seçiliyor
+
+0.17.0'da seçilen işlem **bütün** sayısal sütunlara uygulanıyordu. Yanlıştı: CPU'nun
+**toplamı** sorulur, boşta kalma süresinin **en büyüğü**, oturum belleğinin **ortalaması**.
+Hepsine aynı işlemi uygulamak, birinin cevabını diğerinin sorusuna vermek demek.
+
+DevExpress XtraGrid'in modeli araştırıldı ve aynısı uygulandı: özet **sütun başına** tanımlı
+(`SummaryType`), aynı sütunun altında hem grup satırında hem tablo altında gösteriliyor.
+
+- Sütun başlığına **sağ tıklayıp** o sütunun işlemini seçiyorsunuz: Toplam / Ortalama / Adet /
+  En küçük / En büyük / yok. Sayısal olmayan sütunda menü hiç çıkmıyor.
+- Değerin önünde küçük bir etiket var (`TOP`, `ORT`, `MAKS`): `3.856.792 ms` tek başına neyin
+  toplamı olduğunu söylemiyor.
+- Seçilenler araç çubuğunda çip olarak listeleniyor; çipe tıklamak o sütunun özetini kaldırıyor.
+- Her grup ve tablo altı **tek satır**: sütunların her biri kendi işlemiyle hesaplanıyor.
+
+Kaynak: [DevExpress — Group Summaries](https://docs.devexpress.com/WindowsForms/114625/controls-and-libraries/data-grid/getting-started/walkthroughs/summaries/tutorial-group-summaries)
+
 ## [0.18.0] — 2026-08-07
 
 ### Eklenen — sağ tık menüsü

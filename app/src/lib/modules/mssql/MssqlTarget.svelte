@@ -204,12 +204,28 @@
 		['max', 'En büyük']
 	];
 
-	let selectedAggregates = $state<AggFn[]>([]);
+	// Hücrede yer az; hangi işlem olduğunu kısa etiket söyler.
+	const AGG_SHORT: Record<AggFn, string> = {
+		sum: 'Top',
+		avg: 'Ort',
+		count: 'Adet',
+		min: 'Min',
+		max: 'Maks'
+	};
 
-	function toggleAggregate(fn: AggFn) {
-		selectedAggregates = selectedAggregates.includes(fn)
-			? selectedAggregates.filter((f) => f !== fn)
-			: [...selectedAggregates, fn];
+	// DevExpress'in XtraGrid'indeki model: özet **sütun başına** tanımlanır (SummaryType),
+	// grup satırında ve tablo altında aynı sütunun altında gösterilir. Tek bir işlemi bütün
+	// sütunlara uygulamak, "CPU toplamı" ile "boşta kalma toplamı"nı aynı anda anlamlı
+	// sayardı — oysa biri toplanır, diğerinin en büyüğü sorulur.
+	let columnSummary = $state<Record<string, AggFn>>({});
+
+	const hasSummaries = $derived(Object.keys(columnSummary).length > 0);
+
+	function setSummary(key: string, fn: AggFn | null) {
+		const next = { ...columnSummary };
+		if (fn) next[key] = fn;
+		else delete next[key];
+		columnSummary = next;
 	}
 
 	/** Bir sütunun özeti. Ölçümü olmayan satırlar sayılmaz — sıfır sayılsalardı ortalama yalan söylerdi. */
@@ -535,6 +551,22 @@
 				run: () => groupable && toggleGroupKey(groupable[0])
 			},
 			{ kind: 'separator' },
+			// DevExpress'te olduğu gibi işlem sütun başına seçilir; sayısal olmayan sütunda
+			// özet menüsü hiç görünmez.
+			...(NUMERIC[key]
+				? [
+						...AGGREGATES.map(([fn, label]) => ({
+							label: `Özet: ${label}${columnSummary[key] === fn ? ' ✓' : ''}`,
+							run: () => setSummary(key, fn)
+						})),
+						{
+							label: 'Özet: yok',
+							disabled: !columnSummary[key],
+							run: () => setSummary(key, null)
+						},
+						{ kind: 'separator' as const }
+					]
+				: []),
 			{ label: 'Sütun sırasını varsayılana döndür', run: () => sessionColumns.reset() }
 		];
 	}
@@ -618,15 +650,18 @@
 	}
 </script>
 
-{#snippet summaryRow(rows: SessionInfo[], fn: AggFn, label: string, depth: number)}
-	<!-- Özet satırı: değerler kendi sütunlarının altında durur, yoksa hangi sayının neye ait
-	     olduğu okunmaz. Sayısal olmayan sütunlar boş bırakılır. -->
+{#snippet summaryRow(rows: SessionInfo[], label: string, depth: number)}
+	<!-- Özet satırı: her sütun KENDİ işlemiyle hesaplanır ve değer kendi sütununun altında
+	     durur. Sayısal olmayan ya da özeti seçilmemiş sütunlar boş kalır. -->
 	<tr class="summary-row">
 		{#each sessionColumns.visible.filter((c) => c.key !== 'action') as col, i (col.key)}
 			{#if i === 0}
 				<td class="summary-label" style="padding-left:{0.4 + depth * 1.1}rem">{label}</td>
-			{:else if NUMERIC[col.key]}
-				<td class="mono">{summarise(rows, col.key, fn)}</td>
+			{:else if columnSummary[col.key] && NUMERIC[col.key]}
+				<td class="mono">
+					<span class="agg-tag">{AGG_SHORT[columnSummary[col.key]]}</span>
+					{summarise(rows, col.key, columnSummary[col.key])}
+				</td>
 			{:else}
 				<td></td>
 			{/if}
@@ -652,9 +687,9 @@
 		</td>
 	</tr>
 
-	{#each selectedAggregates as fn (fn)}
-		{@render summaryRow(node.rows, fn, AGGREGATES.find(([f]) => f === fn)?.[1] ?? fn, depth + 1)}
-	{/each}
+	{#if hasSummaries}
+		{@render summaryRow(node.rows, 'özet', depth + 1)}
+	{/if}
 
 	{#if !collapsedGroups.has(node.path)}
 		{#if node.children.length > 0}
@@ -869,21 +904,19 @@
 				<ColumnPicker columns={sessionColumns} />
 			</div>
 
-			<div class="toolbar">
-				<span class="muted">Özet:</span>
-				{#each AGGREGATES as [fn, label] (fn)}
-					<button
-						class="chip"
-						class:on={selectedAggregates.includes(fn)}
-						onclick={() => toggleAggregate(fn)}
-					>
-						{label}
-					</button>
-				{/each}
-				{#if selectedAggregates.length > 0}
-					<span class="muted">sayısal sütunlarda</span>
-				{/if}
-			</div>
+			{#if hasSummaries}
+				<div class="toolbar">
+					<span class="muted">Özet:</span>
+					{#each Object.entries(columnSummary) as [key, fn] (key)}
+						<button class="chip on" onclick={() => setSummary(key, null)}>
+							{sessionColumns.columns.find((c) => c.key === key)?.label}: {AGGREGATES.find(
+								([f]) => f === fn
+							)?.[1]} ✕
+						</button>
+					{/each}
+					<span class="muted">sütun başlığına sağ tıklayarak ekleyin</span>
+				</div>
+			{/if}
 
 			<div class="card scroll-x">
 				<table
@@ -933,17 +966,10 @@
 						{/if}
 					</tbody>
 
-					{#if selectedAggregates.length > 0}
+					{#if hasSummaries}
 						<!-- Genel özet: gruplama olsun olmasın, ekrandaki tüm satırların özeti. -->
 						<tfoot>
-							{#each selectedAggregates as fn (fn)}
-								{@render summaryRow(
-									filteredSessions,
-									fn,
-									`${AGGREGATES.find(([f]) => f === fn)?.[1]} (tümü)`,
-									0
-								)}
-							{/each}
+							{@render summaryRow(filteredSessions, 'tümü', 0)}
 						</tfoot>
 					{/if}
 				</table>
@@ -1403,5 +1429,14 @@
 	.summary-label {
 		font-weight: 600;
 		white-space: nowrap;
+	}
+
+	/* İşlemin adı değerin önünde, küçük: "3.856.792 ms" tek başına neyin toplamı olduğunu
+	   söylemiyor. */
+	.agg-tag {
+		font-size: 0.68rem;
+		opacity: 0.7;
+		margin-right: 0.25rem;
+		text-transform: uppercase;
 	}
 </style>
