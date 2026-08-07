@@ -7,6 +7,7 @@
 	import { TableColumns } from '$lib/table.svelte';
 	import SortHeader from '$lib/components/SortHeader.svelte';
 	import ColumnPicker from '$lib/components/ColumnPicker.svelte';
+	import ContextMenu, { type MenuItem } from '$lib/components/ContextMenu.svelte';
 	import type { DatabaseInfo, RequestInfo, SessionInfo, SqlServiceInfo } from '$lib/types';
 	import {
 		ago,
@@ -436,6 +437,148 @@
 		);
 	});
 
+	// --- Sağ tık menüsü ------------------------------------------------------------------
+	let menu = $state<{ x: number; y: number; items: MenuItem[] } | null>(null);
+	let longPress: ReturnType<typeof setTimeout> | null = null;
+
+	/** Ağaçtaki tüm yollar; "tümünü kapat" ve alt ağaç işlemleri için. */
+	function allPaths(nodes: GroupNode[]): string[] {
+		return nodes.flatMap((n) => [n.path, ...allPaths(n.children)]);
+	}
+
+	function setCollapsed(paths: string[], collapsed: boolean) {
+		const next = new Set(collapsedGroups);
+		for (const path of paths) {
+			if (collapsed) next.add(path);
+			else next.delete(path);
+		}
+		collapsedGroups = next;
+	}
+
+	function findNode(nodes: GroupNode[], path: string): GroupNode | null {
+		for (const node of nodes) {
+			if (node.path === path) return node;
+			const hit = findNode(node.children, path);
+			if (hit) return hit;
+		}
+		return null;
+	}
+
+	function groupMenu(path: string): MenuItem[] {
+		const node = findNode(sessionTree, path);
+		if (!node) return [];
+
+		const subtree = [node.path, ...allPaths(node.children)];
+		const isCollapsed = collapsedGroups.has(path);
+
+		return [
+			{
+				label: isCollapsed ? 'Bu grubu aç' : 'Bu grubu kapat',
+				run: () => setCollapsed([path], !isCollapsed)
+			},
+			{
+				label: 'Alt gruplarıyla birlikte kapat',
+				disabled: node.children.length === 0,
+				run: () => setCollapsed(subtree, true)
+			},
+			{
+				label: 'Alt gruplarıyla birlikte aç',
+				disabled: node.children.length === 0,
+				run: () => setCollapsed(subtree, false)
+			},
+			{ kind: 'separator' },
+			{ label: 'Tümünü kapat', run: () => setCollapsed(allPaths(sessionTree), true) },
+			{ label: 'Tümünü aç', run: () => (collapsedGroups = new Set()) },
+			{ kind: 'separator' },
+			{
+				label: `Yalnız bunu göster (ara: ${node.label})`,
+				run: () => (sessionQuery = node.label)
+			}
+		];
+	}
+
+	function rowMenu(x: SessionInfo): MenuItem[] {
+		return [
+			{ label: `SPID ${x.sessionId} — oturumu kes`, run: () => kill(x.sessionId) },
+			{ kind: 'separator' },
+			{
+				label: `Bu makineyi ara (${x.hostName ?? '—'})`,
+				disabled: !x.hostName,
+				run: () => (sessionQuery = x.hostName ?? '')
+			},
+			{
+				label: `Bu kullanıcıyı ara (${x.loginName ?? '—'})`,
+				disabled: !x.loginName,
+				run: () => (sessionQuery = x.loginName ?? '')
+			},
+			{
+				label: `Bu uygulamayı ara (${x.programName ?? '—'})`,
+				disabled: !x.programName,
+				run: () => (sessionQuery = x.programName ?? '')
+			}
+		];
+	}
+
+	function columnMenu(key: string): MenuItem[] {
+		const column = sessionColumns.columns.find((c) => c.key === key);
+		const groupable = GROUPABLE.find(([g]) => g === key);
+
+		return [
+			{
+				label: 'Bu sütunu gizle',
+				disabled: !column || column.required,
+				run: () => sessionColumns.toggle(key)
+			},
+			{
+				label: groupable ? `Buna göre grupla (${groupable[1]})` : 'Bu sütuna göre gruplanamaz',
+				disabled: !groupable,
+				run: () => groupable && toggleGroupKey(groupable[0])
+			},
+			{ kind: 'separator' },
+			{ label: 'Sütun sırasını varsayılana döndür', run: () => sessionColumns.reset() }
+		];
+	}
+
+	/**
+	 * Tek yakalayıcı: tıklanan öğeye bakıp hangi menünün açılacağına karar verir. Her satıra
+	 * ayrı işleyici bağlamak yerine tablo bir kez dinliyor.
+	 */
+	function openMenu(event: MouseEvent | PointerEvent) {
+		const target = event.target as HTMLElement | null;
+		if (!target) return;
+
+		const header = target.closest<HTMLElement>('th[data-col]');
+		const groupRow = target.closest<HTMLElement>('tr[data-group-path]');
+		const dataRow = target.closest<HTMLElement>('tr[data-spid]');
+
+		let items: MenuItem[] = [];
+
+		if (header) items = columnMenu(header.dataset.col!);
+		else if (groupRow) items = groupMenu(groupRow.dataset.groupPath!);
+		else if (dataRow) {
+			const session = filteredSessions.find((s) => s.sessionId === Number(dataRow.dataset.spid));
+			if (session) items = rowMenu(session);
+		}
+
+		if (items.length === 0) return;
+
+		event.preventDefault();
+		menu = { x: 'clientX' in event ? event.clientX : 0, y: 'clientY' in event ? event.clientY : 0, items };
+	}
+
+	// Dokunmatikte sağ tık yok: 500 ms basılı tutmak aynı menüyü açar. Parmak kayarsa iptal.
+	function startLongPress(event: PointerEvent) {
+		if (event.pointerType === 'mouse') return;
+
+		cancelLongPress();
+		longPress = setTimeout(() => openMenu(event), 500);
+	}
+
+	function cancelLongPress() {
+		if (longPress) clearTimeout(longPress);
+		longPress = null;
+	}
+
 	let killing = $state<number | null>(null);
 	let actionError = $state<string | null>(null);
 	let actionOk = $state<string | null>(null);
@@ -494,7 +637,7 @@
 
 {#snippet groupBranch(node: GroupNode, depth: number)}
 	<!-- Kendini çağıran snippet: kaç seviye seçilirse seçilsin aynı kod çiziyor. -->
-	<tr class="group-row">
+	<tr class="group-row" data-group-path={node.path}>
 		<td colspan={sessionColumns.visible.length}>
 			<button
 				class="group-toggle"
@@ -527,7 +670,7 @@
 {/snippet}
 
 {#snippet sessionRow(x: SessionInfo)}
-	<tr class:blocked={x.isBlocked} class:blocker={x.isBlocker}>
+	<tr class:blocked={x.isBlocked} class:blocker={x.isBlocker} data-spid={x.sessionId}>
 		{#each sessionColumns.visible.filter((c) => c.key !== 'action') as col (col.key)}
 			{#if col.key === 'sessionId'}
 				<td class="mono">{x.sessionId}</td>
@@ -743,7 +886,14 @@
 			</div>
 
 			<div class="card scroll-x">
-				<table class="sized">
+				<table
+					class="sized"
+					oncontextmenu={openMenu}
+					onpointerdown={startLongPress}
+					onpointerup={cancelLongPress}
+					onpointermove={cancelLongPress}
+					onpointercancel={cancelLongPress}
+				>
 					<thead>
 						<tr>
 							<!-- Başlıklar sütun listesinden çizilir; sıra değişince başlık ve hücre
@@ -1006,7 +1156,11 @@
 				ortalamaya iner; iki yıldan eskiler silinir.
 			</p>
 
-			{#if expanded}
+			{#if menu}
+	<ContextMenu x={menu.x} y={menu.y} items={menu.items} onclose={() => (menu = null)} />
+{/if}
+
+{#if expanded}
 				{@const g = chartGroups.find((x) => x.id === expanded)}
 				{#if g}
 					<div

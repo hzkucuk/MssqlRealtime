@@ -61,6 +61,7 @@
 <th
 	style="text-align:{align}{columns ? `;width:${columns.width(key)}px` : ''}"
 	class:resizable={!!columns}
+	data-col={key}
 >
 	<button
 		class:active

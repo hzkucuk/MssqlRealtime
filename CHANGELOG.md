@@ -2,6 +2,30 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/)
 
+## [0.18.0] — 2026-08-07
+
+### Eklenen — sağ tık menüsü
+
+Oturumlar tablosunda **sağ tık** (telefonda **uzun basma**) menü açıyor. Menü tıklanan yere
+göre içerik değiştiriyor ve hiç yer kaplamıyor — bu komutların hepsini düğme olarak koymak
+tabloyu komut çubuğuna çevirirdi.
+
+**Grup başlığında:**
+- Bu grubu aç / kapat
+- **Alt gruplarıyla birlikte kapat / aç** — kademeli gruplamada eksik olan buydu
+- Tümünü kapat / Tümünü aç
+- Yalnız bunu göster (grubun adıyla arama)
+
+**Satırda:** oturumu kes · bu makineyi / kullanıcıyı / uygulamayı ara.
+
+**Sütun başlığında:** bu sütunu gizle · buna göre grupla · sütun sırasını sıfırla.
+
+- Menü **imlecin olduğu yerde** açılıyor ve ekrandan taşarsa içeri çekiliyor (Sütunlar
+  menüsünde yaşanan hatanın tekrarı olmasın diye ölçülerek konumlanıyor).
+- Tabloya **tek yakalayıcı** bağlı; hangi menünün açılacağına tıklanan öğeye bakarak karar
+  veriyor. Her satıra ayrı işleyici bağlamak, 500 satırda 500 işleyici demekti.
+- Dokunmatikte 500 ms basılı tutmak yeterli; parmak kayarsa iptal oluyor.
+
 ## [0.17.0] — 2026-08-07
 
 ### Eklenen — özet satırları
