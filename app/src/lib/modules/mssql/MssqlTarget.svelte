@@ -674,16 +674,31 @@
 	<!-- Kendini çağıran snippet: kaç seviye seçilirse seçilsin aynı kod çiziyor. -->
 	<tr class="group-row" data-group-path={node.path}>
 		<td colspan={sessionColumns.visible.length}>
-			<button
-				class="group-toggle"
-				style="padding-left:{0.6 + depth * 1.1}rem"
-				onclick={() => toggleGroup(node.path)}
-			>
-				<span class="caret" class:collapsed={collapsedGroups.has(node.path)}>▾</span>
-				<span class="muted level">{groupLabel(groupChain[depth])}</span>
-				<strong>{node.label}</strong>
-				<span class="muted">{node.rows.length}</span>
-			</button>
+			<div class="group-head">
+				<button
+					class="group-toggle"
+					style="padding-left:{0.6 + depth * 1.1}rem"
+					onclick={() => toggleGroup(node.path)}
+				>
+					<span class="caret" class:collapsed={collapsedGroups.has(node.path)}>▾</span>
+					<span class="muted level">{groupLabel(groupChain[depth])}</span>
+					<strong>{node.label}</strong>
+					<span class="muted">{node.rows.length}</span>
+				</button>
+
+				<!-- Sağ tık her ortamda çalışmıyor (telefon tarayıcıları uzun basmayı metin
+				     seçmeye ayırabiliyor). Aynı menüyü açan görünür bir düğme her yerde çalışır. -->
+				<button
+					class="group-menu"
+					aria-label="{node.label} için komutlar"
+					onclick={(e) => {
+						const box = (e.currentTarget as HTMLElement).getBoundingClientRect();
+						menu = { x: box.right, y: box.bottom, items: groupMenu(node.path) };
+					}}
+				>
+					⋮
+				</button>
+			</div>
 		</td>
 	</tr>
 
@@ -1441,5 +1456,24 @@
 		opacity: 0.7;
 		margin-right: 0.25rem;
 		text-transform: uppercase;
+	}
+
+	.group-head {
+		display: flex;
+		align-items: center;
+	}
+
+	.group-menu {
+		background: none;
+		border: 0;
+		color: var(--muted);
+		font-size: 1.1rem;
+		line-height: 1;
+		padding: 0.35rem 0.7rem;
+		cursor: pointer;
+	}
+
+	.group-menu:hover {
+		color: var(--text);
 	}
 </style>

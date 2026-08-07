@@ -2,6 +2,16 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/)
 
+## [0.18.3] — 2026-08-07
+
+### Eklenen — grup satırında ⋮ düğmesi
+
+Sağ tık her ortamda çalışmıyor: telefon tarayıcıları uzun basmayı metin seçmeye ayırabiliyor,
+bazı webview'ler `contextmenu` olayını hiç iletmiyor. Aynı menüyü açan **görünür bir düğme**
+her yerde çalışır — grup satırının sağında `⋮`.
+
+Sağ tık ve uzun basma duruyor; bu yalnız garantili yol.
+
 ## [0.18.2] — 2026-08-07
 
 ### 🔴 Düzeltilen — sağ tık menüsü hiç açılmıyordu
