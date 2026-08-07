@@ -15,7 +15,81 @@
 	// secret keeps whatever is stored.
 	let edits = $state<Record<string, Record<string, string>>>({});
 
-	onMount(load);
+	// --- Sessiz saatler ---
+	type Schedule = {
+		enabled: boolean;
+		workDays: number[];
+		start: string;
+		end: string;
+		quietOnHolidays: boolean;
+		extraHolidays: string[];
+		criticalAlwaysLoud: boolean;
+	};
+
+	const DAYS: [number, string][] = [
+		[1, 'Pzt'],
+		[2, 'Sal'],
+		[3, 'Çar'],
+		[4, 'Per'],
+		[5, 'Cum'],
+		[6, 'Cmt'],
+		[0, 'Paz']
+	];
+
+	let schedule = $state<Schedule | null>(null);
+	let scheduleBusy = $state(false);
+	let scheduleSaved = $state(false);
+	let holidays = $state<string[]>([]);
+	let newHoliday = $state('');
+
+	async function loadSchedule() {
+		schedule = await api<Schedule>('/api/notifications/zamanlama');
+		const list = await api<{ gunler: string[] }>('/api/notifications/tatiller');
+		holidays = list.gunler;
+	}
+
+	async function saveSchedule() {
+		if (!schedule) return;
+
+		scheduleBusy = true;
+		scheduleSaved = false;
+
+		try {
+			schedule = await api<Schedule>('/api/notifications/zamanlama', {
+				method: 'PUT',
+				body: JSON.stringify(schedule)
+			});
+			scheduleSaved = true;
+		} catch (e) {
+			error = e instanceof Error ? e.message : String(e);
+		} finally {
+			scheduleBusy = false;
+		}
+	}
+
+	function toggleDay(day: number) {
+		if (!schedule) return;
+		schedule.workDays = schedule.workDays.includes(day)
+			? schedule.workDays.filter((d) => d !== day)
+			: [...schedule.workDays, day];
+	}
+
+	function addHoliday() {
+		if (!schedule || !newHoliday) return;
+		if (!schedule.extraHolidays.includes(newHoliday)) {
+			schedule.extraHolidays = [...schedule.extraHolidays, newHoliday].sort();
+		}
+		newHoliday = '';
+	}
+
+	onMount(async () => {
+		await load();
+		try {
+			await loadSchedule();
+		} catch (e) {
+			error = e instanceof Error ? e.message : String(e);
+		}
+	});
 
 	async function load() {
 		loading = true;
@@ -82,6 +156,103 @@
 
 	{#if error}<div class="error">{error}</div>{/if}
 	{#if loading}<p class="muted">Yükleniyor…</p>{/if}
+
+	{#if schedule}
+		<div class="card">
+			<div class="row between">
+				<h2>Sessiz saatler</h2>
+				<label class="check">
+					<input type="checkbox" bind:checked={schedule.enabled} />
+					Açık
+				</label>
+			</div>
+
+			<p class="muted">
+				Mesai dışında bildirim <strong>kesilmez</strong>, sessiz gönderilir: mesaj ve alarm
+				geçmişi eksilmez, telefon yalnız ses çıkarmaz ve titremez. Kesmek, gelmeyen alarm
+				demektir.
+			</p>
+
+			{#if schedule.enabled}
+				<div class="field">
+					<span class="label">Çalışma günleri</span>
+					<div class="chips">
+						{#each DAYS as [day, label] (day)}
+							<button
+								class="chip"
+								class:on={schedule.workDays.includes(day)}
+								onclick={() => toggleDay(day)}
+							>
+								{label}
+							</button>
+						{/each}
+					</div>
+				</div>
+
+				<div class="row" style="gap:0.75rem;flex-wrap:wrap">
+					<label class="field">
+						<span class="label">Başlangıç</span>
+						<input type="time" bind:value={schedule.start} />
+					</label>
+					<label class="field">
+						<span class="label">Bitiş</span>
+						<input type="time" bind:value={schedule.end} />
+					</label>
+				</div>
+
+				<label class="check">
+					<input type="checkbox" bind:checked={schedule.quietOnHolidays} />
+					Resmî tatil ve bayramlarda da sessiz
+				</label>
+
+				<label class="check">
+					<input type="checkbox" bind:checked={schedule.criticalAlwaysLoud} />
+					Kritik alarmları mesai dışında da sesli gönder
+				</label>
+
+				<div class="field">
+					<span class="label">Ek tatil günleri</span>
+					<div class="row" style="gap:0.4rem">
+						<input type="date" bind:value={newHoliday} />
+						<button class="btn btn-sm" onclick={addHoliday}>Ekle</button>
+					</div>
+					{#if schedule.extraHolidays.length > 0}
+						<div class="chips" style="margin-top:0.4rem">
+							{#each schedule.extraHolidays as day (day)}
+								<button
+									class="chip on"
+									onclick={() =>
+										(schedule!.extraHolidays = schedule!.extraHolidays.filter((d) => d !== day))}
+								>
+									{day} ✕
+								</button>
+							{/each}
+						</div>
+					{/if}
+				</div>
+
+				{#if holidays.length > 0}
+					<details>
+						<summary class="muted">Bu yılın tatilleri ({holidays.length} gün)</summary>
+						<p class="muted small">
+							{holidays.join(' · ')}
+						</p>
+						<p class="muted small">
+							Bayram tarihleri ay takvimiyle hesaplanır; Diyanet takviminden bir gün
+							şaşabilir. Şaşarsa doğru günü yukarıdan ekleyin.
+						</p>
+					</details>
+				{/if}
+			{/if}
+
+			<div class="row" style="gap:0.5rem;margin-top:0.6rem">
+				<button class="btn btn-primary btn-sm" disabled={scheduleBusy} onclick={saveSchedule}>
+					{scheduleBusy ? 'Kaydediliyor…' : 'Kaydet'}
+				</button>
+				{#if scheduleSaved}<span class="muted">kaydedildi</span>{/if}
+			</div>
+		</div>
+	{/if}
 
 	{#each channels as channel (channel.id)}
 		<div class="card">
@@ -174,5 +345,31 @@
 		margin-top: 0.2rem;
 		font-size: 0.78rem;
 		line-height: 1.35;
+	}
+
+	.chips {
+		display: flex;
+		gap: 0.35rem;
+		flex-wrap: wrap;
+	}
+
+	.chip {
+		border: 1px solid var(--border);
+		background: var(--surface-2);
+		color: inherit;
+		border-radius: 999px;
+		padding: 0.2rem 0.7rem;
+		font-size: 0.8rem;
+		cursor: pointer;
+	}
+
+	.chip.on {
+		border-color: var(--accent);
+		color: var(--accent);
+	}
+
+	.small {
+		font-size: 0.75rem;
+		overflow-wrap: anywhere;
 	}
 </style>

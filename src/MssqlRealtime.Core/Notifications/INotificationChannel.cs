@@ -24,8 +24,13 @@ public interface INotificationChannel
     /// <summary>What the user has to supply, so the settings screen can be generated.</summary>
     IReadOnlyList<ChannelField> Fields { get; }
 
-    /// <summary>Sends one alert. Must not throw: a broken channel cannot silence the others.</summary>
-    Task<Result> SendAsync(AlertNotification notification, ChannelSettings settings, CancellationToken ct);
+    /// <summary>
+    /// Sends one alert. Must not throw: a broken channel cannot silence the others.
+    /// <paramref name="silent"/> asks for delivery without a sound or vibration where the
+    /// channel supports it — the message and the history stay complete, only the ring is off.
+    /// </summary>
+    Task<Result> SendAsync(
+        AlertNotification notification, ChannelSettings settings, bool silent, CancellationToken ct);
 
     /// <summary>Sends a "this works" message so the user finds out now, not during an incident.</summary>
     Task<Result> SendTestAsync(ChannelSettings settings, CancellationToken ct);

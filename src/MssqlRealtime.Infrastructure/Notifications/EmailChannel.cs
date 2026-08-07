@@ -52,7 +52,8 @@ public sealed class EmailChannel(ILogger<EmailChannel> logger) : INotificationCh
         }
     ];
 
-    public Task<Result> SendAsync(AlertNotification notification, ChannelSettings settings, CancellationToken ct)
+    public Task<Result> SendAsync(
+        AlertNotification notification, ChannelSettings settings, bool silent, CancellationToken ct)
     {
         var subject = $"{(notification.IsCleared ? "[NORMAL]" : notification.Alert.Severity == Severity.Critical ? "[KRİTİK]" : "[UYARI]")} "
                     + $"{notification.Alert.Target.TargetName} — {notification.Alert.RuleTitle}";

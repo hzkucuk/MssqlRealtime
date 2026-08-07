@@ -24,6 +24,11 @@ public interface INotificationSettingsStore
     Task<IReadOnlyList<ChannelConfiguration>> GetAllAsync(CancellationToken ct = default);
     Task<ChannelConfiguration> GetAsync(string channelId, CancellationToken ct = default);
 
+    /// <summary>Bildirimlerin ne zaman sessiz gideceği. Kayıt yoksa kapalı döner.</summary>
+    Task<NotificationSchedule> GetScheduleAsync(CancellationToken ct = default);
+
+    Task SaveScheduleAsync(NotificationSchedule schedule, CancellationToken ct = default);
+
     Task SaveAsync(
         string channelId,
         bool enabled,
@@ -173,5 +178,81 @@ public sealed class NotificationSettingsStore(AppDbContext db, ISecretProtector 
             SendRecoveries = state?.SendRecoveries ?? true,
             Settings = new ChannelSettings(values)
         };
+    }
+
+    // Zamanlama kanal değil ama kanal ayarlarıyla aynı tabloda duruyor: yeni bir tablo (ve
+    // migration) açmak, tek bir kayıt için ödenecek bedelden büyük olurdu.
+    private const string ScheduleChannel = "__zamanlama";
+
+    public async Task<NotificationSchedule> GetScheduleAsync(CancellationToken ct = default)
+    {
+        var rows = await db.NotificationChannelSettings
+            .AsNoTracking()
+            .Where(x => x.ChannelId == ScheduleChannel)
+            .ToDictionaryAsync(x => x.Key, x => x.Value, ct);
+
+        if (rows.Count == 0)
+        {
+            return new NotificationSchedule();
+        }
+
+        return new NotificationSchedule
+        {
+            Enabled = rows.GetValueOrDefault("enabled") == "true",
+            QuietOnHolidays = rows.GetValueOrDefault("holidays") != "false",
+            CriticalAlwaysLoud = rows.GetValueOrDefault("criticalLoud") == "true",
+            Start = TimeOnly.TryParse(rows.GetValueOrDefault("start"), out var start) ? start : new TimeOnly(8, 30),
+            End = TimeOnly.TryParse(rows.GetValueOrDefault("end"), out var end) ? end : new TimeOnly(18, 0),
+            WorkDays = (rows.GetValueOrDefault("days") ?? "1,2,3,4,5")
+                .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(x => int.TryParse(x, out var d) ? (DayOfWeek?)(DayOfWeek)d : null)
+                .Where(d => d is not null)
+                .Select(d => d!.Value)
+                .ToList(),
+            ExtraHolidays = (rows.GetValueOrDefault("extra") ?? string.Empty)
+                .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(x => DateOnly.TryParse(x, out var date) ? (DateOnly?)date : null)
+                .Where(d => d is not null)
+                .Select(d => d!.Value)
+                .ToList()
+        };
+    }
+
+    public async Task SaveScheduleAsync(NotificationSchedule schedule, CancellationToken ct = default)
+    {
+        var values = new Dictionary<string, string>
+        {
+            ["enabled"] = schedule.Enabled ? "true" : "false",
+            ["holidays"] = schedule.QuietOnHolidays ? "true" : "false",
+            ["criticalLoud"] = schedule.CriticalAlwaysLoud ? "true" : "false",
+            ["start"] = schedule.Start.ToString("HH:mm"),
+            ["end"] = schedule.End.ToString("HH:mm"),
+            ["days"] = string.Join(',', schedule.WorkDays.Select(d => (int)d)),
+            ["extra"] = string.Join(',', schedule.ExtraHolidays.Select(d => d.ToString("yyyy-MM-dd")))
+        };
+
+        var existing = await db.NotificationChannelSettings
+            .Where(x => x.ChannelId == ScheduleChannel)
+            .ToListAsync(ct);
+
+        foreach (var (key, value) in values)
+        {
+            var row = existing.FirstOrDefault(x => x.Key == key);
+            if (row is null)
+            {
+                db.NotificationChannelSettings.Add(new NotificationChannelSetting
+                {
+                    ChannelId = ScheduleChannel,
+                    Key = key,
+                    Value = value
+                });
+            }
+            else
+            {
+                row.Value = value;
+            }
+        }
+
+        await db.SaveChangesAsync(ct);
     }
 }

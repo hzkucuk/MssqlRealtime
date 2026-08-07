@@ -2,6 +2,40 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/)
 
+## [0.16.0] — 2026-08-07
+
+### Eklenen — sessiz saatler
+
+Bildirimler ekranında yeni bölüm: çalışma günleri, çalışma saatleri, tatiller.
+
+- 🔴 **Mesai dışında bildirim kesilmez, sessiz gönderilir.** Telegram'ın kendi sessiz
+  gönderimi kullanılıyor (`disable_notification`): mesaj normal şekilde düşer, alarm geçmişi
+  eksilmez, telefon yalnız ses çıkarmaz ve titremez. Kesmek, gelmeyen alarm demektir — bir
+  izleme panelinin yapabileceği en kötü şey.
+- Varsayılan olarak **kritik alarmlar da sessiz**. Kullanıcının gerekçesi: *"gece ben
+  uyanırsam uykusuzluktan zaten kimse bakamaz."* İsteyen "kritikler her zaman sesli"
+  seçeneğini açar.
+- **Gece yarısını aşan aralık** desteklenir (22:00–06:00 gibi).
+- **Test mesajı her zaman sesli** gider: kullanıcı zaten gelip gelmediğine bakıyor.
+- Zamanlama okunamazsa **sesli** gönderilir. Sessizlik varsayılan olamaz.
+
+### Eklenen — resmî tatiller ve bayramlar
+
+- Sabit tarihli yedi resmî tatil ile **Ramazan ve Kurban bayramları** hesaplanıyor;
+  bayramlar `UmAlQuraCalendar` ile bulunuyor. Ölçüldü: 2026 için Ramazan **20–22 Mart**,
+  Kurban **27–30 Mayıs** — Diyanet takvimiyle uyuşuyor.
+- ⚠️ Ay takvimi Diyanet'ten **bir gün** şaşabilir; ekranda bu yılın listesi gösteriliyor ve
+  kullanıcı **kendi gününü ekleyip** düzeltebiliyor (şirket tatili, idari izin için de).
+- Hazır kütüphane arandı ve **kullanılmadı**: `Nager.Date` (22,8M indirme, MIT etiketli)
+  çalışma anında `LicenseKeyException` atıyor — GitHub sponsorluğu ile lisans anahtarı
+  istiyor. Ölçülmeseydi bağımlılık eklenmiş ve üretimde patlamış olacaktı.
+
+### Değişen
+
+- `INotificationChannel.SendAsync` artık `bool silent` parametresi alıyor. Üç kanal
+  (Telegram, e-posta, webhook) güncellendi; sessiz gönderimi yalnız Telegram destekliyor,
+  diğerleri parametreyi yok sayıyor (e-posta ve webhook zaten telefonu titretmiyor).
+
 ## [0.15.1] — 2026-08-07
 
 ### 🔴 Düzeltilen — sürüm, veritabanı ve servis bilgisi çoğu zaman boş geliyordu

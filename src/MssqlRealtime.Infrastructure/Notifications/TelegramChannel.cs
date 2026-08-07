@@ -45,7 +45,8 @@ public sealed class TelegramChannel(IHttpClientFactory httpClientFactory, ILogge
         }
     ];
 
-    public Task<Result> SendAsync(AlertNotification notification, ChannelSettings settings, CancellationToken ct)
+    public Task<Result> SendAsync(
+        AlertNotification notification, ChannelSettings settings, bool silent, CancellationToken ct)
     {
         var severity = notification.IsCleared
             ? "✅"
@@ -70,16 +71,18 @@ public sealed class TelegramChannel(IHttpClientFactory httpClientFactory, ILogge
 
         var text = string.Join('\n', lines.Where(l => l.Length > 0 || l == string.Empty));
 
-        return SendMessageAsync(settings, text, ct);
+        return SendMessageAsync(settings, text, ct, silent);
     }
 
     public Task<Result> SendTestAsync(ChannelSettings settings, CancellationToken ct) =>
+        // Test her zaman sesli: kullanıcı zaten gelip gelmediğine bakıyor.
         SendMessageAsync(
             settings,
             "✅ <b>Sunucu İzleme</b>\n\nTelegram bildirimi çalışıyor. Alarm oluştuğunda buraya düşecek.",
             ct);
 
-    private async Task<Result> SendMessageAsync(ChannelSettings settings, string text, CancellationToken ct)
+    private async Task<Result> SendMessageAsync(
+        ChannelSettings settings, string text, CancellationToken ct, bool silent = false)
     {
         if (!settings.Has(TokenKey, ChatKey))
         {
@@ -97,7 +100,11 @@ public sealed class TelegramChannel(IHttpClientFactory httpClientFactory, ILogge
                     chat_id = settings.Require(ChatKey),
                     text,
                     parse_mode = "HTML",
-                    disable_web_page_preview = true
+                    disable_web_page_preview = true,
+                    // Telegram'ın kendi sessiz gönderimi: mesaj normal şekilde düşer, telefon
+                    // ses çıkarmaz ve titremez. Mesajı hiç göndermemekten farkı, geçmişin ve
+                    // sabah bakıldığında görülecek kaydın eksilmemesi.
+                    disable_notification = silent
                 },
                 ct);
 

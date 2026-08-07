@@ -94,6 +94,28 @@ public static class NotificationEndpoints
 
         // Undelivered notifications. Visible on purpose: a channel that has been failing for
         // an hour is itself an incident, and silence is the worst way to find that out.
+        // Zamanlama: ne zaman sessiz gidileceği. Kanal başına değil genel — "gece rahatsız
+        // etme" kararı kanala değil kişiye ait.
+        group.MapGet("/zamanlama", async (INotificationSettingsStore store, CancellationToken ct) =>
+            Results.Ok(await store.GetScheduleAsync(ct)));
+
+        group.MapPut("/zamanlama", async (
+            NotificationSchedule schedule,
+            INotificationSettingsStore store,
+            CancellationToken ct) =>
+        {
+            await store.SaveScheduleAsync(schedule, ct);
+            return Results.Ok(await store.GetScheduleAsync(ct));
+        });
+
+        // Yaklaşan tatiller: kullanıcı hangi günlerin sessiz sayılacağını görmeden ayarı
+        // güvenle açamaz. Hesaplanan bayram tarihleri Diyanet'ten bir gün şaşabilir.
+        group.MapGet("/tatiller", (int? yil) =>
+        {
+            var year = yil ?? DateTime.Today.Year;
+            return Results.Ok(new { yil = year, gunler = TurkishHolidays.ForYear(year) });
+        });
+
         group.MapGet("/outbox", async (INotificationOutbox outbox, CancellationToken ct) =>
             Results.Ok(await outbox.GetStatusAsync(ct)));
 

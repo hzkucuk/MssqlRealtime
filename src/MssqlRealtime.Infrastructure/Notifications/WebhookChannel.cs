@@ -51,7 +51,8 @@ public sealed class WebhookChannel(IHttpClientFactory httpClientFactory, ILogger
         }
     ];
 
-    public Task<Result> SendAsync(AlertNotification notification, ChannelSettings settings, CancellationToken ct) =>
+    public Task<Result> SendAsync(
+        AlertNotification notification, ChannelSettings settings, bool silent, CancellationToken ct) =>
         PostAsync(settings, notification, ct);
 
     public Task<Result> SendTestAsync(ChannelSettings settings, CancellationToken ct)
