@@ -17,7 +17,7 @@
 ; parolayi BUILTIN\Users okuyabiliyordu. Bkz. docs/05-olculen-bulgular.md.
 
 #define AppName "Sunucu Izleme"
-#define AppVersion "0.18.3"
+#define AppVersion "0.18.4"
 #define AppPublisher "hzkucuk"
 #define ServiceName "SunucuIzleme"
 #define ExeName "MssqlRealtime.Api.exe"

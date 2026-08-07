@@ -107,6 +107,7 @@ Bildirimler ekranından ayarlanır:
 
 | Ayar | Varsayılan | Not |
 |---|---|---|
+| **Sessiz saatler** | **açık** | 0.18.4'e kadar **kapalıydı**: ayar yazılmıştı ama hiç devreye girmiyordu |
 | Çalışma günleri | Pzt–Cum | Çiplerden seçilir |
 | Çalışma saatleri | 08:30–18:00 | Gece yarısını aşan aralık da çalışır (22:00–06:00) |
 | Tatillerde sessiz | açık | Resmî tatiller + Ramazan/Kurban bayramları |
@@ -118,6 +119,9 @@ uyandırmanın karşılığı yoksa uyandırmak zarardır. İhtiyaç duyan açar
 
 **Her zaman sesli gidenler:** "Test gönder" ile atılan mesaj (zaten gelip gelmediğine
 bakılıyor) ve zamanlama okunamadığı durumlar (sessizlik varsayılan olamaz).
+
+> Pencere **panelin kurulu olduğu makinenin yerel saatiyle** hesaplanır (`DateTimeOffset.Now`).
+> Windows'un saat dilimi Türkiye değilse sessiz aralık da kayar.
 
 ### Tatil takvimi
 

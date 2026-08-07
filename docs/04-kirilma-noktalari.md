@@ -39,6 +39,8 @@
 | Kanal yavaş (SMTP 10 sn) | Teslimat ayrı kuyrukta; poller **beklemez**. | ✅ |
 | Kuyruk dolar (500) | En eski bildirim düşürülür, log'a uyarı yazılır. | Kalıcı kuyruk gerekirse artırılmalı. |
 | Hiçbir kanal açık değil | Uygulama kapalıyken **kimse haber almaz** — sessiz başarısızlık. | Kurulum sonrası uyarı gösterilmeli ❓ |
+| Panelin saat dilimi Türkiye değil | Sessiz pencere **kayar**: sessizlik `DateTimeOffset.Now` ile, yani Windows makinenin yerel saatiyle hesaplanır. Hata verilmez. | Zamanlamaya saat dilimi alanı ❓ |
+| Kullanıcı sessiz saatleri kapatır | Bütün alarmlar 7/24 sesli. Ölçüldü 2026-08-08 02:35: varsayılan kapalıyken kimse açmıyor — bu yüzden v0.18.4'te varsayılan **açık** yapıldı. | ✅ |
 | Bot token'ı sızar | Saldırgan yalnız o sohbete mesaj gönderebilir; izleme verisine erişemez. | Token'ı arayüzden değiştir. |
 
 ## Veri ve güvenlik

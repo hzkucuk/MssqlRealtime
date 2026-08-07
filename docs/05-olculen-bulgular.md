@@ -3,6 +3,26 @@
 > Buradaki her satır **çalıştırılarak** bulundu, belgeden okunarak değil. Tarih ve saat
 > taşır, çünkü aynı gün içinde davranış değişebilir.
 
+## 2026-08-08 02:35 — sessiz saatler yazılmış ama hiç devreye girmemiş
+
+Gece 02:35'te (Cumartesi) Telegram alarmı **sesli** geldi. Sebep saat penceresi değil:
+
+```
+sqlite3 src/MssqlRealtime.Api/data/mssqlrealtime.db \
+  "select ChannelId, Key from NotificationChannelSettings"
+webhook|url   webhook|secret   telegram|botToken   telegram|chatId
+```
+
+`__zamanlama` satırı **yok**. `GetScheduleAsync` boş sonuçta `new NotificationSchedule()`
+döndürüyor, o kayıtta `Enabled` varsayılanı `false`'tı, `IsQuietAt` da ilk satırda
+`false` dönüyordu — 08:30–18:00 penceresi hiç değerlendirilmiyordu. Cumartesi olması bile
+işe yaramıyordu; kod oraya kadar gitmiyor.
+
+Ders: **kullanıcının açması gereken bir varsayılan, açılmayacak varsayılandır.** Ayar
+yazıldı, belgelendi, arayüzü çizildi ve üç gün boyunca hiçbir mesajı sessizleştirmedi.
+Sessizlik alarmı kesmediği (yalnız `disable_notification` gönderdiği) için açık gelmesinin
+bir bedeli de yoktu. v0.18.4'te varsayılan `true` yapıldı.
+
 ## 2026-08-04 19:0x — `InvariantGlobalization=true` SqlClient'i kırar
 
 `Directory.Build.props` içine performans refleksiyle `<InvariantGlobalization>true</...>`

@@ -2,6 +2,31 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/)
 
+## [0.18.4] — 2026-08-08
+
+### 🔴 Düzeltilen — sessiz saatler hiç devreye girmiyordu
+
+0.9.0'da yazılan sessiz saatler **varsayılan olarak kapalıydı** ve kimse açmadığı için üç
+gün boyunca tek bir mesajı bile sessizleştirmedi. Ölçüldü 2026-08-08 02:35 (Cumartesi):
+Telegram alarmı sesli geldi; veritabanında `__zamanlama` kaydı yoktu, `IsQuietAt` ilk
+satırda `Enabled == false` görüp dönüyordu — 08:30–18:00 penceresine hiç bakılmıyordu.
+
+Varsayılan **açık** yapıldı. Bedeli yok: sessizlik alarmı kesmiyor, yalnız Telegram'ın
+`disable_notification` bayrağını gönderiyor — mesaj düşer, geçmiş eksilmez, telefon
+susar. Ayarı daha önce elle kapatmış olan kurulumlar etkilenmez; kayıtlı değer kazanır.
+
+**Yükseltmede davranış değişir:** zamanlamaya hiç dokunmamış kurulumlarda mesai dışı
+alarmlar (kritikler dahil, `criticalAlwaysLoud` varsayılanı `false`) artık sessiz düşer.
+Gece uyandırılmak isteyen *Bildirimler → Kritik alarmları mesai dışında da sesli gönder*
+kutusunu açar.
+
+### Belgelenen
+
+- `docs/06-bildirimler.md` tablosunda **"Sessiz saatler: açık"** satırı yoktu; tablo,
+  özellik açıkmış gibi okunuyordu. Eklendi.
+- Sessizliğin **panelin kurulu olduğu makinenin yerel saatiyle** hesaplandığı yazıldı
+  (`DateTimeOffset.Now`) — Windows'un saat dilimi Türkiye değilse pencere kayar.
+
 ## [0.18.3] — 2026-08-07
 
 ### Eklenen — grup satırında ⋮ düğmesi

@@ -11,7 +11,13 @@ namespace MssqlRealtime.Core.Notifications;
 /// </remarks>
 public sealed record NotificationSchedule
 {
-    public bool Enabled { get; init; }
+    /// <summary>
+    /// Varsayılan <c>true</c>. Ölçüldü 2026-08-08 02:35: kapalı varsayılanla kimse ayarı
+    /// açmıyor ve gece 02:35'te gelen alarm telefonu sesli çaldırıyor — özellik yazılmış
+    /// ama hiç devreye girmemiş oluyor. Sessizlik zaten alarmı kesmiyor, yalnız zili
+    /// kapatıyor; bu yüzden açık gelmesinin bir bedeli yok.
+    /// </summary>
+    public bool Enabled { get; init; } = true;
 
     /// <summary>Çalışma günleri. Boşsa hafta içi kabul edilir.</summary>
     public IReadOnlyList<DayOfWeek> WorkDays { get; init; } =
