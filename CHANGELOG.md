@@ -2,6 +2,26 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/)
 
+## [0.16.1] — 2026-08-07
+
+### 🔴 Düzeltilen — bazı sunucularda sürüm/edisyon hiç gelmiyordu
+
+**Belirti:** müşteri makinesinde Sistem sekmesindeki "Örnek" bölümünün tamamı tire; servis
+listesi ve bellek bilgisi ise doğru geliyor.
+
+**Sebep:** sürüm, edisyon, çekirdek sayısı ve çalışma süresi **tek sorguda** toplanıyordu ve
+sorgu iki DMV'ye bağlıydı — `sys.dm_os_sys_info` ve `sys.dm_os_host_info`. İkincisi yalnızca
+SQL Server 2017 ve sonrasında var. O görünüm yoksa ya da yetki verilmemişse sorgunun tamamı
+düşüyor ve **hiçbir yetki gerektirmeyen** `SERVERPROPERTY` bilgileri de onunla birlikte
+kayboluyordu.
+
+**Düzeltme:** sorgu ikiye ayrıldı. Önce her kurulumda çalışan `SERVERPROPERTY` (sürüm,
+edisyon, sürüm seviyesi), sonra "olursa iyi" sayılan makine bilgileri. İkincisi patlarsa
+birincisi ayakta kalıyor ve hata kaydediliyor — sessizce kaybolmuyor.
+
+**Ayrıca:** okunamayan bilgi artık tire ile gösterilmiyor. Tire "değer sıfır" gibi okunuyor;
+oysa orada ölçüm hiç yok. Ne olduğu ve ne gerektiği yazılıyor.
+
 ## [0.16.0] — 2026-08-07
 
 ### Düzeltilen

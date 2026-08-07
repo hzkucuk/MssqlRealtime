@@ -932,6 +932,14 @@
 		{:else if tab === 'sistem'}
 			<div class="card">
 				<h3>Örnek</h3>
+				{#if !s.instance}
+					<!-- Tire göstermek "değer sıfır" gibi okunuyor; oysa burada ölçüm hiç yok.
+					     Ne olduğunu ve ne gerektiğini yazmak, boş bırakmaktan iyidir. -->
+					<p class="muted">
+						Sürüm bilgisi okunamadı. İzleme kullanıcısına <code>VIEW SERVER STATE</code>
+						verildiğinden emin olun; panel eskiyse güncelleyin.
+					</p>
+				{:else}
 				<div class="muted">
 					{s.instance?.serverName ?? '—'} · {s.instance?.edition ?? '—'}<br />
 					Sürüm {s.instance?.productVersion ?? '—'} ({s.instance?.productLevel ?? '—'}) ·
@@ -942,6 +950,7 @@
 					SQL hedefi {mb(s.resources?.sqlTargetMemoryMb)} ·
 					{s.resources?.systemMemoryState ?? '—'}
 				</div>
+				{/if}
 			</div>
 
 			<div class="card">
