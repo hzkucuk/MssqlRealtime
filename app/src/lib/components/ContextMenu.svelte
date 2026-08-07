@@ -19,25 +19,17 @@
 		onclose
 	}: { x: number; y: number; items: MenuItem[]; onclose: () => void } = $props();
 
-	let menu = $state<HTMLDivElement | null>(null);
+	// 🔴 Ölçüldü 2026-08-07: menüyü açtıktan sonra ölçüp ekrana sığdırmak iki kez denendi
+	// (effect içinde ve iki kare sonra) ve ikisinde de menü sağ kenardan taştı — ölçüm her
+	// zaman son boyuttan dar çıkıyor. Ölçüm bırakıldı: imleç ekranın sağ yarısındaysa menü
+	// SOLA doğru açılıyor, alt yarısındaysa YUKARI. Bu, hiçbir ölçüme bağlı değil ve
+	// masaüstü menülerinin de yaptığı şey.
+	const flipX = $derived(typeof window !== 'undefined' && x > window.innerWidth * 0.55);
+	const flipY = $derived(typeof window !== 'undefined' && y > window.innerHeight * 0.6);
 
-	// Ölçüm yapılana kadar imlecin olduğu yerde duruyor; effect içinde ekrana sığdırılıyor.
-	let left = $state(0);
-	let top = $state(0);
-
-	// Menü ekranın dışına taşarsa kullanılamaz olur; ölçüp içeri çekiyoruz. Sütunlar
-	// menüsünde tam olarak bu hata yaşandı (2026-08-07).
-	$effect(() => {
-		if (!menu) {
-			return;
-		}
-
-		const box = menu.getBoundingClientRect();
-		const pad = 8;
-
-		left = Math.max(pad, Math.min(x, window.innerWidth - box.width - pad));
-		top = Math.max(pad, Math.min(y, window.innerHeight - box.height - pad));
-	});
+	const transform = $derived(
+		`translate(${flipX ? '-100%' : '0'}, ${flipY ? '-100%' : '0'})`
+	);
 </script>
 
 <svelte:window
@@ -50,7 +42,7 @@
 <button class="backdrop" aria-label="Menüyü kapat" onclick={onclose} oncontextmenu={(e) => { e.preventDefault(); onclose(); }}
 ></button>
 
-<div class="menu card" bind:this={menu} style="left:{left}px; top:{top}px" role="menu">
+<div class="menu card" style="left:{x}px; top:{y}px; transform:{transform}" role="menu">
 	{#each items as item, i (i)}
 		{#if item.kind === 'separator'}
 			<hr />

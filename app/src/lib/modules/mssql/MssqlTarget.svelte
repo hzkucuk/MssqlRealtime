@@ -1182,11 +1182,7 @@
 				ortalamaya iner; iki yıldan eskiler silinir.
 			</p>
 
-			{#if menu}
-	<ContextMenu x={menu.x} y={menu.y} items={menu.items} onclose={() => (menu = null)} />
-{/if}
-
-{#if expanded}
+			{#if expanded}
 				{@const g = chartGroups.find((x) => x.id === expanded)}
 				{#if g}
 					<div
@@ -1277,6 +1273,13 @@
 		{/if}
 	{/if}
 </div>
+
+<!-- Sekmelerin dışında: menü hangi sekmede açılırsa açılsın buradan çiziliyor. Önce Raporlar
+     sekmesinin içine konmuştu ve Oturumlar'da sağ tık sessiz kalıyordu (ölçüldü 2026-08-07). -->
+{#if menu}
+	<ContextMenu x={menu.x} y={menu.y} items={menu.items} onclose={() => (menu = null)} />
+{/if}
+
 
 <style>
 	.sql {

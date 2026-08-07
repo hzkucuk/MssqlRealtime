@@ -2,6 +2,26 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/)
 
+## [0.18.2] — 2026-08-07
+
+### 🔴 Düzeltilen — sağ tık menüsü hiç açılmıyordu
+
+Menü bileşeni yanlışlıkla **Raporlar sekmesinin içine** yerleştirilmişti. Oturumlar
+sekmesinde sağ tık durumu ayarlıyor ama çizecek bileşen orada olmadığı için hiçbir şey
+olmuyordu. Bileşen sekmelerin dışına alındı.
+
+### Düzeltilen — menü ekran kenarından taşıyordu
+
+Menü açıldıktan sonra ölçülüp ekrana sığdırılıyordu; ölçüm iki farklı yöntemle denendi
+(effect içinde ve boyamadan iki kare sonra) ve **ikisinde de menü son boyutundan dar
+ölçüldü**, dolayısıyla sağ kenardan taştı.
+
+Ölçüm bırakıldı: imleç ekranın sağ yarısındaysa menü **sola**, alt yarısındaysa **yukarı**
+doğru açılıyor. Masaüstü menülerinin yaptığı da budur ve hiçbir ölçüme bağlı değildir.
+
+Ölçüldü (430×420 pencere): sağ üstte `sol=140 sag=330 · taşma yok`, sağ altta
+`sol=280 sag=470 ust=70 alt=300 · taşma yok`.
+
 ## [0.18.1] — 2026-08-07
 
 ### Değişen — özet artık sütun başına seçiliyor
