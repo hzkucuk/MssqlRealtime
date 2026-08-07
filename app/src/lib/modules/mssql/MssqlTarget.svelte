@@ -182,6 +182,57 @@
 		return needle ? rows.filter((x) => matches(x, needle)) : rows;
 	});
 
+	// --- Özet satırları -----------------------------------------------------------------
+	// Hangi sütunun sayısal olduğu ve nasıl yazılacağı burada; toplamın birimi olmadan
+	// "3.856.792" hiçbir şey söylemiyor.
+	const NUMERIC: Record<string, { get: (x: SessionInfo) => number | null; fmt: (v: number) => string }> = {
+		cpu: { get: (x) => x.cpuTimeMs, fmt: (v) => `${num(Math.round(v))} ms` },
+		reads: { get: (x) => x.logicalReads, fmt: (v) => num(Math.round(v)) },
+		writes: { get: (x) => x.writes, fmt: (v) => num(Math.round(v)) },
+		memory: { get: (x) => x.memoryUsageKb, fmt: (v) => `${num(Math.round(v))} KB` },
+		idle: { get: (x) => x.idleSeconds, fmt: (v) => duration(Math.round(v)) }
+	};
+
+	type AggFn = 'sum' | 'avg' | 'count' | 'min' | 'max';
+
+	const AGGREGATES: [AggFn, string][] = [
+		['sum', 'Toplam'],
+		['avg', 'Ortalama'],
+		['count', 'Adet'],
+		['min', 'En küçük'],
+		['max', 'En büyük']
+	];
+
+	let selectedAggregates = $state<AggFn[]>([]);
+
+	function toggleAggregate(fn: AggFn) {
+		selectedAggregates = selectedAggregates.includes(fn)
+			? selectedAggregates.filter((f) => f !== fn)
+			: [...selectedAggregates, fn];
+	}
+
+	/** Bir sütunun özeti. Ölçümü olmayan satırlar sayılmaz — sıfır sayılsalardı ortalama yalan söylerdi. */
+	function summarise(rows: SessionInfo[], key: string, fn: AggFn): string {
+		const column = NUMERIC[key];
+		if (!column) return '';
+
+		const values = rows.map(column.get).filter((v): v is number => v !== null && v !== undefined);
+
+		if (fn === 'count') return num(values.length);
+		if (values.length === 0) return '—';
+
+		switch (fn) {
+			case 'sum':
+				return column.fmt(values.reduce((a, b) => a + b, 0));
+			case 'avg':
+				return column.fmt(values.reduce((a, b) => a + b, 0) / values.length);
+			case 'min':
+				return column.fmt(Math.min(...values));
+			case 'max':
+				return column.fmt(Math.max(...values));
+		}
+	}
+
 	type GroupNode = {
 		/** Yol anahtarı: aynı adlı iki alt grup farklı dallarda çakışmasın diye tam yol. */
 		path: string;
@@ -424,6 +475,23 @@
 	}
 </script>
 
+{#snippet summaryRow(rows: SessionInfo[], fn: AggFn, label: string, depth: number)}
+	<!-- Özet satırı: değerler kendi sütunlarının altında durur, yoksa hangi sayının neye ait
+	     olduğu okunmaz. Sayısal olmayan sütunlar boş bırakılır. -->
+	<tr class="summary-row">
+		{#each sessionColumns.visible.filter((c) => c.key !== 'action') as col, i (col.key)}
+			{#if i === 0}
+				<td class="summary-label" style="padding-left:{0.4 + depth * 1.1}rem">{label}</td>
+			{:else if NUMERIC[col.key]}
+				<td class="mono">{summarise(rows, col.key, fn)}</td>
+			{:else}
+				<td></td>
+			{/if}
+		{/each}
+		<td class="pinned"></td>
+	</tr>
+{/snippet}
+
 {#snippet groupBranch(node: GroupNode, depth: number)}
 	<!-- Kendini çağıran snippet: kaç seviye seçilirse seçilsin aynı kod çiziyor. -->
 	<tr class="group-row">
@@ -440,6 +508,10 @@
 			</button>
 		</td>
 	</tr>
+
+	{#each selectedAggregates as fn (fn)}
+		{@render summaryRow(node.rows, fn, AGGREGATES.find(([f]) => f === fn)?.[1] ?? fn, depth + 1)}
+	{/each}
 
 	{#if !collapsedGroups.has(node.path)}
 		{#if node.children.length > 0}
@@ -654,6 +726,22 @@
 				<ColumnPicker columns={sessionColumns} />
 			</div>
 
+			<div class="toolbar">
+				<span class="muted">Özet:</span>
+				{#each AGGREGATES as [fn, label] (fn)}
+					<button
+						class="chip"
+						class:on={selectedAggregates.includes(fn)}
+						onclick={() => toggleAggregate(fn)}
+					>
+						{label}
+					</button>
+				{/each}
+				{#if selectedAggregates.length > 0}
+					<span class="muted">sayısal sütunlarda</span>
+				{/if}
+			</div>
+
 			<div class="card scroll-x">
 				<table class="sized">
 					<thead>
@@ -694,6 +782,20 @@
 							{/each}
 						{/if}
 					</tbody>
+
+					{#if selectedAggregates.length > 0}
+						<!-- Genel özet: gruplama olsun olmasın, ekrandaki tüm satırların özeti. -->
+						<tfoot>
+							{#each selectedAggregates as fn (fn)}
+								{@render summaryRow(
+									filteredSessions,
+									fn,
+									`${AGGREGATES.find(([f]) => f === fn)?.[1]} (tümü)`,
+									0
+								)}
+							{/each}
+						</tfoot>
+					{/if}
 				</table>
 			</div>
 		{:else if tab === 'calisan'}
@@ -1135,5 +1237,17 @@
 		padding: 0.9rem;
 		background: var(--bg);
 		overflow: auto;
+	}
+
+	/* Özet satırı veri değil, veriden çıkarılan sonuç: zemini ayrık, yazısı kalın. */
+	.summary-row td {
+		background: var(--surface-2);
+		font-weight: 600;
+		border-top: 1px solid var(--border);
+	}
+
+	.summary-label {
+		font-weight: 600;
+		white-space: nowrap;
 	}
 </style>

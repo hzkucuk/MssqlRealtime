@@ -2,6 +2,24 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/)
 
+## [0.17.0] — 2026-08-07
+
+### Eklenen — özet satırları
+
+Oturumlar tablosunda sayısal sütunlar için **Toplam / Ortalama / Adet / En küçük / En büyük**.
+Hangilerinin hesaplanacağını çipten seçiyorsunuz; birden fazlası aynı anda seçilebiliyor.
+
+- **Hem gruplu hem gruplamasız çalışır**: her grubun altında o grubun özeti, tablonun sonunda
+  ekrandaki tüm satırların özeti. Kademeli gruplamada her seviye kendi özetini alır.
+- Değerler **kendi sütunlarının altında** durur; yoksa hangi sayının neye ait olduğu okunmaz.
+- Ölçümü olmayan satırlar hesaba **katılmaz**. Sıfır sayılsalardı ortalama yalan söylerdi —
+  `NULL` ile `0` aynı şey değil.
+- **Adet**, o sütunda gerçekten değer bulunan satır sayısını verir; toplam satır sayısı zaten
+  grup başlığında yazıyor.
+- Birim korunur: `3.856.792 ms`, `32 KB`, `1 sa 39 dk`.
+- Arama açıkken özet **filtrelenmiş satırlara** göre hesaplanır — ekranda ne görüyorsanız
+  onun özeti.
+
 ## [0.16.2] — 2026-08-07
 
 ### 🔴 Düzeltilen — SQL Server 2016'da çekirdek sayısı ve çalışma süresi boş kalıyordu
