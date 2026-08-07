@@ -228,6 +228,10 @@ tools/                           Paketleme, imzalama, güvenlik denetimi, yardı
 docs/                            Belgeler
 ```
 
+## Lisans
+
+[MIT](LICENSE) — kullanın, değiştirin, dağıtın. Garanti yoktur.
+
 ## Sürümleme
 
 Tek kaynak: `Directory.Build.props` → `VersionPrefix`. Sürüm numarası panelde ekranda görünür;
