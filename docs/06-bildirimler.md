@@ -94,6 +94,42 @@ node tools/webhook-alici.mjs 9099        # basit alıcı
 # Uygulamada webhook adresini http://localhost:9099/ yap ve "Test gönder"e bas
 ```
 
+## Sessiz saatler
+
+Mesai dışında bildirim **kesilmez, sessiz gönderilir**. Telegram'ın kendi sessiz gönderimi
+kullanılır (`disable_notification`): mesaj normal düşer, alarm geçmişi eksilmez, telefon
+yalnız ses çıkarmaz ve titremez.
+
+> Kesmek, gelmeyen alarm demektir — bir izleme panelinin yapabileceği en kötü şey. Sessiz
+> göndermek yalnız zili kapatır.
+
+Bildirimler ekranından ayarlanır:
+
+| Ayar | Varsayılan | Not |
+|---|---|---|
+| Çalışma günleri | Pzt–Cum | Çiplerden seçilir |
+| Çalışma saatleri | 08:30–18:00 | Gece yarısını aşan aralık da çalışır (22:00–06:00) |
+| Tatillerde sessiz | açık | Resmî tatiller + Ramazan/Kurban bayramları |
+| Ek tatil günleri | — | Şirket tatili, idari izin, bayram düzeltmesi |
+| Kritikleri her zaman sesli | **kapalı** | Açılırsa kritik alarmlar mesai dışında da titretir |
+
+Kritik alarmların varsayılan olarak sessiz olmasının sebebi ölçülmüş bir tercihtir: gece
+uyandırmanın karşılığı yoksa uyandırmak zarardır. İhtiyaç duyan açar.
+
+**Her zaman sesli gidenler:** "Test gönder" ile atılan mesaj (zaten gelip gelmediğine
+bakılıyor) ve zamanlama okunamadığı durumlar (sessizlik varsayılan olamaz).
+
+### Tatil takvimi
+
+Sabit tarihli resmî tatiller ile Ramazan ve Kurban bayramları hesaplanır. Bayramlar ay
+takvimine bağlı olduğu için **Diyanet takviminden bir gün şaşabilir**; ekranda o yılın
+listesi gösterilir ve doğru gün elle eklenebilir.
+
+Ölçüldü (2026): Ramazan Bayramı 20–22 Mart, Kurban Bayramı 27–30 Mayıs.
+
+> Hazır kütüphane arandı: `Nager.Date` (22,8M indirme, MIT etiketli) denendi ve çalışma
+> anında lisans anahtarı istedi (`LicenseKeyException`). Bu yüzden hesap elle yazıldı.
+
 ## Alarm geçmişi
 
 Bildirim kaçsa bile kayıt kalır: **🔔 → Tüm alarm geçmişi**. Her satır ne zaman başladı, ne

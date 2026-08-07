@@ -15,7 +15,7 @@ Telefon / Masaüstü / Tarayıcı
    ┌──────────▼──────────────────────────┐
    │  MÜŞTERİ WINDOWS MAKİNESİ           │
    │  ┌───────────────────────────────┐  │
-   │  │ Panel (Windows servisi)       │  │  ProgramData: profiller,
+   │  │ Panel (Windows servisi)       │  │  veri klasörü: profiller,
    │  │ poller + hub + bildirim       │  │  kullanıcı, DP anahtarları
    │  └──────────────┬────────────────┘  │
    │                 │ TDS 1433, salt okunur DMV
@@ -96,7 +96,7 @@ Tek operatör hesabı açılışta seed edilir; `/api/auth/register` middleware 
 ## Güvenlik sınırları
 
 - SQL parolaları Data Protection ile şifreli saklanır; anahtar halkası
-  `C:\ProgramData\SunucuIzleme\keys` altında —
+  `C:\SunucuIzleme\data\keys` altında —
   **yedekle**, kaybolursa parolalar okunamaz.
 - Parola hiçbir DTO'da dönmez; yalnızca `hasPassword: true` bilgisi gider.
 - İzlenen sunucuya tek yazma işlemi `KILL <spid>`; session id tamsayı olarak doğrulanır ve

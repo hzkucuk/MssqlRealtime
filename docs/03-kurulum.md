@@ -110,7 +110,7 @@ Kurulumda girdiğin e-posta ve parolayla `https://<adres>` — ya da yerelden
 `http://127.0.0.1:5199`.
 
 Setup kullanmadıysan ve parola vermediysen rastgele bir parola üretilip loga **bir kez**
-yazılır: `C:\ProgramData\SunucuIzleme\logs\`.
+yazılır: `C:\SunucuIzleme\data\logs\`.
 
 Kayıt (`/api/auth/register`) ucu kapalıdır — ikinci bir kullanıcı oluşturulamaz.
 
@@ -145,7 +145,7 @@ kendi oturumunu saklar. Tarayıcıdan da aynı adres kullanılabilir — uygulam
 
 ## 8. Yedekleme — atlanırsa acıtır
 
-`C:\ProgramData\SunucuIzleme` klasörünün tamamı:
+`C:\SunucuIzleme\data` klasörünün tamamı:
 
 | Dosya | Kaybedilirse |
 | - | - |
@@ -156,7 +156,7 @@ kendi oturumunu saklar. Tarayıcıdan da aynı adres kullanılabilir — uygulam
 ## 9. Güncelleme
 
 Yeni setup'ı çalıştır — servis durur, dosyalar değişir, servis yeniden kurulup başlar.
-`ProgramData` altındaki veri korunur ve veritabanı şeması açılışta otomatik güncellenir.
+`C:\SunucuIzleme\data` altındaki veri korunur ve veritabanı şeması açılışta otomatik güncellenir.
 
 Elle kurulumda:
 
@@ -166,5 +166,5 @@ Stop-Service SunucuIzleme
 Start-Service SunucuIzleme
 ```
 
-⚠️ Yükseltmeden önce yine de `ProgramData\SunucuIzleme` klasörünü yedekle: migration geri
+⚠️ Yükseltmeden önce yine de `C:\SunucuIzleme\data` klasörünü yedekle: migration geri
 alınamaz.
