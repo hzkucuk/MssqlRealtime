@@ -71,7 +71,7 @@
 | Form yalnızca açılır, hiçbir şey yazılmaz | Taslak **yazılmaz**. Öncesinde yazılıyordu: ikinci girişte "yarım kalan form geri yüklendi" uyarısı çıkıyor, üstelik bayat taslak sunucudan gelen profilin üstüne biniyordu (ölçüldü 2026-08-09 17:03, v0.18.6'da düzeltildi). | ✅ |
 | Profil başka bir cihazdan değişir | Taslak yalnız gerçekten değiştirilmiş formda saklandığı için ekranda güncel profil görünür. | ✅ |
 | Taslak biçimi sürümle değişir | Bozuk JSON yakalanır ve taslak silinir; alan eksik/fazlaysa taslak gerçek sayılıp geri yüklenir. | ❓ Sürümlü taslak anahtarı düşünülebilir. |
-| Ön yüz davranışı bozulur | **Otomatik test yok.** `npm run check` yalnız tipleri görür; taslak/anahtar gibi davranışlar ancak elle ya da geçici düzenekle ölçülüyor. | Ön yüze test altyapısı (vitest + Playwright) — **yapılmadı**, karar bekliyor. |
+| Ön yüz davranışı bozulur | Store kararları `npm test` ile korunuyor (vitest, v0.20.0): liste neyden türüyor, silme 404'te ne yapıyor, panel değişiminde ne temizleniyor. Testlerin koruduğu, refactor öncesi koda döndürülüp **düşürülerek** doğrulandı. | ◐ Bileşen/uçtan uca testler hâlâ yok: taslak koruması ve panel değişimi geçici Playwright düzenekleriyle ölçüldü, depoda kalmadı. |
 
 ## Güncelleme
 

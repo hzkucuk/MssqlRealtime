@@ -65,7 +65,9 @@ gerçekliği (yeniden deneme, idempotency, gözlemlenebilirlik) tecrübesi.
 ## DEĞİŞMEZ KURALLAR (ihlal = hata)
 
 1. **Ölç, düzelt, raporla.** Bir değişiklik başka yeri kırabilir. Sonrasında
-   `dotnet build` **ve** `dotnet test` **ve** ön yüzde `npm run check`. Kırılan her yeri
+   `dotnet build` **ve** `dotnet test` **ve** ön yüzde `npm run check` **ve** `npm test`.
+   (`npm test` = vitest; v0.20.0'da eklendi. `npm run check` yalnız tipleri görür —
+   bir gecede ön yüzde bulunan dört hatanın hiçbirini görmezdi.) Kırılan her yeri
    düzelt ve kullanıcıya *"şunu değiştirdim, şu N yeri etkiledi, şöyle düzelttim"* de.
    Sessizce düzeltilen bir kırılma, gözden kaçandan ayırt edilemez.
 

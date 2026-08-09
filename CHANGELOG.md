@@ -4,6 +4,32 @@ Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme:
 
 ## [0.20.0] — 2026-08-10
 
+### Eklenen — ön yüzde test altyapısı (vitest)
+
+Bu gece ön yüzde dört ayrı hata bulundu ve **hepsi geçici Playwright düzenekleriyle**
+ölçüldü; hiçbiri depoda kalmadı, yani hiçbiri korunmuyordu. `npm run check` yalnız
+tipleri görür — dördünü de göremezdi.
+
+`npm test` artık store'ların kararını sınıyor: ekranda ne olmalı. İki dosya, 12 test,
+1 saniye. Bağımlılıklar (HTTP ve SignalR) taklit ediliyor; ölçülen şey ağ değil, karar.
+
+**Testlerin gerçekten koruduğu ölçüldü:** store refactor öncesi hâline (c74dd40)
+döndürülüp koşuldu ve **dördü düştü**:
+
+```
+× kaydı olan ama hiç ölçülmemiş sunucu EKRANDA GÖRÜNÜR   expected [] to have a length of 1
+× profili olmayan ölçüm kart üretmez                      got 1  (hayalet kart)
+× tazeleme profilde karşılığı olmayan ölçümleri budar     got 2
+× ad ve müşteri PROFİLDEN okunur                          expected undefined to be 'Yeni Ad'
+```
+
+Kalan üçü (404'te kartın kalkması, 404 dışındaki hatanın yutulmaması, panel değişiminde
+temizlik) o commit'te zaten düzeltilmişti ve geçti — yani testler hangi düzeltmenin neyi
+kapsadığını ayırt ediyor.
+
+`CLAUDE.md`'deki değişiklik disiplinine eklendi: artık `dotnet build` + `dotnet test` +
+`npm run check` + **`npm test`**.
+
 ### Değişen — liste artık izlenenlerden türüyor, ölçüm önbelleğinden değil
 
 Bu gece üç ayrı hatayı ayrı ayrı yamadık ve üçü de aynı kökten çıktı: **ekrandaki
