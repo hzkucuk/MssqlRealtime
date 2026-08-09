@@ -3,6 +3,121 @@
 > Buradaki her satır **çalıştırılarak** bulundu, belgeden okunarak değil. Tarih ve saat
 > taşır, çünkü aynı gün içinde davranış değişebilir.
 
+## 2026-08-09 03:1x — bir DMV join'i bütün sekmeyi çizdirmiyordu
+
+Yeni kurulan sunucuda iki instance: Express'te *Oturumlar* çalışıyor, SQL Server 2019
+Standard'da liste **boş**. Sekme başlığı `Oturumlar (254)` diyor, yani veri gelmiş.
+Ekranda duran şey bir önceki sekmenin kutucuklarıydı — `{#if tab === 'ozet'}` bloğu.
+Kutucukların *Oturumlar* seçiliyken görünmesi tek bir şey anlatır: `oturumlar` dalı
+render sırasında hata atıyor ve Svelte önceki dalın DOM'unu bırakıyor.
+
+Ölçüm, sunucuya erişmeden yapıldı — kaynak okunarak:
+
+```
+app/src/lib/modules/mssql/MssqlTarget.svelte:978
+    {#each filteredSessions as x (x.sessionId)}      ← anahtarlı
+
+node_modules/svelte/src/internal/client/dom/blocks/each.js:350
+    if (length > keys.size) {
+        if (DEV) { validate_each_keys(array, get_key); }
+        else     { e.each_key_duplicate('', '', ''); }   ← üretimde de throw
+    }
+```
+
+Denetim **koşulsuz**: mükerrer anahtar hem geliştirme hem üretim derlemesinde
+`throw` ediyor; `DEV` dalı yalnızca hata metnini zenginleştiriyor. Yani bu, geliştirici
+konsolunda kalan bir uyarı değil, müşterinin ekranında sekmeyi öldüren bir hata.
+
+Kaynağı `SessionsProbe`'daki `LEFT JOIN sys.dm_exec_connections`. O görünüm **bağlantı**
+başına satır tutar; MARS açık bir oturum her aktif batch için alt bağlantı açar ve
+oturum N satıra çoğalır. Express'te görülmemesinin sebebi istemcilerinin MARS
+kullanmaması.
+
+Aynı sınıf `BlockingProbe`'da da vardı. `RequestsProbe`'da veri doğru (MARS'ta oturum
+başına birden çok istek olabilir), anahtar yanlıştı — `request_id` eklendi.
+
+Guard testi eski sorguyla koşuldu:
+
+```
+NoProbeJoinsConnectionsDirectly(SessionsProbe) [FAIL]
+SessionsQueryReadsConnectionsThroughTopOne     [FAIL]
+```
+
+Düzeltilmiş hâlde 80/80 geçiyor, `npm run check` 0 hata.
+
+### 16:2x — aynı kusurun ikincisi, ilk düzeltme gözden geçirilirken
+
+İlk düzeltme kontrol edilirken *Bloke* sekmesinde aynı sınıftan bir kusur daha çıktı:
+
+```
+app/src/lib/modules/mssql/MssqlTarget.svelte:1029
+    {#each s.blocking as b (b.blockedSessionId)}     ← tek başına yeterli değil
+```
+
+`BlockingProbe`'un `blocker_c` join'i düzeltilmişti ama **bloke edilen** taraf
+gözden kaçmıştı: `sys.dm_exec_requests` **istek** başına satır tutar. MARS'lı bir
+oturumun iki isteği aynı anda bloke olursa iki kenar aynı `blockedSessionId` ile
+gelir ve sekme yine `each_key_duplicate` ile çöker. `BlockedRequestId` eklendi,
+anahtar `blockedSessionId:blockedRequestId` oldu.
+
+Guard testi ölçülerek doğrulandı: `r.request_id` satırı sorgudan çıkarılınca
+
+```
+BlockingEdgesCarryBlockedRequestIdSoRowsStayUnique [FAIL]
+```
+
+geri konunca 81/81 geçiyor. `dotnet build` 0 hata, `npm run check` 0 hata.
+
+Taranan diğer anahtarlı `{#each}` blokları (`app/src` genelinde 30 blok) temiz:
+`extraHolidays` eklemede zaten tekrar denetimi yapıyor, kalanlar sunucudan tekil
+gelen alanlarla (`serverId`, `targetId`, `name`, `waitType`, `key`) anahtarlanmış.
+
+### 16:41 — teori gerçek bir SQL Server'da doğrulandı
+
+Sorgular ilk kez **çalıştırıldı**. Ortam: yereldeki `kurumsal_sql` konteyneri,
+Microsoft SQL Server 2022 (RTM-CU24-GDR). Müşteri instance'ı değil — mekanizmayı
+doğrulamak için yeterli, çünkü MARS orada da açık çıktı.
+
+`sys.dm_exec_connections` gerçekten oturum başına birden çok satır tutuyor:
+
+```
+session_id  baglanti
+51..55, 61..63   2
+59, 60           3
+```
+
+Aynı anda, aynı sunucuda, iki sorgunun karşılaştırması:
+
+```
+ESKI (LEFT JOIN dm_exec_connections)   satir = 24   oturum = 12   ← 12 oturum 24 satıra çıkıyor
+YENI (OUTER APPLY … TOP 1)             satir = 12   oturum = 12
+```
+
+Yani hata tahmin değil: **eski sorgu 12 oturumu 24 satıra çoğaltıyor**, mükerrer
+`SessionId` gövdeye giriyor ve ön yüz sekmeyi çizemiyor. Yeni sorgu oturum başına
+tam bir satır.
+
+Üç probe sorgusu kaynaktan aynen çıkarılıp koşuldu; tekillik kontrolleri boş döndü:
+
+```
+SessionsProbe   mukerrer SessionId                          → 0 satır
+RequestsProbe   mukerrer (SessionId, RequestId)             → 0 satır
+BlockingProbe   mukerrer (BlockedSessionId, BlockedRequestId) → 0 satır
+```
+
+`OUTER APPLY`'lı sorguların **sözdizimi de ilk kez burada sınandı** — üçü de hatasız
+çalıştı. Daha önce yalnız `dotnet build` yeşildi, ki bu bir T-SQL metninin geçerli
+olduğunu göstermez.
+
+**Müşteri instance'ında hâlâ koşulmadı** (Standard, 254 oturumlu olan). Aynı dosya
+orada da koşulabilir:
+
+```sql
+SELECT session_id, COUNT(*) AS baglanti
+FROM sys.dm_exec_connections
+GROUP BY session_id HAVING COUNT(*) > 1;
+```
+
 ## 2026-08-08 03:05 — sürüm üç yerde duruyor, ikisini bilmek yetmiyor
 
 `Directory.Build.props` ve `setup/SunucuIzleme.iss` 0.18.4'e çekildikten sonra

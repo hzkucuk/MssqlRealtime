@@ -18,6 +18,9 @@ public sealed class BlockingProbe : ISqlProbe
     private const string Sql = """
         SELECT
             r.session_id                        AS BlockedSessionId,
+            -- Under MARS one session can have several blocked requests, so the
+            -- blocked session id alone does not identify an edge.
+            r.request_id                        AS BlockedRequestId,
             r.blocking_session_id               AS BlockingSessionId,
             r.wait_time                         AS WaitTimeMs,
             r.wait_type                         AS WaitType,
@@ -31,7 +34,14 @@ public sealed class BlockingProbe : ISqlProbe
         FROM sys.dm_exec_requests r
         INNER JOIN sys.dm_exec_sessions blocked_s ON blocked_s.session_id = r.session_id
         LEFT JOIN sys.dm_exec_sessions blocker_s ON blocker_s.session_id = r.blocking_session_id
-        LEFT JOIN sys.dm_exec_connections blocker_c ON blocker_c.session_id = r.blocking_session_id
+        -- TOP 1, not a JOIN: a blocker session with MARS owns several connections and a
+        -- plain join would emit one row per connection, duplicating the blocked session.
+        OUTER APPLY (
+            SELECT TOP 1 bc.most_recent_sql_handle
+            FROM sys.dm_exec_connections bc
+            WHERE bc.session_id = r.blocking_session_id
+            ORDER BY bc.connect_time
+        ) blocker_c
         OUTER APPLY sys.dm_exec_sql_text(r.sql_handle) blocked_t
         OUTER APPLY sys.dm_exec_sql_text(blocker_c.most_recent_sql_handle) blocker_t
         WHERE r.blocking_session_id <> 0
@@ -47,6 +57,7 @@ public sealed class BlockingProbe : ISqlProbe
         var edges = rows.Select(r => new BlockingEdge
         {
             BlockedSessionId = r.BlockedSessionId,
+            BlockedRequestId = r.BlockedRequestId,
             BlockingSessionId = r.BlockingSessionId,
             WaitTimeMs = r.WaitTimeMs,
             WaitType = r.WaitType,
@@ -82,6 +93,7 @@ public sealed class BlockingProbe : ISqlProbe
     private sealed class Row
     {
         public int BlockedSessionId { get; set; }
+        public int BlockedRequestId { get; set; }
         public int BlockingSessionId { get; set; }
         public int WaitTimeMs { get; set; }
         public string? WaitType { get; set; }

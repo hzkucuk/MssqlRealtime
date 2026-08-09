@@ -2,6 +2,61 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/)
 
+## [0.18.5] — 2026-08-09
+
+### 🔴 Düzeltilen — oturum listesi boş kalıyordu (SQL Server Standard)
+
+Yeni kurulan sunucuda iki instance izleniyordu: Express'te *Oturumlar* listeleniyor,
+Standard'da **hiçbir satır çizilmiyordu** — üstelik sekme başlığı `Oturumlar (254)`
+diyerek 254 oturum saydığı hâlde. Ekranda kalan şey bir önceki sekmenin (*Özet*)
+kutucuklarıydı.
+
+**Kök neden.** `SessionsProbe` şunu yapıyordu:
+
+```sql
+FROM sys.dm_exec_sessions s
+LEFT JOIN sys.dm_exec_connections c ON c.session_id = s.session_id
+```
+
+`sys.dm_exec_connections` **bağlantı** başına satır tutar, oturum başına değil. MARS
+(`MultipleActiveResultSets=True` — birçok EF bağlantı dizesinde varsayılan) etkin bir
+oturum her aktif batch için bir alt bağlantı açar. Böylece bir oturum N satıra çoğalıyor,
+gövde mükerrer `SessionId` taşıyor ve ön yüzdeki `{#each … (x.sessionId)}` bloğu
+`each_key_duplicate` fırlatıp **sekmenin tamamını** çizmeden bırakıyordu. Express'te
+görünmemesinin sebebi, istemcilerinin MARS açmıyor olmasıydı.
+
+Bağlantı bilgisi artık `OUTER APPLY (SELECT TOP 1 … ORDER BY connect_time)` ile
+okunuyor: oturum başına tam bir satır. En eski bağlantı ana bağlantıdır, MARS
+çocukları onunla aynı adresi paylaşır.
+
+**Aynı sınıftan üç kusur daha bulundu ve düzeltildi:**
+
+- `BlockingProbe` aynı 1:N join'i `blocker_c` için yapıyordu → *Bloke* sekmesi, MARS
+  kullanan bir engelleyici olduğunda aynı şekilde çökerdi.
+- `RequestsProbe`'da veri **doğru**: MARS'ta bir oturumun eşzamanlı birden çok isteği
+  olabilir. Yanlış olan anahtardı. `request_id` eklendi, liste artık
+  `sessionId:requestId` ile anahtarlanıyor.
+- *Bloke* sekmesinde **ikinci bir anahtar kusuru** kalmıştı (bulundu 2026-08-09 16:2x,
+  ilk düzeltme gözden geçirilirken): `sys.dm_exec_requests` **istek** başına satır tutar,
+  yani MARS'lı bir oturumun iki bloke isteği aynı `blockedSessionId` ile iki kenar
+  üretir. `blocker_c` join'i düzeltilmişti ama liste hâlâ tek başına
+  `blockedSessionId` ile anahtarlanıyordu — sekme yine çökerdi. `BlockedRequestId`
+  eklendi, anahtar `blockedSessionId:blockedRequestId` oldu.
+
+**Ölçüldü 2026-08-09 03:1x ve 16:2x.** `svelte/internal/client/dom/blocks/each.js` okundu:
+mükerrer anahtar denetimi koşulsuz ve **üretim derlemesinde de** `throw` ediyor
+(`DEV` dalı yalnız hata metnini zenginleştiriyor) — yani bu, geliştirme moduna özgü
+bir uyarı değil, müşteride de çöken bir hata. Guard testi eski sorguyla koşuldu ve
+düştü, düzeltilmişle geçti. Aynısı *Bloke* kenarı için de yapıldı: `r.request_id`
+satırı çıkarılınca `BlockingEdgesCarryBlockedRequestIdSoRowsStayUnique` düşüyor.
+`dotnet test` 81/81, `npm run check` 0 hata.
+
+**16:41 — gerçek sunucuda doğrulandı.** Sorgular ilk kez çalıştırıldı (SQL Server 2022
+CU24). O instance'ta MARS açık: oturumların bağlantı sayısı 2–3. Aynı anda ölçüm —
+eski sorgu **12 oturumu 24 satıra** çoğaltıyor, yeni sorgu 12 satır veriyor. Üç probe
+sorgusunun tekillik kontrolü de boş döndü. `OUTER APPLY`'lı sorguların sözdizimi de ilk
+kez burada sınandı; `dotnet build` bunu göstermiyordu.
+
 ## [0.18.4] — 2026-08-08
 
 ### 🔴 Düzeltilen — sessiz saatler hiç devreye girmiyordu

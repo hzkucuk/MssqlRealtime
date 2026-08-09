@@ -20,7 +20,7 @@ public sealed class SessionsProbe : ISqlProbe
             s.login_name                                            AS LoginName,
             s.host_name                                             AS HostName,
             s.program_name                                          AS ProgramName,
-            c.client_net_address                                    AS ClientAddress,
+            c.ClientAddress                                         AS ClientAddress,
             s.status                                                AS Status,
             DB_NAME(s.database_id)                                  AS DatabaseName,
             s.login_time                                            AS LoginTime,
@@ -33,7 +33,20 @@ public sealed class SessionsProbe : ISqlProbe
             s.open_transaction_count                                AS OpenTransactionCount,
             DATEDIFF(second, s.last_request_end_time, GETDATE())    AS IdleSeconds
         FROM sys.dm_exec_sessions s
-        LEFT JOIN sys.dm_exec_connections c ON c.session_id = s.session_id
+        -- One row per session, always. sys.dm_exec_connections holds one row per
+        -- *connection*, and a session can own several: MARS
+        -- (MultipleActiveResultSets=True, the default in many EF connection strings)
+        -- opens a child connection per active batch. A plain JOIN therefore fans a
+        -- single session out into N rows, the payload carries duplicate SessionId
+        -- values, and the keyed {#each} in the UI aborts the whole tab. Express
+        -- instances rarely show it because few clients enable MARS.
+        -- The oldest connection is the parent one; MARS children share its address.
+        OUTER APPLY (
+            SELECT TOP 1 c2.client_net_address AS ClientAddress
+            FROM sys.dm_exec_connections c2
+            WHERE c2.session_id = s.session_id
+            ORDER BY c2.connect_time
+        ) c
         WHERE s.is_user_process = 1
         ORDER BY s.cpu_time DESC;
         """;

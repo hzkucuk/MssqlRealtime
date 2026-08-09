@@ -1007,7 +1007,7 @@
 					{/each}
 				</div>
 			{/if}
-			{#each requestSort.apply(s.requests) as r (r.sessionId)}
+			{#each requestSort.apply(s.requests) as r (`${r.sessionId}:${r.requestId}`)}
 				<div class="card">
 					<div class="row between">
 						<strong class="mono">SPID {r.sessionId} · {r.command ?? '—'}</strong>
@@ -1026,7 +1026,7 @@
 			{#if s.blocking.length === 0}
 				<p class="muted">Bloke edilen oturum yok.</p>
 			{/if}
-			{#each s.blocking as b (b.blockedSessionId)}
+			{#each s.blocking as b (`${b.blockedSessionId}:${b.blockedRequestId}`)}
 				<div class="card">
 					<div class="row between">
 						<strong>SPID {b.blockedSessionId} ← SPID {b.blockingSessionId}</strong>

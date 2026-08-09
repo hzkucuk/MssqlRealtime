@@ -20,6 +20,7 @@
 | SQL Server yeniden başlar | `dm_os_wait_stats` sıfırlanır → delta negatife düşer; prob bunu **algılar** ve baz çizgisini atar (yanlış devasa değer üretmez). | ✅ |
 | İzleyen kullanıcıda `VIEW SERVER STATE` yok | Bağlantı testi bunu **kaydetmeden önce** yakalar ve gereken `GRANT` komutunu gösterir. Poller'da ilgili prob hata verir, snapshot'ın geri kalanı gelir. | ✅ |
 | Prob bir sunucuda patlar | Yalnız o prob boş kalır; snapshot yayınlanır, hata `errorMessage` içinde taşınır. | ✅ |
+| Bir DMV join'i satır çoğaltır | Snapshot'ta mükerrer `SessionId` olursa ön yüzdeki anahtarlı `{#each}` `each_key_duplicate` fırlatır ve **sekmenin tamamı çizilmez** — üretim derlemesinde de. Ekranda önceki sekmenin DOM'u kalır, hiçbir hata mesajı görünmez. (Ölçüldü 2026-08-09 16:41: gerçek sunucuda eski sorgu 12 oturumu **24 satıra** çoğaltıyor, yenisi 12 satır veriyor.) | ◐ Kaynakta düzeltildi: `dm_exec_connections` artık `OUTER APPLY … TOP 1` ile okunuyor, `RequestsProbe` `request_id`, `BlockingProbe` `BlockedRequestId` taşıyor; üç guard testi sorgu şeklini sabitliyor. Ön yüz hâlâ tek bir mükerrer anahtara karşı **kırılgan**: yeni bir 1:N join aynı sessiz çökmeyi geri getirir. |
 
 ## Bağlantı ve ölçek
 

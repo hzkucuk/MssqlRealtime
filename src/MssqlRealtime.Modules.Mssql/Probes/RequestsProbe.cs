@@ -19,6 +19,9 @@ public sealed class RequestsProbe : ISqlProbe
     private const string Sql = """
         SELECT
             r.session_id                                        AS SessionId,
+            -- A session can run several requests at once under MARS, so session_id
+            -- alone does not identify a row. The UI keys its list on this pair.
+            r.request_id                                        AS RequestId,
             r.status                                            AS Status,
             r.command                                           AS Command,
             DB_NAME(r.database_id)                              AS DatabaseName,
@@ -59,6 +62,7 @@ public sealed class RequestsProbe : ISqlProbe
         context.Builder.Requests = rows.Select(r => new RequestInfo
         {
             SessionId = r.SessionId,
+            RequestId = r.RequestId,
             Status = r.Status,
             Command = r.Command,
             DatabaseName = r.DatabaseName,
@@ -80,6 +84,7 @@ public sealed class RequestsProbe : ISqlProbe
     private sealed class Row
     {
         public int SessionId { get; set; }
+        public int RequestId { get; set; }
         public string? Status { get; set; }
         public string? Command { get; set; }
         public string? DatabaseName { get; set; }

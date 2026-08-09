@@ -112,6 +112,9 @@ export type SessionInfo = {
 
 export type RequestInfo = {
 	sessionId: number;
+	/** Bir oturum MARS altinda ayni anda birden cok istek calistirabilir;
+	 *  liste anahtari sessionId + requestId ciftidir. */
+	requestId: number;
 	status?: string | null;
 	command?: string | null;
 	databaseName?: string | null;
@@ -131,6 +134,9 @@ export type RequestInfo = {
 
 export type BlockingEdge = {
 	blockedSessionId: number;
+	/** MARS altinda bir oturumun birden cok bloke istegi olabilir;
+	 *  liste anahtari blockedSessionId + blockedRequestId ciftidir. */
+	blockedRequestId: number;
 	blockingSessionId: number;
 	waitTimeMs: number;
 	waitType?: string | null;

@@ -136,6 +136,12 @@ public sealed record SessionInfo
 public sealed record RequestInfo
 {
     public required int SessionId { get; init; }
+
+    /// <summary>
+    /// Distinguishes concurrent requests of one session (MARS). SessionId on its own is
+    /// not unique here, and the UI needs a stable unique key per row.
+    /// </summary>
+    public int RequestId { get; init; }
     public string? Status { get; init; }
     public string? Command { get; init; }
     public string? DatabaseName { get; init; }
@@ -157,6 +163,12 @@ public sealed record RequestInfo
 public sealed record BlockingEdge
 {
     public required int BlockedSessionId { get; init; }
+
+    /// <summary>
+    /// Distinguishes the blocked requests of one session (MARS). Same reason as
+    /// <see cref="RequestInfo.RequestId"/>: the UI needs a stable unique key per row.
+    /// </summary>
+    public int BlockedRequestId { get; init; }
     public required int BlockingSessionId { get; init; }
     public int WaitTimeMs { get; init; }
     public string? WaitType { get; init; }
