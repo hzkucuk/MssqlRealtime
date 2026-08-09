@@ -6,7 +6,10 @@
 	import {
 		appVersion,
 		compareVersions,
+		fetchHubUpdate,
 		fetchServerVersion,
+		startHubUpdate,
+		type HubUpdate,
 		getTokens,
 		logout,
 		releasePageUrl
@@ -59,6 +62,44 @@
 		if (serverVersion) sessionStorage.setItem(UPDATE_DISMISSED_KEY, serverVersion);
 	}
 
+	// --- panelin kendi güncellemesi ---------------------------------------------------------
+	// Elle tetiklenir. Zamanlanmış bir güncelleme yok: bozuk bir sürüm izlemeyi sessizce
+	// körleştirir ve bunu kimse fark etmez, o yüzden "ne zaman" kararı operatörde kalır.
+	let hub = $state<HubUpdate | null>(null);
+	let guncelleniyor = $state(false);
+	let guncellemeNotu = $state<string | null>(null);
+
+	const hubUpdate = $derived(hub?.available && hub.supported ? hub : null);
+
+	async function guncelle() {
+		if (!hub?.latest) return;
+
+		const uyari =
+			`Panel v${hub.latest} sürümüne güncellenecek.\n\n` +
+			'Kurulum sırasında servis birkaç dakika duracak; o süre boyunca izleme yapılmaz ' +
+			've bu ekranın bağlantısı kopacak.\n\n' +
+			(hub.canRollback
+				? 'Yeni sürüm açılmazsa otomatik olarak eskisine dönülür.'
+				: '⚠ Bu sürüm için geri dönüş paketi bulunamadı: yeni sürüm açılmazsa elle müdahale gerekir.') +
+			'\n\nDevam edilsin mi?';
+
+		if (!confirm(uyari)) return;
+
+		guncelleniyor = true;
+		guncellemeNotu = null;
+		try {
+			const r = await startHubUpdate();
+			// Buradan sonra servis kapanacağı için ekrandan başka haber gelmez: ne olacağını
+			// şimdi söyle. Bağlantı göstergesi zaten "bağlı değil"e düşecek, sonra dönecek.
+			guncellemeNotu =
+				`Güncelleme başladı (v${r.version}). Panel birkaç dakika içinde yeniden açılacak; ` +
+				'bağlantı geri geldiğinde sürüm başlıkta görünür.';
+		} catch (e) {
+			guncelleniyor = false;
+			guncellemeNotu = e instanceof Error ? e.message : String(e);
+		}
+	}
+
 	const isLogin = $derived(page.url.pathname === '/giris');
 	const unread = $derived(realtime.alerts.filter((a) => !a.isCleared).length);
 
@@ -80,6 +121,9 @@
 		dismissedVersion = sessionStorage.getItem(UPDATE_DISMISSED_KEY);
 
 		activePanel.refresh();
+
+		// Sürüm listesi dış bir servisten geliyor; açılışı bekletmesin.
+		void fetchHubUpdate().then((u) => (hub = u)).catch(() => (hub = null));
 
 		// Ask before the first alert arrives, not with it.
 		await ensureNotificationPermission();
@@ -172,6 +216,25 @@
 					✕
 				</button>
 			</span>
+		</div>
+	{/if}
+
+	{#if hubUpdate || guncellemeNotu}
+		<div class="update">
+			{#if guncellemeNotu}
+				<span>{guncellemeNotu}</span>
+			{:else if hubUpdate}
+				<span>
+					Panel <strong>v{hubUpdate.current}</strong> çalışıyor,
+					<strong>v{hubUpdate.latest}</strong> yayınlandı.
+					{#if !hubUpdate.canRollback}
+						<span class="uyari">⚠ geri dönüş paketi yok</span>
+					{/if}
+				</span>
+				<button class="btn btn-sm" onclick={guncelle} disabled={guncelleniyor}>
+					{guncelleniyor ? 'Başlatılıyor…' : 'Güncelle'}
+				</button>
+			{/if}
 		</div>
 	{/if}
 
@@ -280,6 +343,11 @@
 		font-size: 0.82rem;
 		border-bottom: 1px solid var(--line);
 		background: color-mix(in srgb, var(--accent) 12%, transparent);
+	}
+
+	.uyari {
+		color: var(--sev-1, #e0a63a);
+		font-weight: 600;
 	}
 
 	.conn {

@@ -168,6 +168,16 @@ builder.Services.AddSingleton<INotificationChannel, EmailChannel>();
 builder.Services.AddSingleton<INotificationChannel, WebhookChannel>();
 
 // Short timeout: a hanging webhook must not block the delivery queue behind it.
+// GitHub sürüm listesi ve kurulum dosyası. User-Agent zorunlu: GitHub API başlıksız
+// isteği 403 ile reddeder. Zaman aşımı uzun, çünkü kurulum dosyası ~40 MB.
+builder.Services.AddHttpClient(UpdateService.HttpClientName, c =>
+{
+    c.Timeout = TimeSpan.FromMinutes(10);
+    c.DefaultRequestHeaders.UserAgent.ParseAdd("SunucuIzleme-Guncelleme");
+    c.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
+});
+builder.Services.AddSingleton<UpdateService>();
+
 builder.Services.AddHttpClient(TelegramChannel.ChannelId, c => c.Timeout = TimeSpan.FromSeconds(15));
 builder.Services.AddHttpClient(WebhookChannel.ChannelId, c => c.Timeout = TimeSpan.FromSeconds(15));
 
@@ -358,6 +368,7 @@ app.MapGet("/api/modules", (IModuleRegistry registry) => Results.Ok(registry.Des
 
 app.MapNotificationEndpoints();
 app.MapMetricEndpoints();
+app.MapUpdateEndpoints();
 app.MapToolModules();
 
 app.MapHub<ToolsHub>(ToolsHub.Path);

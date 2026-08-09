@@ -71,6 +71,17 @@
 | Taslak biçimi sürümle değişir | Bozuk JSON yakalanır ve taslak silinir; alan eksik/fazlaysa taslak gerçek sayılıp geri yüklenir. | ❓ Sürümlü taslak anahtarı düşünülebilir. |
 | Ön yüz davranışı bozulur | **Otomatik test yok.** `npm run check` yalnız tipleri görür; taslak/anahtar gibi davranışlar ancak elle ya da geçici düzenekle ölçülüyor. | Ön yüze test altyapısı (vitest + Playwright) — **yapılmadı**, karar bekliyor. |
 
+## Güncelleme
+
+| Ne bozulur | Bugün ne olur | Ne olmalı |
+|---|---|---|
+| İndirilen kurulum dosyası bozuk/değiştirilmiş | sha256, GitHub'ın verdiği özetle karşılaştırılır; tutmazsa dosya **silinir** ve kurulum hiç başlamaz. Özeti olmayan varlık kurulmaz. | ✅ Paket imzalı değil; tek koruma TLS + özet. Kod imzalama sertifikası alınırsa eklenmeli ❓ |
+| Yeni sürüm açılmıyor | Yükseltici `/api/health` cevabını 180 sn bekler, gelmezse **çalışan sürümün kurulum dosyasıyla geri döner**. Her adım `logs/guncelleme-*.log` dosyasına yazılır. | ⚠️ **Windows'ta hiç denenmedi** (v0.19.0, 2026-08-09). VM'de bir kez koşturulmadan güvenilmemeli. |
+| Çalışan sürümün release'i yok | Otomatik geri dönüş **yapılamaz**. Arayüz bunu güncellemeden **önce** söyler (`⚠ geri dönüş paketi yok`) ve onay metni uyarır. | ✅ Gizlenmiyor. |
+| Güncelleme sırasında izleme durur | Servis `sc stop` + `sc delete` ile kaldırılıp yeniden kurulduğu için birkaç dakika ölçüm yapılmaz; onay metni bunu açıkça söyler. | ◐ Bu boşluk bildirim olarak da gitmiyor — sessizlik alarmı tetiklenebilir ❓ |
+| GitHub erişilemez | "Sürüm listesine ulaşılamadı" denir. **"Güncelleme yok" ile karıştırılmaz.** | ✅ |
+| Depo ele geçirilir | Panel oradan indirdiği kurulumu çalıştırır — güncelleme zincirinin güven kökü GitHub hesabıdır. | Depo hesabında 2FA şart; sürüm yayınlama yetkisi dar tutulmalı. |
+
 ## Sürüm uyumu
 
 | Ne bozulur | Bugün ne olur | Ne olmalı |

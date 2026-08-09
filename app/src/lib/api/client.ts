@@ -309,6 +309,29 @@ export async function getAccessToken(): Promise<string | null> {
 	return storeIdentityTokens((await response.json()) as IdentityTokenResponse).accessToken;
 }
 
+/** Panelin kendi güncelleme durumu. Telefon uygulamasının sürümüyle ilgisi yoktur. */
+export type HubUpdate = {
+	current: string;
+	latest?: string | null;
+	available: boolean;
+	/** Windows dışı kurulumda güncelleme uygulanamaz; düğme hiç çizilmez. */
+	supported: boolean;
+	/** Çalışan sürümün kurulum dosyası bulunamadıysa otomatik geri dönüş yoktur. */
+	canRollback: boolean;
+	size: number;
+	notes?: string | null;
+	/** Dolu ise sürüm listesine bakılamadı — "güncelleme yok" ile aynı şey değildir. */
+	error?: string | null;
+};
+
+export function fetchHubUpdate(): Promise<HubUpdate> {
+	return api<HubUpdate>('/api/update');
+}
+
+export function startHubUpdate(): Promise<{ started: boolean; version: string }> {
+	return api<{ started: boolean; version: string }>('/api/update', { method: 'POST' });
+}
+
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 	const token = await getAccessToken();
 	if (!token) {

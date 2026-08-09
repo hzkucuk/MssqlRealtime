@@ -8,6 +8,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Guncelleme karari (hangi surum yeni, hangi dosya onun) testten olculur; yuzey
+         disariya acilmadan. Infrastructure ile ayni desen. -->
+    <InternalsVisibleTo Include="MssqlRealtime.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>

@@ -2,6 +2,49 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/)
 
+## [0.19.0] — 2026-08-09
+
+### Eklenen — panel kendini güncelleyebiliyor (elle tetiklenerek)
+
+Yeni sürüm yayınlandığında başlığın altında şerit çıkıyor: *"Panel v0.19.0 çalışıyor,
+v0.19.1 yayınlandı"* + **Güncelle**. Düğmeye basınca panel kurulum dosyasını GitHub
+sürümünden indirir, kurar ve kendini yeniden başlatır.
+
+**Zamanlanmış güncelleme bilerek yok.** Bu bir izleme ürünü: bozuk bir sürüm servisi
+düşürürse müşteri izlemesiz kalır ve **bunu kimse fark etmez**. Somut örnek elimizde —
+0.18.5 öncesi sürüm MARS'lı sunucuda sekmeleri bomboş bırakıyordu; otomatik güncelleme
+olsaydı o sürüm bütün müşterilere kendiliğinden inerdi. Ne zaman güncelleneceğine
+operatör karar verir.
+
+**Nasıl güvenli tutuluyor:**
+
+- **Sağlama zorunlu.** Kurulum dosyasının sha256'sı GitHub'ın kendi verdiği özetle
+  karşılaştırılır; tutmazsa dosya silinir ve kurulum hiç başlamaz. Özeti olmayan bir
+  varlık da kurulmaz.
+- **Sağlık kapısı.** Yükseltici "kurdum" demez: yeni sürüm `/api/health` ile cevap
+  verene kadar (en fazla 180 sn) bekler.
+- **Geri dönüş.** Cevap gelmezse *çalışan sürümün kendi kurulum dosyası* ile geri
+  dönülür — aynı, denenmiş kurulum makinesi servisi doğru argümanlarla yeniden kurar.
+  O paket bulunamıyorsa arayüz bunu **önceden** söyler (`⚠ geri dönüş paketi yok`) ve
+  onay metni de uyarır.
+- **Ayrık süreç.** Kurulum servisi `sc stop` + `sc delete` ile kaldırdığı için
+  güncellemeyi başlatan sürecin kendisi ölüyor. Sağlık kontrolünü ve geri dönüşü
+  servisten bağımsız yaşayan bir PowerShell yükselticisi yapar; her adımı
+  `ProgramData\SunucuIzleme\logs\guncelleme-*.log` dosyasına yazar — güncelleme
+  sırasında ekranda gösterilecek bir yer yok, sonradan bakılabilecek bir iz gerekiyor.
+- Uçlar yetki ister; Windows dışında `POST` reddedilir.
+
+**Ölçüldü 2026-08-09 22:5x:** `GET /api/update` gerçek GitHub sürüm listesini okudu
+(`current 0.18.6 · latest 0.18.6 · available false`), yetkisiz istek **401** döndü,
+macOS'ta `POST` *"yalnızca Windows kurulumunda yapılabilir"* diyerek reddetti.
+`dotnet test` **97 geçti** (önce 81): sürüm karşılaştırma, taslak/ön sürüm eleme,
+kurulum dosyası eşleme, geri dönüş paketinin bulunması ve **bulunamadığında
+gizlenmemesi**.
+
+> ⚠️ **Windows'ta henüz denenmedi.** Kurulumun kendisi, sağlık kapısı ve geri dönüş
+> macOS'ta ölçülemez. Bunlar Windows VM'de bir kez koşturulmadan "çalışıyor" sayılmaz;
+> `docs/04-kirilma-noktalari.md` bunu açık iş olarak taşıyor.
+
 ## [0.18.6] — 2026-08-09
 
 ### Düzeltilen — hiç doldurulmamış form için "yarım kalan form geri yüklendi"
