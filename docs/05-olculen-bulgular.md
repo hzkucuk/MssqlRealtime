@@ -3,6 +3,85 @@
 > Buradaki her satır **çalıştırılarak** bulundu, belgeden okunarak değil. Tarih ve saat
 > taşır, çünkü aynı gün içinde davranış değişebilir.
 
+## 2026-08-09 17:50 — panel değiştirince eski müşterinin hub'ında kalınıyordu
+
+Kullanıcı bildirdi: "canlı yazmasına rağmen sunucu değiştirdim, header'daki değişmiyor."
+
+Ölçüm düzeneği: yerelde gerçek API (5299, gerçek giriş ve gerçek SignalR bağlantısı),
+ön yüz `vite dev` (5199), ikinci panel olarak var olmayan bir adres (5399). Panel
+değişimi **gerçek akışla** yapıldı — header'daki 🔀 düğmesi, tam sayfa yenilemesi yok.
+WebSocket'ler kimlik bazında izlendi.
+
+```
+                          ESKI kod            YENI kod
+header                    bedir (bayat)       acme
+baglanti gostergesi       canli  (yalan)      bagli degil
+eski hub soketi (5299)    ACIK                kapali
+yeni panele istek         hic gitmedi         gidiyor
+```
+
+Üç kusur üst üste binmişti:
+
+1. **Soket eski hub'da kalıyor.** `realtime.start()` bağlantı ayaktayken erken dönüyor
+   (`state !== Disconnected`), hub adresi de bağlantı kurulurken sabitleniyor. Panel
+   değişiminde `stop()` çağıran kimse yoktu — `start()`/`stop()` yalnız kök yerleşimin
+   `onMount`'unda ve çıkışta çağrılıyordu.
+2. **Header bayatlıyor.** `const activeServer = $derived(getActiveServer())`;
+   `getActiveServer()` `localStorage` okur ve Svelte bunu izleyemez. Bağımlılığı olmayan
+   bir `$derived` bir kez hesaplanır. İlk denemelerde güncellenmiş *görünmesi* zamanlama
+   tesadüfüydü: `switchPanel()` eklenip `goto('/')` geciktiğinde header "bedir"de kaldı ve
+   kullanıcının tarifi birebir üretildi.
+3. **Store'lar taşınıyor.** `mssql` ve `http` store'ları eski panelin sunucularını,
+   snapshot'larını ve geçmişini tutmaya devam ediyordu.
+
+Bir izleme ürününde sonucu şu: A müşterisinin sayıları B müşterisinin adı altında
+görünüyor ve gösterge "canlı" diyor. Sessiz yanlış veri, sessiz veri yokluğundan beterdir.
+
+Düzeltme: `realtime.switchPanel()`, `app/src/lib/api/panel.svelte.ts` (panel reaktif
+durum), her iki store'da `reset()`; üçü de `/giris` içindeki tek bir `enterActivePanel()`
+üzerinden çağrılıyor.
+
+## 2026-08-09 17:03 — dokunulmamış form kendine taslak yazıyordu
+
+İkinci sunucunun ayar ekranına girildiğinde *"Yarım kalan form geri yüklendi"* uyarısı
+çıkıyordu; oysa o formda hiçbir şey yazılmamıştı.
+
+Sebep, taslağı yazan efektin koşulsuz olması:
+
+```
+app/src/lib/modules/mssql/MssqlServerForm.svelte
+    $effect(() => {
+        if (!loaded) return;
+        sessionStorage.setItem(draftKey, ...);   ← formu açmak yetiyor
+    });
+```
+
+Ölçüm gerçek tarayıcıda yapıldı — Playwright (chromium) + `vite dev`, oturum depolaması
+ve uyarı metni doğrudan sayfadan okundu. Aynı senaryo iki kodla koşuldu:
+
+```
+adim                              ESKI kod                         YENI kod
+1. forma ilk giris, yazi yok      ["mr.draft.mssql.server.yeni"]   []
+   uyari                          false                            false
+2. cikip geri gelindi             ["mr.draft.mssql.server.yeni"]   []
+   uyari                          TRUE  ← hata                     false
+3. ada bir sey yazildi            taslak var                       taslak var
+4. yazdiktan sonra geri gelindi   uyari TRUE + deger geldi         uyari TRUE + deger geldi
+```
+
+Yani hata da düzeltme de ölçülerek gösterildi, ve kural 9'un asıl işlevi (yazılanın
+kaybolmaması) dördüncü adımda hâlâ çalışıyor.
+
+İkinci, daha sinsi sonuç: bayat taslak sunucudan yeni yüklenen profilin üstüne
+yazılıyordu. Profil başka bir cihazdan değiştirilmişse ekranda eski değerler kalıyordu
+ve bunu gösteren hiçbir işaret yoktu.
+
+`HttpTargetForm` aynı kusuru taşıyordu, o da düzeltildi.
+
+> Not: ön yüzde otomatik test altyapısı **yok**. Bu ölçüm elle kurulan geçici bir
+> düzenekle yapıldı (`playwright` depoya eklenmedi), yani bu davranışı koruyan kalıcı
+> bir test yok. `npm run check` yalnız tipleri görür.
+
 ## 2026-08-09 03:1x — bir DMV join'i bütün sekmeyi çizdirmiyordu
 
 Yeni kurulan sunucuda iki instance: Express'te *Oturumlar* çalışıyor, SQL Server 2019

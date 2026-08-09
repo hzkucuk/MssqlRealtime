@@ -89,6 +89,14 @@ class MssqlStore {
 		await realtime.unsubscribeModule(MSSQL_MODULE_ID);
 	}
 
+	/** Everything here belongs to one customer's panel; a switch must not carry it over. */
+	reset(): void {
+		this.snapshots = new Map();
+		this.history = new Map();
+		this.profiles = [];
+		this.error = null;
+	}
+
 	async refresh(): Promise<void> {
 		this.loading = true;
 		this.error = null;

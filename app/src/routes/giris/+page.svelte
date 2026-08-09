@@ -12,7 +12,23 @@
 		type CaptchaChallenge,
 		type SavedServer
 	} from '$lib/api/client';
+	import { activePanel } from '$lib/api/panel.svelte';
+	import { realtime } from '$lib/api/realtime.svelte';
+	import { mssql } from '$lib/modules/mssql/store.svelte';
+	import { http } from '$lib/modules/http/store.svelte';
 	import { ago } from '$lib/format';
+
+	// Everything on screen belongs to one customer's panel. Switching customers therefore
+	// has to drop the old panel's data and re-point the live link before the shell renders
+	// again — measured 2026-08-09: without this the socket stayed open against the previous
+	// hub while the header already showed the new customer's name.
+	async function enterActivePanel() {
+		activePanel.refresh();
+		mssql.reset();
+		http.reset();
+		await realtime.switchPanel();
+		await goto('/');
+	}
 
 	// One hub per customer is the normal deployment, so signing in starts with "which
 	// customer" rather than with an empty address box.
@@ -54,7 +70,7 @@
 				label.trim(),
 				captcha ? { token: captcha.token, answer: captchaAnswer } : undefined
 			);
-			await goto('/');
+			await enterActivePanel();
 		} catch (e) {
 			error = e instanceof Error ? e.message : String(e);
 
@@ -72,7 +88,7 @@
 
 		// A stored session means straight in; otherwise the form opens pre-filled.
 		if (server.tokens) {
-			await goto('/');
+			await enterActivePanel();
 			return;
 		}
 

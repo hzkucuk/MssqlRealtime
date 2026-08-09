@@ -7,13 +7,13 @@
 		appVersion,
 		compareVersions,
 		fetchServerVersion,
-		getActiveServer,
 		getTokens,
 		logout,
 		releasePageUrl
 	} from '$lib/api/client';
 
 	const UPDATE_DISMISSED_KEY = 'mr.updateDismissed';
+	import { activePanel } from '$lib/api/panel.svelte';
 	import { realtime } from '$lib/api/realtime.svelte';
 	import { ensureNotificationPermission } from '$lib/notify';
 	import { ago } from '$lib/format';
@@ -23,8 +23,9 @@
 	let showAlerts = $state(false);
 
 	// Which customer's panel is on screen — with one hub per customer, this is the first
-	// thing you need to know before reading any number on it.
-	const activeServer = $derived(getActiveServer());
+	// thing you need to know before reading any number on it. Reactive state rather than a
+	// read of localStorage: see the note in panel.svelte.ts for what that cost.
+	const activeServer = $derived(activePanel.current);
 
 	// Which build answers on the other end. Worth showing next to the address: with one hub
 	// per customer, "hangi sürüm bu müşteride?" is the first question of every support call.
@@ -78,12 +79,26 @@
 
 		dismissedVersion = sessionStorage.getItem(UPDATE_DISMISSED_KEY);
 
-		const server = getActiveServer();
-		if (server) serverVersion = await fetchServerVersion(server.url);
+		activePanel.refresh();
 
 		// Ask before the first alert arrives, not with it.
 		await ensureNotificationPermission();
 		await realtime.start();
+	});
+
+	// The badge describes one hub, so it has to be asked again whenever which hub is on the
+	// other end can have changed: the panel was switched, or the link went away and came back.
+	// Fetched only on mount, it used to keep showing the previous panel's version — or stay
+	// missing for the whole session after one unreachable start.
+	$effect(() => {
+		const url = activeServer?.url;
+		// Read so the effect re-runs when the link recovers; the value itself is not needed.
+		void realtime.state;
+		if (!url) return;
+
+		void fetchServerVersion(url).then((version) => {
+			serverVersion = version;
+		});
 	});
 
 	async function signOut() {

@@ -146,6 +146,23 @@ class RealtimeClient {
 		}, delay);
 	}
 
+	/**
+	 * Point the live link at whatever panel is active now.
+	 *
+	 * Measured 2026-08-09 17:5x: switching customers only rewrote the header. The socket
+	 * stayed open against the *previous* customer's hub, the indicator kept saying "canlı",
+	 * and every number on screen still belonged to the panel the user had just left — the
+	 * new hub was never contacted once. start() alone cannot fix it: it returns early while
+	 * a connection is alive, and the hub address is fixed when that connection is built.
+	 */
+	async switchPanel(): Promise<void> {
+		await this.stop();
+		// Alerts belong to the panel that raised them.
+		this.alerts = [];
+		this.attempts = 0;
+		await this.start();
+	}
+
 	/** Manual retry from the UI; resets the backoff so the user is not made to wait. */
 	async reconnect(): Promise<void> {
 		if (this.#retryTimer) {

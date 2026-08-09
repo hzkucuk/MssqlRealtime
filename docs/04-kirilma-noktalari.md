@@ -59,6 +59,18 @@
 | Sahte `X-Forwarded-For` | ✅ v0.12.2'de kapandı: başlık yalnız loopback'ten ve kurulumda girilen vekil IP'sinden kabul ediliyor. Ölçüldü — LAN'dan 14 denemede `429` geldi (öncesinde 12 denemede hiç gelmiyordu). | ✅ |
 | Güvenlik başlıkları | ✅ v0.12.2'de eklendi: `X-Frame-Options: DENY`, `X-Content-Type-Options`, `Referrer-Policy`, CSP `frame-ancestors 'none'`. Tam CSP yazılmadı — tarayıcı istemcisi hangi panele bağlanacağı önceden bilinmediği için `connect-src` sayılamıyor. | ✅ |
 
+## Arayüz ve form taslakları
+
+| Ne bozulur | Bugün ne olur | Ne olmalı |
+|---|---|---|
+| **Panel (müşteri) değiştirilir** | Yeni hub'a bağlanılır, eski soket kapatılır, modül store'ları ve alarm listesi temizlenir. v0.18.6 öncesinde **eski müşterinin hub'ında kalınıyordu**: header çoğu zaman eski adı yazıyor, gösterge "canlı" diyor, sayılar bıraktığın panelden geliyordu (ölçüldü 2026-08-09 17:50, gerçek hub ve tarayıcıyla). | ✅ Ölçüldü. Panel değişimi tek bir yerden (`enterActivePanel`) geçiyor; yeni bir store eklenirse **oraya da eklenmeli** — unutulursa aynı sınıf geri gelir. |
+| Uygulama hub'a ulaşamıyor | Bağlantı göstergesi **"bağlı değil"** der. Yan etkisi olarak üst çubuktaki sürüm rozeti ve sunucu sayfasındaki firma adı da kaybolur — ikisi de gelen veriye bağlı. Bunlar ayrı arıza değil, aynı arızanın belirtisi. Sürüm bağlantı geri gelince yeniden sorulur (v0.18.6 öncesi sorulmuyordu). | ✅ Gösterge doğruyu söylüyor. Belirtilerin tek sebebe bağlı olduğu ekranda yazmıyor ❓ |
+| Sayfa yenilenir / sunucu formu reddeder | Yazılanlar `sessionStorage`'daki taslaktan geri gelir ve kullanıcıya geri yüklendiği söylenir. Parola taslağa **yazılmaz**. | ✅ Ölçüldü 2026-08-09 17:03, tarayıcıda. |
+| Form yalnızca açılır, hiçbir şey yazılmaz | Taslak **yazılmaz**. Öncesinde yazılıyordu: ikinci girişte "yarım kalan form geri yüklendi" uyarısı çıkıyor, üstelik bayat taslak sunucudan gelen profilin üstüne biniyordu (ölçüldü 2026-08-09 17:03, v0.18.6'da düzeltildi). | ✅ |
+| Profil başka bir cihazdan değişir | Taslak yalnız gerçekten değiştirilmiş formda saklandığı için ekranda güncel profil görünür. | ✅ |
+| Taslak biçimi sürümle değişir | Bozuk JSON yakalanır ve taslak silinir; alan eksik/fazlaysa taslak gerçek sayılıp geri yüklenir. | ❓ Sürümlü taslak anahtarı düşünülebilir. |
+| Ön yüz davranışı bozulur | **Otomatik test yok.** `npm run check` yalnız tipleri görür; taslak/anahtar gibi davranışlar ancak elle ya da geçici düzenekle ölçülüyor. | Ön yüze test altyapısı (vitest + Playwright) — **yapılmadı**, karar bekliyor. |
+
 ## Sürüm uyumu
 
 | Ne bozulur | Bugün ne olur | Ne olmalı |

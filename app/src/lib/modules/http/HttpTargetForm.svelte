@@ -34,6 +34,10 @@
 
 	const draftKey = $derived(`mr.draft.http.target.${targetId ?? 'yeni'}`);
 
+	// Same reason as the MSSQL form: without a baseline, opening a target's form was enough
+	// to leave a draft behind and make the next visit claim a restore that never happened.
+	let baseline = $state<string | null>(null);
+
 	onMount(async () => {
 		if (http.targets.length === 0) await http.refresh();
 
@@ -44,13 +48,20 @@
 			}
 		}
 
+		baseline = JSON.stringify(form);
+
 		// Same F5 protection as the MSSQL form: a refresh or a rejected save must not discard
 		// what was typed.
 		const draft = sessionStorage.getItem(draftKey);
 		if (draft) {
 			try {
-				form = { ...form, ...JSON.parse(draft) };
-				restoredDraft = true;
+				const restored = { ...form, ...JSON.parse(draft) };
+				if (JSON.stringify(restored) === baseline) {
+					sessionStorage.removeItem(draftKey);
+				} else {
+					form = restored;
+					restoredDraft = true;
+				}
 			} catch {
 				sessionStorage.removeItem(draftKey);
 			}
@@ -61,7 +72,10 @@
 
 	$effect(() => {
 		if (!loaded) return;
-		sessionStorage.setItem(draftKey, JSON.stringify(form));
+
+		const current = JSON.stringify(form);
+		if (current === baseline) sessionStorage.removeItem(draftKey);
+		else sessionStorage.setItem(draftKey, current);
 	});
 
 	async function test() {

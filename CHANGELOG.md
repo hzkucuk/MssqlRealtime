@@ -2,6 +2,92 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/)
 
+## [0.18.6] — 2026-08-09
+
+### Düzeltilen — hiç doldurulmamış form için "yarım kalan form geri yüklendi"
+
+İkinci sunucunun ayar ekranına girildiğinde *"Yarım kalan form geri yüklendi. Parolayı
+yeniden girmeniz gerekir."* yazıyordu — kimsenin bir şey yazmadığı bir form için.
+
+**Kök neden.** Taslağı yazan `$effect` koşulsuzdu: `loaded` olur olmaz `form`'u okuyup
+`sessionStorage`'a yazıyordu. Yani formu **sadece açmak** taslak bırakıyordu. Bir sonraki
+girişte taslak bulunuyor, "geri yüklendi" uyarısı çıkıyordu.
+
+Görünenden daha kötüsü de vardı: bayat taslak, sunucudan **yeni yüklenen profilin
+üstüne** yazılıyordu. Profil başka bir cihazdan değiştirilmişse ekranda sessizce eski
+değerler duruyordu.
+
+Artık form, yüklendiği andaki hâli (`baseline`) ile karşılaştırılıyor. Fark yoksa taslak
+yazılmıyor, hatta duran bayat taslak siliniyor; yalnız gerçekten değişen form saklanıyor
+ve yalnız o durumda uyarı çıkıyor. `HttpTargetForm` de aynı kusuru taşıyordu, o da
+düzeltildi.
+
+Uyarı metni de yanlıştı: kayıtlı parolası olan bir sunucuda parolayı yeniden girmek
+**gerekmez** — boş bırakmak kayıtlıyı korur. Metin artık duruma göre değişiyor.
+
+**Ölçüldü 2026-08-09 17:0x**, gerçek tarayıcıda (Playwright + `vite dev`), dört adım:
+
+```
+                                   ESKİ kod                YENİ kod
+1. forma ilk giriş, yazı yok       taslak yazıldı          taslak yok
+2. çıkıp geri gelindi              ⚠️ uyarı çıktı          uyarı yok
+3. gerçekten yazıldı               taslak yazıldı          taslak yazıldı
+4. yazdıktan sonra geri gelindi    uyarı + değer geldi     uyarı + değer geldi
+```
+
+Yani F5 koruması (kural 9) bozulmadı: yazılan şey hâlâ geri geliyor, yalnız
+yazılmamış form artık taslak bırakmıyor.
+
+### 🔴 Düzeltilen — panel değiştirince eski müşterinin hub'ında kalınıyordu
+
+Müşteri paneli değiştirildiğinde uygulama **önceki müşterinin hub'ına bağlı kalıyordu**.
+Üst çubuk çoğu zaman hâlâ eski panelin adını yazıyor, bağlantı göstergesi **"canlı"**
+diyor, ama ekrandaki her sayı bıraktığın panelden geliyordu. Yeni panele tek bir istek
+bile gitmiyordu.
+
+**Üç ayrı kusur üst üste binmişti:**
+
+1. `realtime.start()` bağlantı ayaktayken erken dönüyor, hub adresi de bağlantı
+   kurulurken sabitleniyor. Panel değişiminde kimse `stop()` çağırmadığı için soket eski
+   hub'da açık kalıyordu. Artık `switchPanel()` var: durdur, alarmları temizle, yeni
+   adrese bağlan.
+2. `const activeServer = $derived(getActiveServer())` — `getActiveServer()`
+   `localStorage` okur, Svelte bunu izleyemez. `$derived`'ın geçersiz kılınacak bağımlılığı
+   olmadığı için bir kez hesaplanıp bayatlıyordu; güncellenip güncellenmemesi render
+   zamanlamasına kalmıştı. Panel artık reaktif durumda tutuluyor
+   (`app/src/lib/api/panel.svelte.ts`).
+3. Modül store'ları (`mssql`, `http`) eski panelin sunucularını, snapshot'larını ve
+   geçmişini taşımaya devam ediyordu. İkisine de `reset()` eklendi ve panel değişiminde
+   çağrılıyor.
+
+**Ölçüldü 2026-08-09 17:5x**, gerçek tarayıcıda ve gerçek hub'la (Playwright + yerelde
+çalışan API, header'daki 🔀 düğmesiyle, tam sayfa yenilemesi olmadan):
+
+```
+                          ESKİ kod            YENİ kod
+header                    bedir (bayat)       acme
+bağlantı göstergesi       canlı  (yalan)      bağlı değil
+eski hub soketi (5299)    AÇIK                kapalı
+yeni panele istek         hiç gitmedi         gidiyor
+```
+
+Bir izleme ürününde bunun anlamı şu: A müşterisinin sayıları, B müşterisinin adı
+altında gösteriliyordu.
+
+### Düzeltilen — bağlantı geri geldiğinde sürüm rozeti geri gelmiyordu
+
+Panel sürümü yalnız açılışta bir kez soruluyordu. Uygulama, hub'a ulaşamadığı bir anda
+açıldıysa rozet o oturum boyunca kayıp kalıyor, bağlantı sonradan kurulsa bile geri
+gelmiyordu — üst çubuk bildiğinden azını söylüyordu. Artık gerçek zamanlı bağlantı
+"canlı" olduğunda sürüm yeniden soruluyor.
+
+Sürüm rozeti artık panelin kendisine bağlı: panel değişince yeni hub'a soruluyor, eski
+panelin sürümü ekranda kalmıyor.
+
+> Not: rozetin kaybolması çoğu zaman bir **belirti**dir, arıza değil. Bağlantı göstergesi
+> "bağlı değil" diyorsa sürüm rozeti de firma adı da aynı sebepten yoktur: uygulama hub'a
+> ulaşamıyordur.
+
 ## [0.18.5] — 2026-08-09
 
 ### 🔴 Düzeltilen — oturum listesi boş kalıyordu (SQL Server Standard)

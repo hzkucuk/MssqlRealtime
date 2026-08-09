@@ -61,6 +61,13 @@ class HttpStore {
 		await realtime.unsubscribeModule(HTTP_MODULE_ID);
 	}
 
+	/** Same as the MSSQL store: none of this survives a panel change. */
+	reset(): void {
+		this.results = new Map();
+		this.targets = [];
+		this.error = null;
+	}
+
 	async refresh(): Promise<void> {
 		this.loading = true;
 		this.error = null;

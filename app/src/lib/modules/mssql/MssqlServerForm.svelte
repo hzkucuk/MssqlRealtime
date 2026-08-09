@@ -46,6 +46,18 @@
 
 	const draftKey = $derived(`mr.draft.mssql.server.${serverId ?? 'yeni'}`);
 
+	// What the form looked like before anyone typed in it. A draft is only worth keeping —
+	// and only worth announcing — if it differs from this. Without the comparison, merely
+	// opening a server's form left a draft behind, so the next visit greeted the user with
+	// "yarım kalan form geri yüklendi" for a form nobody had touched.
+	let baseline = $state<string | null>(null);
+
+	// The password is never drafted, so it never takes part in the comparison either.
+	function draftable(f: typeof form) {
+		const { password: _password, ...rest } = f;
+		return JSON.stringify(rest);
+	}
+
 	onMount(async () => {
 		if (mssql.profiles.length === 0) await mssql.refresh();
 
@@ -63,13 +75,22 @@
 			}
 		}
 
+		baseline = draftable(form);
+
 		// A refresh — or a server-side validation failure that redraws the page — must not
 		// throw away what was typed. The password is deliberately never drafted.
 		const draft = sessionStorage.getItem(draftKey);
 		if (draft) {
 			try {
-				form = { ...form, ...JSON.parse(draft), password: '' };
-				restoredDraft = true;
+				const restored = { ...form, ...JSON.parse(draft), password: '' };
+				if (draftable(restored) === baseline) {
+					// The previous visit only looked at the form. Nothing to restore — and a
+					// stale copy would quietly override a profile edited somewhere else.
+					sessionStorage.removeItem(draftKey);
+				} else {
+					form = restored;
+					restoredDraft = true;
+				}
 			} catch {
 				sessionStorage.removeItem(draftKey);
 			}
@@ -78,12 +99,14 @@
 		loaded = true;
 	});
 
-	// Save the draft on every change, but only once the initial load has settled.
+	// Save the draft on every change, but only once the initial load has settled — and only
+	// while it still differs from what was loaded.
 	$effect(() => {
 		if (!loaded) return;
 
-		const { password: _password, ...withoutPassword } = form;
-		sessionStorage.setItem(draftKey, JSON.stringify(withoutPassword));
+		const current = draftable(form);
+		if (current === baseline) sessionStorage.removeItem(draftKey);
+		else sessionStorage.setItem(draftKey, current);
 	});
 
 	function payload() {
@@ -148,7 +171,12 @@
 
 	{#if restoredDraft}
 		<div class="notice">
-			Yarım kalan form geri yüklendi. Parolayı yeniden girmeniz gerekir.
+			Yarım kalan form geri yüklendi.
+			{#if hasStoredPassword}
+				Parola alanı boş; boş bırakırsanız kayıtlı parola korunur.
+			{:else}
+				Parolayı yeniden girmeniz gerekir.
+			{/if}
 		</div>
 	{/if}
 
