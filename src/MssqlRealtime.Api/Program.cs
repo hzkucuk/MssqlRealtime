@@ -89,6 +89,20 @@ if (string.IsNullOrWhiteSpace(dataDirectory))
         : Path.Combine(builder.Environment.ContentRootPath, "data");
 }
 
+// 🔴 Olculdu 2026-08-10 (Windows): gunlukler C:\Windows\System32\data\logs altina
+// yaziliyordu. appsettings.json'daki yol GORELI ("data/logs/app-.log") ve bir Windows
+// servisinin calisma dizini System32'dir; LocalSystem oraya yazabildigi icin hata da
+// vermiyordu -- yalnizca kimsenin bakmadigi bir yere yaziyordu. Bir arizada "loglara bak"
+// adimi bos klasor gosteriyordu. Yol artik veri klasorunun altinda ve MUTLAK.
+// Dizin sirasina bagli kalmamak icin dosya havuzunun yolu anahtar adiyla bulunur.
+foreach (var anahtar in builder.Configuration.AsEnumerable()
+             .Where(k => k.Key.EndsWith(":Args:path", StringComparison.Ordinal))
+             .Select(k => k.Key)
+             .ToList())
+{
+    builder.Configuration[anahtar] = Path.Combine(dataDirectory, "logs", "app-.log");
+}
+
 try
 {
     Directory.CreateDirectory(dataDirectory);

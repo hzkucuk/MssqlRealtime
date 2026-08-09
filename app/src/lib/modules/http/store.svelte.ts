@@ -1,4 +1,4 @@
-import { api } from '$lib/api/client';
+import { api, ApiError } from '$lib/api/client';
 import { realtime } from '$lib/api/realtime.svelte';
 import type { ModuleEvent } from '$lib/types';
 import type { HttpCheckResult, HttpTarget } from './types';
@@ -97,8 +97,13 @@ class HttpStore {
 		return saved;
 	}
 
+	/** MSSQL store ile ayni: 404 "zaten silinmis" demektir, karti ekranda birakma. */
 	async remove(id: string): Promise<void> {
-		await api<void>(`${BASE}/targets/${id}`, { method: 'DELETE' });
+		try {
+			await api<void>(`${BASE}/targets/${id}`, { method: 'DELETE' });
+		} catch (e) {
+			if (!(e instanceof ApiError) || e.status !== 404) throw e;
+		}
 
 		const next = new Map(this.results);
 		next.delete(id);

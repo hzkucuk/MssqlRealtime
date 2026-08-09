@@ -3,6 +3,46 @@
 > Buradaki her satır **çalıştırılarak** bulundu, belgeden okunarak değil. Tarih ve saat
 > taşır, çünkü aynı gün içinde davranış değişebilir.
 
+## 2026-08-10 00:30 — "sunucular kayboldu": kaybolmamışlardı
+
+Kullanıcı 0.19.x kurulumundan sonra *"sunucular kayboldu"* dedi. Kurulum ve güncelleme
+şüpheliydi. Sunucu günlüğü üçünü de aklıyor:
+
+```
+15:47:37  POST   /api/modules/mssql/servers          201   ← sunucu 1 yaratildi
+15:48:30  POST   /api/modules/mssql/servers          201   ← sunucu 2 yaratildi
+15:51:59  DELETE /api/modules/mssql/servers/019fe690 204   ← sunucu 1 SILINDI
+15:52:22  DELETE /api/modules/mssql/servers/019fe691-4eec 204  ← sunucu 2 SILINDI
+… sonrasinda hic 201 yok; hic "Started polling" yok …
+10.08 00:04  guncelleme (8 saat SONRA)
+```
+
+Yani sunucular kurulumdan **sekiz saat önce** elle silinmişti. Veritabanı dosyası da
+değişmemişti (oluşturma zamanı 09.08 15:45, üzerine yazılmamış) ve makinede tek
+veritabanı vardı.
+
+**Asıl bulgu, aradaki 404'ler:**
+
+```
+15:52:08  DELETE …019fe691-0155…  404
+15:52:44  DELETE …019fe691-0155…  404
+15:52:48  DELETE …019fe691-0155…  404
+15:54:41  POST   …019fe691-0155…/kill  400
+```
+
+Bu kimlik bu hub'da **hiç yaratılmadı**. Yani ekranda, sunucuda karşılığı olmayan bir
+kart vardı ve silinmiyordu — çünkü `store.remove()` 404'te hata fırlatıp yerel temizliği
+atlıyordu. Kullanıcı üç kez denedi, kart durdu.
+
+Kullanıcı telefonda **başka bir panel** kayıtlı olduğunu doğruladı. 0.18.6 öncesi
+sürümde panel değiştirince önceki panelin verisi ekranda kalıyordu (aynı gün ölçülüp
+düzeltilen hata), yani "güncellemeden önce sunucular vardı" gözlemi de bununla
+açıklanıyor: görülen şey öteki panelin sunucularıydı.
+
+**Ders:** "kayboldu" denen veri üç ayrı yerde aranmadan önce günlüğe bakılmalıydı —
+ama günlük `C:\Windows\System32\data\logs` altındaydı (göreli yol), yani "loglara bak"
+adımı boş klasör gösteriyordu. Üç kusur da v0.19.2'de düzeltildi.
+
 ## 2026-08-09 17:50 — panel değiştirince eski müşterinin hub'ında kalınıyordu
 
 Kullanıcı bildirdi: "canlı yazmasına rağmen sunucu değiştirdim, header'daki değişmiyor."

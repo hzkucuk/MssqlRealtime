@@ -2,6 +2,46 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/)
 
+## [0.19.2] — 2026-08-10
+
+### 🔴 Düzeltilen — silinmiş bir sunucunun kartı ekrandan gitmiyordu
+
+Müşteri makinesinde ölçüldü (2026-08-09 15:52, sunucu günlüğü): listede, sunucuda
+karşılığı **olmayan** bir kart duruyordu. Silmeye basıldığında hub `404` dönüyor,
+istemci hata fırlatıyor ve **yerel temizlik hiç çalışmıyordu** — kart ekranda kalıyordu.
+Kullanıcı aynı kartı **üç kez** silmeye çalıştı, üçünde de `404` aldı, kart yerinde
+kaldı; sonunda üstünde oturum sonlandırma bile denedi (`400`).
+
+`404` artık **başarı** sayılıyor: istenen son durum ("bu kayıt gitsin") zaten sağlanmış
+demektir, kart kaldırılır. Aynı kusur site/API modülünde de vardı, o da düzeltildi.
+
+> Bu, "kurulumdan sonra sunucular kayboldu" diye başlayan araştırmanın gerçek
+> bulgularından biri. Sunucular kaybolmamıştı: ikisi de 15:52'de **elle silinmişti**
+> (günlükte iki `201` ve iki `204` var). Ekranda görünmeye devam eden şey, hub'da
+> karşılığı olmayan bayat kartlardı — telefonda ise 0.18.6'da düzeltilen panel
+> değiştirme hatası başka bir panelin sunucularını gösteriyordu.
+
+### 🔴 Düzeltilen — günlükler `C:\Windows\System32` altına yazılıyordu
+
+Bir arıza araştırılırken ortaya çıktı: uygulamanın kendi günlükleri
+`C:\Windows\System32\data\logs\` altındaydı.
+
+`appsettings.json`'daki yol **göreli** yazılmıştı (`data/logs/app-.log`) ve bir Windows
+servisinin çalışma dizini `C:\Windows\System32`'dir. Servis LocalSystem olarak
+çalıştığı için oraya yazabiliyordu — yani **hata da vermiyordu**, yalnızca kimsenin
+bakmayacağı bir yere yazıyordu. Sonuç: bir sorun çıktığında "loglara bak" adımı boş bir
+klasör gösteriyordu; `CLAUDE.md`'deki 502 kontrol listesi de öyle.
+
+Yol artık **mutlak** ve veri klasörünün altında (`<veri>\logs\app-*.log`). Dizideki
+sıraya bağlı kalmamak için dosya havuzunun yolu anahtar adıyla bulunup değiştiriliyor.
+
+**Ölçüldü 2026-08-10 00:35:** çalışma dizini bilerek veri klasöründen farklı seçilip
+servis çalıştırıldı. Günlük `<veri>/logs/app-20260810.log` olarak düştü; çalışma dizini
+altında `data/logs` **hiç oluşmadı** (eski davranışta orası dolardı).
+
+> Bu kusur bir veri kaybına yol açmadı ama bir araştırmayı saatlerce zorlaştırdı:
+> "sunucular kayboldu" denen olayın cevabı en baştan günlükte duruyordu.
+
 ## [0.19.1] — 2026-08-09
 
 ### 🔴 Düzeltilen — kurulum servisi durduramıyordu, dosyalar kilitli kalıyordu

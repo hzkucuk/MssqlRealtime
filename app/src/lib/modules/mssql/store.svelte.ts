@@ -1,4 +1,4 @@
-import { api } from '$lib/api/client';
+import { api, ApiError } from '$lib/api/client';
 import { realtime } from '$lib/api/realtime.svelte';
 import type { ModuleEvent, ServerProfile, ServerSnapshot } from '$lib/types';
 
@@ -126,8 +126,21 @@ class MssqlStore {
 		return saved;
 	}
 
+	/**
+	 * Sunucuyu izlemeden kaldirir.
+	 *
+	 * 404 BASARI sayilir: istenen son durum ("bu kayit gitsin") zaten saglanmis demektir.
+	 * Olculdu 2026-08-09, musteri makinesi: listede sunucuda karsiligi olmayan bir kart
+	 * kaldi (baska panelden gelen bayat veri). Silme 404 donunce api() hata firlatiyor,
+	 * asagidaki yerel temizlik hic calismiyor ve kart ekranda kaliyordu. Kullanici ayni
+	 * karti UC KEZ silmeye calisti, ucunde de 404 aldi ve kart yerinde durdu.
+	 */
 	async remove(id: string): Promise<void> {
-		await api<void>(`${BASE}/servers/${id}`, { method: 'DELETE' });
+		try {
+			await api<void>(`${BASE}/servers/${id}`, { method: 'DELETE' });
+		} catch (e) {
+			if (!(e instanceof ApiError) || e.status !== 404) throw e;
+		}
 
 		const next = new Map(this.snapshots);
 		next.delete(id);
