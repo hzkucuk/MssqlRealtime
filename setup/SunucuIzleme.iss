@@ -17,7 +17,7 @@
 ; parolayi BUILTIN\Users okuyabiliyordu. Bkz. docs/05-olculen-bulgular.md.
 
 #define AppName "Sunucu Izleme"
-#define AppVersion "0.19.0"
+#define AppVersion "0.19.1"
 #define AppPublisher "hzkucuk"
 #define ServiceName "SunucuIzleme"
 #define ExeName "MssqlRealtime.Api.exe"
@@ -117,9 +117,19 @@ end;
 // Yukseltme mi? Veritabani varsa hesap zaten kurulmus demektir; o zaman e-posta/parola
 // sormak anlamsiz (girilen parola kullanilmaz, hesap zaten var) ve sessiz guncellemeyi
 // imkansiz kilar. Olculdu 2026-08-06: her yukseltmede tekrar soruluyordu.
+// 🔴 Olculdu 2026-08-09, Windows: yukseltmeden sonra "sunucular kayboldu". Veri
+// SILINMEMISTI -- servis baska klasore bakiyordu. IsUpgrade eski yerlesime
+// ({commonappdata}\SunucuIzleme) de bakiyordu, ama servise HER ZAMAN {app}\data
+// veriliyordu; eski yerlesimden gelen bir kurulum bos bir veritabani aciyor ve
+// izlenen sunucular yokmus gibi gorunuyordu.
+//
+// Kural: yukseltme veri klasorunu TASIMAZ. Mevcut veritabani neredeyse orasi kullanilir.
 function DataDirectory: string;
 begin
   Result := ExpandConstant('{app}\data');
+  if not FileExists(Result + '\mssqlrealtime.db')
+     and FileExists(ExpandConstant('{commonappdata}\SunucuIzleme\mssqlrealtime.db')) then
+    Result := ExpandConstant('{commonappdata}\SunucuIzleme');
 end;
 
 function IsUpgrade: Boolean;
@@ -207,6 +217,51 @@ begin
     Cmd, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0);
 end;
 
+// 🔴 Olculdu 2026-08-09, Windows 11: yukseltmede kurulum
+//   "Var olan dosya degistirilirken sorun cikti: DeleteFile tamamlanamadi; kod 5"
+// diyerek C:\SunucuIzleme\clrjit.dll uzerinde duruyordu. Kullanici servisi ELLE
+// durdurup "yeniden denensin" deyince gecti.
+//
+// Iki kusur ust uste binmisti:
+//   1) 'sc stop' yalnizca DURDUR kontrolunu gonderir ve hemen doner. ewWaitUntilTerminated
+//      sc.exe'yi bekler, SERVISI DEGIL; ardindaki Sleep(1500) bir tahmindi. Uygulama .NET
+//      genel host: suren bir SQL probu (CommandTimeout 15 sn) kapanmayi geciktirebilir.
+//   2) O kod zaten DOSYALAR KOPYALANDIKTAN SONRA calisiyordu. Kilit, dosya ayiklama aninda
+//      vardi; beklese bile gec kalirdi.
+//
+// Sessiz kurulumda (/VERYSILENT) o diyalog gosterilemez -- yani guncelleme dugmesi de bu
+// yuzden basarisiz olurdu.
+//
+// Durum karsilastirmasi PowerShell ile: 'sc query' ciktisindaki durum metni yerellestirilir
+// (Turkce Windows'ta "STOPPED" yazmaz), Get-Service .Status ise enum'dur, dilden bagimsizdir.
+function StopServiceAndWait(TimeoutSec: Integer): Boolean;
+var
+  ResultCode: Integer;
+  Cmd: string;
+begin
+  Cmd := '-NoProfile -ExecutionPolicy Bypass -Command "' +
+         '$n=''{#ServiceName}''; $s=Get-Service -Name $n -ErrorAction SilentlyContinue; ' +
+         'if(-not $s){ exit 0 }; ' +
+         'if($s.Status -ne ''Stopped''){ try{ Stop-Service -Name $n -Force -ErrorAction Stop }catch{} }; ' +
+         'try{ $s.WaitForStatus(''Stopped'',(New-TimeSpan -Seconds ' + IntToStr(TimeoutSec) + ')) }catch{ exit 1 }; ' +
+         '$p=Get-Process -Name ''{#StringChange(ExeName, ".exe", "")}'' -ErrorAction SilentlyContinue; ' +
+         'if($p){ try{ $p.WaitForExit(15000) }catch{} }; ' +
+         'exit 0"';
+
+  Result := Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+    Cmd, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0);
+end;
+
+// Dosyalar kopyalanmadan ONCE calisir. Servis burada durmazsa kilitli DLL'ler yuzunden
+// kurulum dosya ayiklarken patlar -- ve sessiz kurulumda kullaniciya sorulacak kimse yoktur.
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  Result := '';
+  if not StopServiceAndWait(90) then
+    Result := 'Servis durdurulamadi. "{#ServiceName}" servisini elle durdurup kurulumu ' +
+              'yeniden calistirin.';
+end;
+
 procedure InstallService;
 var
   ResultCode: Integer;
@@ -261,8 +316,10 @@ begin
   else
     RegDeleteValue(HKEY_LOCAL_MACHINE, EnvKey, 'ForwardedHeaders__KnownProxies__0');
 
-  // Ayni ad altinda eski bir servis varsa once temizle (yukseltme).
-  Exec(ExpandConstant('{sys}\sc.exe'), 'stop {#ServiceName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  // Ayni ad altinda eski bir servis varsa once temizle (yukseltme). Dosyalar zaten
+  // PrepareToInstall'da durdurulmus bir servisin uzerine yazildi; yine de beklemeli
+  // durdurma cagrilir, arada elle baslatilmis olabilir.
+  StopServiceAndWait(60);
   Exec(ExpandConstant('{sys}\sc.exe'), 'delete {#ServiceName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Sleep(1500);
 
@@ -333,8 +390,8 @@ var
 begin
   if CurUninstallStep = usUninstall then
   begin
-    Exec(ExpandConstant('{sys}\sc.exe'), 'stop {#ServiceName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-    Sleep(2000);
+    // Kaldirmada da ayni tahmin vardi: Sleep(2000) servisin durdugunu gostermez.
+    StopServiceAndWait(60);
     Exec(ExpandConstant('{sys}\sc.exe'), 'delete {#ServiceName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 
     // 🔴 Olculdu 2026-08-06: burada GetPort() cagriliyordu, o da sihirbazin ag ayarlari

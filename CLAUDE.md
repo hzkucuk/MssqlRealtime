@@ -158,8 +158,12 @@ Sonra iki seçenek: müşteriye **tek dosya** (`setup-derle.sh` çıktısı) ya 
   başlayıp hemen ölen bir servis de "başlamış" görünür.
 - Genel adres verilmediyse yalnız loopback'e bağlanılır ve güvenlik duvarı kuralı açılmaz —
   varsayılan kurulum kazara LAN'a açılmasın diye.
-- Veri `ProgramData\SunucuIzleme` altında, program klasörünün **dışında**: yükseltme ve
-  kaldırma veritabanına ve veri koruma anahtarlarına dokunmaz.
+- Veri **program klasörünün içinde**, `C:\SunucuIzleme\data` altında (kurulumda seçilen
+  klasör + `\data`). Yükseltme ve kaldırma bu klasöre dokunmaz; kaldırma sonunda yolu
+  ekrana yazar. 🔴 Bu satır 2026-08-09'a kadar `ProgramData` diyordu ve **yanlıştı** —
+  yalnız yedek alan biri boş klasörü yedeklemiş olurdu. Yükseltmede klasör **taşınmaz**:
+  veritabanı eski yerleşimdeyse (`ProgramData\SunucuIzleme`) servis oraya bakmaya devam
+  eder (v0.19.1). Öncesinde bakmıyordu ve kurulumdan sonra sunucular kaybolmuş görünüyordu.
 - 🔴 **Açık güvenlik borcu** (ölçüldü 2026-08-06 18:05, Windows 11 ARM64 VM): yönetici
   parolası registry'de düz metin ve `BUILTIN\Users` okuyabiliyor; `ProgramData` altındaki
   **veri koruma anahtar halkası da `Users` tarafından okunabiliyor** — yani şifrelenmiş
@@ -192,7 +196,7 @@ gerekir; verilmezse ürün sorunsuz çalışır, yalnız "Kes" düğmesi hata d�
 3. Başka makineden: `curl http://<windows-ip>:5199/api/health`
    → cevap yoksa güvenlik duvarı ya da `ASPNETCORE_URLS` loopback'te kalmış demektir
    (genel adres girilmeden kurulmuşsa böyle olur).
-4. Loglar: `ProgramData\SunucuIzleme\logs\`
+4. Loglar: `C:\SunucuIzleme\data\logs\` (veri klasörünün altında)
 
 ### Yayına alma kontrol listesi
 

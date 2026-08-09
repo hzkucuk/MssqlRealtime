@@ -75,6 +75,8 @@
 
 | Ne bozulur | Bugün ne olur | Ne olmalı |
 |---|---|---|
+| Kurulum sırasında servis ayakta | Servis **dosyalara dokunulmadan önce** durdurulur ve gerçekten durana kadar (90 sn) beklenir; süreç de beklenir. Öncesinde `sc stop` gönderilip 1,5 sn uyunuyordu ve kurulum `DeleteFile ... kod 5` ile duruyordu (ölçüldü 2026-08-09, Windows 11). | ✅ Kaynakta düzeltildi (v0.19.1), **Windows'ta denenmedi**. |
+| Yükseltme veri klasörünü değiştirir | Değiştirmez: veritabanı eski yerleşimdeyse (`ProgramData\SunucuIzleme`) servis oraya yönlendirilir. Öncesinde her zaman `{app}\data` veriliyordu ve panel **"henüz izlenen sunucu yok"** diyordu — veri duruyordu, bakılan yer değişmişti (ölçüldü 2026-08-09). | ✅ v0.19.1. Verinin gerçek yeri `C:\SunucuIzleme\data`; yedek alan oraya baksın. |
 | İndirilen kurulum dosyası bozuk/değiştirilmiş | sha256, GitHub'ın verdiği özetle karşılaştırılır; tutmazsa dosya **silinir** ve kurulum hiç başlamaz. Özeti olmayan varlık kurulmaz. | ✅ Paket imzalı değil; tek koruma TLS + özet. Kod imzalama sertifikası alınırsa eklenmeli ❓ |
 | Yeni sürüm açılmıyor | Yükseltici `/api/health` cevabını 180 sn bekler, gelmezse **çalışan sürümün kurulum dosyasıyla geri döner**. Her adım `logs/guncelleme-*.log` dosyasına yazılır. | ⚠️ **Windows'ta hiç denenmedi** (v0.19.0, 2026-08-09). VM'de bir kez koşturulmadan güvenilmemeli. |
 | Çalışan sürümün release'i yok | Otomatik geri dönüş **yapılamaz**. Arayüz bunu güncellemeden **önce** söyler (`⚠ geri dönüş paketi yok`) ve onay metni uyarır. | ✅ Gizlenmiyor. |

@@ -2,6 +2,55 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/)
 
+## [0.19.1] — 2026-08-09
+
+### 🔴 Düzeltilen — kurulum servisi durduramıyordu, dosyalar kilitli kalıyordu
+
+Yükseltmede kurulum şu hatayla duruyordu:
+
+> *Var olan dosya değiştirilirken sorun çıktı: DeleteFile tamamlanamadı; kod 5.
+> Erişim engellendi.* — `C:\SunucuIzleme\clrjit.dll`
+
+Servis elle durdurulup "yeniden denensin" denince geçiyordu. **İki kusur üst üste
+binmişti:**
+
+1. `sc stop` yalnızca *durdur* kontrolünü gönderir ve hemen döner. `ewWaitUntilTerminated`
+   `sc.exe`'yi bekliyordu, **servisi değil**; ardındaki `Sleep(1500)` bir tahmindi.
+   Uygulama .NET genel host: süren bir SQL probu (CommandTimeout 15 sn) kapanmayı
+   saniyelerce geciktirebilir.
+2. Daha temeli: o kod **dosyalar kopyalandıktan sonra** çalışıyordu. Kilit, dosya ayıklama
+   anında vardı — beklese bile geç kalırdı.
+
+Artık servis `PrepareToInstall` içinde, yani **hiçbir dosyaya dokunulmadan önce**
+durduruluyor ve gerçekten durana kadar (en fazla 90 sn) bekleniyor; ardından süreci de
+beklenir, asıl dosya kilidini o tutar. Durum karşılaştırması `Get-Service .Status` ile
+yapılıyor: `sc query` çıktısındaki durum metni yerelleştirilir (Türkçe Windows'ta
+"STOPPED" yazmaz), enum ise dilden bağımsızdır. Aynı bekleme kaldırma yoluna da kondu.
+
+**Bu, v0.19.0'daki güncelleme düğmesini de kurtarır:** sessiz kurulumda (`/VERYSILENT`)
+o diyalog gösterilemez, dolayısıyla güncelleme sessizce başarısız olurdu.
+
+### 🔴 Düzeltilen — kurulumdan sonra izlenen sunucular kaybolmuş görünüyordu
+
+Yükseltmenin ardından *MSSQL İzleme* ekranı **"Henüz izlenen sunucu yok"** diyordu.
+**Veri silinmemişti**; servis başka klasöre bakıyordu.
+
+`IsUpgrade` veritabanını eski yerleşimde (`ProgramData\SunucuIzleme`) de arıyordu — yani
+kurulum o ihtimali biliyordu — ama servise **her zaman** `{app}\data` veriliyordu. Eski
+yerleşimden gelen bir kurulum bu yüzden bomboş bir veritabanı açıyordu: profiller,
+alarm geçmişi ve veri koruma anahtarları eski klasörde duruyor, panel onları görmüyordu.
+
+Artık yükseltme veri klasörünü **taşımıyor**: veritabanı neredeyse servis oraya
+yönlendiriliyor.
+
+> Ayrıca `CLAUDE.md` düzeltildi. Belge verinin `ProgramData` altında olduğunu söylüyordu,
+> oysa kod 0.12.x'ten beri `{app}\data` kullanıyor. Yalnız belgeye bakıp yedek alan biri
+> **boş bir klasörü** yedeklemiş olurdu.
+
+**Ölçülemeyen:** her iki düzeltme de Windows kurulum davranışı; macOS'ta koşturulamaz.
+Inno Setup derlemesi (Wine altında) sözdizimini doğrular, davranışı doğrulamaz. Gerçek
+yükseltme denemesi hâlâ açık iş.
+
 ## [0.19.0] — 2026-08-09
 
 ### Eklenen — panel kendini güncelleyebiliyor (elle tetiklenerek)
