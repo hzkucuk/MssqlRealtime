@@ -4,19 +4,21 @@
 	import { httpStatusText } from './types';
 	import { ago, num, pct } from '$lib/format';
 	import { Sorter } from '$lib/sort.svelte';
-	import type { HttpCheckResult } from './types';
+	import type { CheckCard } from './store.svelte';
 
 	onMount(() => http.start());
 	onDestroy(() => http.stop());
 
-	const sorter = new Sorter<HttpCheckResult>(
+	// Ad ve grup hedeften (her zaman var), sayilar olcumden (olmayabilir).
+	// Olcumu olmayan adres siralamada UYARI sayilir: sessizlik saglik degildir.
+	const sorter = new Sorter<CheckCard>(
 		{
-			severity: (c) => c.severity,
-			name: (c) => c.targetName,
+			severity: (c) => c.result?.severity ?? 1,
+			name: (c) => c.name,
 			group: (c) => c.groupName,
-			response: (c) => c.responseTimeMs,
-			uptime: (c) => c.uptimePercent,
-			certificate: (c) => c.certificateDaysRemaining
+			response: (c) => c.result?.responseTimeMs ?? null,
+			uptime: (c) => c.result?.uptimePercent ?? null,
+			certificate: (c) => c.result?.certificateDaysRemaining ?? null
 		},
 		'severity'
 	);
@@ -54,22 +56,33 @@
 		</div>
 	{/if}
 
-	{#each checks as c (c.targetId)}
-		<a class="card block" href="/m/http/{c.targetId}">
+	{#each checks as card (card.id)}
+		{@const c = card.result}
+		<a class="card block" href="/m/http/{card.id}">
 			<div class="row between">
 				<div class="row" style="min-width:0">
-					<span class="dot sev-{c.severity}"></span>
+					<span class="dot sev-{c ? c.severity : 1}"></span>
 					<div style="min-width:0">
-						<strong>{c.targetName}</strong>
-						<div class="muted url">{c.url}</div>
+						<strong>{card.name}</strong>
+						<div class="muted url">{card.url}</div>
 					</div>
 				</div>
 				<div style="text-align:right">
-					<div class="muted">{httpStatusText[c.status]}</div>
-					<div class="muted">{ago(c.checkedAt)}</div>
+					<div class="muted">
+						{c ? httpStatusText[c.status] : card.enabled ? 'ölçüm bekleniyor' : 'kapalı'}
+					</div>
+					{#if c}<div class="muted">{ago(c.checkedAt)}</div>{/if}
 				</div>
 			</div>
 
+			{#if !c}
+				<!-- Kayit var, olcum yok: gizlenmez, soylenir. -->
+				<div class="muted" style="margin:0.6rem 0 0">
+					{card.enabled
+						? 'Henüz ölçüm gelmedi. Yeni eklendiyse ilk kontrol birazdan yapılır.'
+						: 'Zamanlayıcı bu adres için kapalı; kontrol edilmiyor.'}
+				</div>
+			{:else}
 			{#if c.error}
 				<div class="error" style="margin:0.6rem 0 0">{c.error}</div>
 			{/if}
@@ -100,6 +113,7 @@
 					{alert.message}
 				</div>
 			{/each}
+			{/if}
 		</a>
 	{/each}
 </div>

@@ -4,22 +4,26 @@
 	import { ago, duration, mb, num, pct, statusText } from '$lib/format';
 	import { Sorter } from '$lib/sort.svelte';
 	import Sparkline from '$lib/components/Sparkline.svelte';
-	import type { ServerSnapshot } from '$lib/types';
+	import type { ServerCard } from './store.svelte';
 
 	// The summary screen: one card per customer server, sorted so the worst is first.
 	onMount(() => mssql.start());
 	onDestroy(() => mssql.stop());
 
-	const sorter = new Sorter<ServerSnapshot>(
+	// Ad ve müşteri profilden okunur (her zaman vardır); sayılar ölçümden (olmayabilir).
+	// Ölçümü olmayan sunucu sıralamada UYARI sayılır: eksik değer sıralamada dibe batar,
+	// oysa "ölçüm gelmiyor" bir izleme ürününde dibe atılacak değil, öne çıkarılacak
+	// bir durumdur — sessizlik sağlık değildir.
+	const sorter = new Sorter<ServerCard>(
 		{
-			severity: (s) => s.summary.severity,
-			name: (s) => s.serverName,
-			customer: (s) => s.customerName,
-			cpu: (s) => s.summary.cpuPercent,
-			memory: (s) => s.summary.memoryUsedPercent,
-			sessions: (s) => s.summary.totalSessions,
-			blocked: (s) => s.summary.blockedSessions,
-			longest: (s) => s.summary.longestRunningSeconds
+			severity: (c) => c.snapshot?.summary.severity ?? 1,
+			name: (c) => c.name,
+			customer: (c) => c.customerName,
+			cpu: (c) => c.snapshot?.summary.cpuPercent ?? null,
+			memory: (c) => c.snapshot?.summary.memoryUsedPercent ?? null,
+			sessions: (c) => c.snapshot?.summary.totalSessions ?? null,
+			blocked: (c) => c.snapshot?.summary.blockedSessions ?? null,
+			longest: (c) => c.snapshot?.summary.longestRunningSeconds ?? null
 		},
 		'severity'
 	);
@@ -60,28 +64,39 @@
 		</div>
 	{/if}
 
-	{#each servers as s (s.serverId)}
-		<a class="card server sev-edge-{s.summary.severity}" href="/m/mssql/{s.serverId}">
+	{#each servers as c (c.id)}
+		{@const s = c.snapshot}
+		{@const sev = s ? s.summary.severity : 1}
+		<a class="card server sev-edge-{sev}" href="/m/mssql/{c.id}">
 			<div class="row between">
 				<div class="row" style="min-width:0">
 					<span
-						class="dot sev-{s.summary.severity}"
-						title={severityText[s.summary.severity]}
-						aria-label={severityText[s.summary.severity]}
+						class="dot sev-{sev}"
+						title={s ? severityText[sev] : 'Ölçüm bekleniyor'}
+						aria-label={s ? severityText[sev] : 'Ölçüm bekleniyor'}
 						role="img"
 					></span>
 					<div style="min-width:0">
-						<strong>{s.serverName}</strong>
-						<div class="muted">{s.customerName}</div>
+						<strong>{c.name}</strong>
+						<div class="muted">{c.customerName}</div>
 					</div>
 				</div>
 				<div style="text-align:right">
-					<div class="muted">{statusText[s.status]}</div>
-					<div class="muted">{ago(s.capturedAt)}</div>
+					<div class="muted">{s ? statusText[s.status] : c.enabled ? 'ölçüm bekleniyor' : 'kapalı'}</div>
+					{#if s}<div class="muted">{ago(s.capturedAt)}</div>{/if}
 				</div>
 			</div>
 
-			{#if s.status !== 1}
+			{#if !s}
+				<!-- Kayit var, olcum yok. Onceden bu sunucu ekranda HIC gorunmuyordu: liste
+				     olcum onbelleginden ciziliyordu ve olculmemis sunucunun onbellekte yeri
+				     yoktu. Bir izleme urununde en tehlikeli sey, olculmeyeni gizlemektir. -->
+				<div class="muted" style="margin:0.6rem 0 0">
+					{c.enabled
+						? 'Henüz ölçüm gelmedi. Yeni eklendiyse ilk tur birkaç saniye sürer; sürüyorsa sunucuya erişilemiyor olabilir.'
+						: 'Zamanlayıcı bu sunucu için kapalı; ölçüm alınmıyor.'}
+				</div>
+			{:else if s.status !== 1}
 				<div class="error" style="margin:0.6rem 0 0">{s.errorMessage ?? 'Erişilemiyor.'}</div>
 			{:else}
 				<div class="grid" style="margin-top:0.6rem">
@@ -90,12 +105,12 @@
 						<div class="label">İşlemci</div>
 						<!-- A strip under the label, not beside it: beside it the tile grew wider than
 						     its neighbours and broke the grid into a ragged row. -->
-						<Sparkline values={mssql.metrics(s.serverId).cpu} max={100} height={16} fluid />
+						<Sparkline values={mssql.metrics(c.id).cpu} max={100} height={16} fluid />
 					</div>
 					<div class="stat">
 						<div class="value">{pct(s.summary.memoryUsedPercent, 1)}</div>
 						<div class="label">Bellek</div>
-						<Sparkline values={mssql.metrics(s.serverId).memory} max={100} height={16} fluid />
+						<Sparkline values={mssql.metrics(c.id).memory} max={100} height={16} fluid />
 					</div>
 					<div class="stat">
 						<div class="value">{num(s.summary.totalSessions)}</div>

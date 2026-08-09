@@ -3,6 +3,20 @@ import { realtime } from '$lib/api/realtime.svelte';
 import type { ModuleEvent, ServerProfile, ServerSnapshot } from '$lib/types';
 
 export const MSSQL_MODULE_ID = 'mssql';
+
+/**
+ * Ekranda bir sunucu satiri: ne izlendigi (profil) + son olculen (varsa).
+ * Ikisi ayri tutulur, cunku "kayit var mi" ile "olcum var mi" ayri sorulardir ve
+ * ikisini tek nesnede karistirmak bu urunde uc ayri hataya yol acti.
+ */
+export type ServerCard = {
+	id: string;
+	name: string;
+	customerName: string;
+	enabled: boolean;
+	/** null = izleniyor ama henuz olcum gelmedi (yeni eklendi ya da hic ulasilamadi). */
+	snapshot: ServerSnapshot | null;
+};
 const BASE = `/api/modules/${MSSQL_MODULE_ID}`;
 
 /**
@@ -28,16 +42,33 @@ class MssqlStore {
 
 	#unsubscribe: (() => void) | null = null;
 	#started = false;
+	#profilTazelemesi = false;
 
-	get servers(): ServerSnapshot[] {
-		return [...this.snapshots.values()].sort((a, b) => {
-			// Anything alarming floats to the top: on a phone the first card is all you see.
-			const bySeverity = b.summary.severity - a.summary.severity;
-			if (bySeverity !== 0) return bySeverity;
-
-			const byCustomer = a.customerName.localeCompare(b.customerName, 'tr');
-			return byCustomer !== 0 ? byCustomer : a.serverName.localeCompare(b.serverName, 'tr');
-		});
+	/**
+	 * Ekrandaki liste.
+	 *
+	 * IZLENENLERDEN turer, olcum onbelleginden DEGIL. Onceden `snapshots` haritasi
+	 * cizdiriliyordu ve bunun uc sonucu vardi (ucu de 2026-08-09'da musteri makinesinde
+	 * gorunur oldu):
+	 *
+	 *   - Silinen sunucunun son olcumu haritada kaldigi icin kart ekranda kaliyordu;
+	 *     silmeye basildiginda sunucu 404 donuyor, kart yine duruyordu.
+	 *   - Panel degistirildiginde onceki panelin olcumleri yeni panelin adi altinda
+	 *     gorunuyordu.
+	 *   - En kotusu: eklenmis ama HENUZ OLCULMEMIS bir sunucu ekranda HIC gorunmuyordu.
+	 *     Bir izleme urununde "olcum yok" gizlenecek degil, gosterilecek bir durumdur.
+	 *
+	 * Artik profil listesi tek gercek: kayit yoksa kart yok, olcum yoksa kart var ama
+	 * "olcum bekleniyor" der.
+	 */
+	get servers(): ServerCard[] {
+		return this.profiles.map((p) => ({
+			id: p.id,
+			name: p.name,
+			customerName: p.customerName,
+			enabled: p.enabled,
+			snapshot: this.snapshots.get(p.id) ?? null
+		}));
 	}
 
 	snapshot(serverId: string): ServerSnapshot | undefined {
@@ -60,6 +91,22 @@ class MssqlStore {
 		this.history = next;
 	}
 
+	/**
+	 * Bilinmeyen bir olcum geldiginde profil listesini bir kez tazeler.
+	 * Ust uste cagriya karsi korumali: her tur her sunucu icin bir olcum dusuyor.
+	 */
+	async #profilleriTazele(): Promise<void> {
+		if (this.#profilTazelemesi) return;
+		this.#profilTazelemesi = true;
+		try {
+			this.profiles = await api<ServerProfile[]>(`${BASE}/servers`);
+		} catch {
+			// Sessiz gecilir: bir sonraki refresh zaten duzeltir, ekrana hata basmaya degmez.
+		} finally {
+			this.#profilTazelemesi = false;
+		}
+	}
+
 	profile(serverId: string): ServerProfile | undefined {
 		return this.profiles.find((p) => p.id === serverId);
 	}
@@ -76,6 +123,10 @@ class MssqlStore {
 			next.set(snapshot.serverId, snapshot);
 			this.snapshots = next;
 			this.#record(snapshot);
+
+			// Baska bir cihazdan eklenmis bir sunucunun olcumu gelebilir; liste artik
+			// profillerden turdugu icin profil listesi tazelenmeden ekranda gorunmez.
+			if (!this.profiles.some((p) => p.id === snapshot.serverId)) this.#profilleriTazele();
 		});
 
 		await realtime.subscribeModule(MSSQL_MODULE_ID);
@@ -107,7 +158,12 @@ class MssqlStore {
 				api<ServerProfile[]>(`${BASE}/servers`)
 			]);
 
-			this.snapshots = new Map(snapshots.map((s) => [s.serverId, s]));
+			// Profilde karsiligi olmayan olcum tutulmaz: hem bellek sisirir hem de
+			// ileride yanlislikla cizilirse hayalet kart olarak geri doner.
+			const bilinen = new Set(profiles.map((p) => p.id));
+			this.snapshots = new Map(
+				snapshots.filter((s) => bilinen.has(s.serverId)).map((s) => [s.serverId, s])
+			);
 			this.profiles = profiles;
 		} catch (error) {
 			this.error = error instanceof Error ? error.message : String(error);

@@ -4,6 +4,17 @@ import type { ModuleEvent } from '$lib/types';
 import type { HttpCheckResult, HttpTarget } from './types';
 
 export const HTTP_MODULE_ID = 'http';
+
+/** Ekranda bir adres satiri: ne izlendigi (hedef) + son olculen (varsa). */
+export type CheckCard = {
+	id: string;
+	name: string;
+	groupName: string;
+	url: string;
+	enabled: boolean;
+	/** null = izleniyor ama henuz olcum gelmedi. */
+	result: HttpCheckResult | null;
+};
 const BASE = `/api/modules/${HTTP_MODULE_ID}`;
 
 /**
@@ -19,14 +30,20 @@ class HttpStore {
 	#unsubscribe: (() => void) | null = null;
 	#started = false;
 
-	get checks(): HttpCheckResult[] {
-		return [...this.results.values()].sort((a, b) => {
-			const bySeverity = b.severity - a.severity;
-			if (bySeverity !== 0) return bySeverity;
-
-			const byGroup = (a.groupName ?? '').localeCompare(b.groupName ?? '', 'tr');
-			return byGroup !== 0 ? byGroup : a.targetName.localeCompare(b.targetName, 'tr');
-		});
+	/**
+	 * Ekrandaki liste — MSSQL store'u ile ayni kural: IZLENENLERDEN turer, olcum
+	 * onbelleginden degil. Gerekcesi orada uzun uzun yazili; ozeti: silinen kayit
+	 * ekranda kalmasin, olculmemis kayit da ekrandan kaybolmasin.
+	 */
+	get checks(): CheckCard[] {
+		return this.targets.map((t) => ({
+			id: t.id,
+			name: t.name,
+			groupName: t.groupName,
+			url: t.url,
+			enabled: t.enabled,
+			result: this.results.get(t.id) ?? null
+		}));
 	}
 
 	check(id: string): HttpCheckResult | undefined {
@@ -78,7 +95,11 @@ class HttpStore {
 				api<HttpTarget[]>(`${BASE}/targets`)
 			]);
 
-			this.results = new Map(checks.map((c) => [c.targetId, c]));
+			// Hedefte karsiligi olmayan olcum tutulmaz (bkz. MSSQL store'undaki gerekce).
+			const bilinen = new Set(targets.map((t) => t.id));
+			this.results = new Map(
+				checks.filter((c) => bilinen.has(c.targetId)).map((c) => [c.targetId, c])
+			);
 			this.targets = targets;
 		} catch (error) {
 			this.error = error instanceof Error ? error.message : String(error);

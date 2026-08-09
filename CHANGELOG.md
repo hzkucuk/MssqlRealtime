@@ -2,6 +2,49 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/)
 
+## [0.20.0] — 2026-08-10
+
+### Değişen — liste artık izlenenlerden türüyor, ölçüm önbelleğinden değil
+
+Bu gece üç ayrı hatayı ayrı ayrı yamadık ve üçü de aynı kökten çıktı: **ekrandaki
+liste, izlenen sunucuların listesinden değil, gelen ölçümlerin önbelleğinden
+çiziliyordu.**
+
+```ts
+get servers() { return [...this.snapshots.values()] }   // ölçümler
+// oysa gerçek olan: this.profiles                       // izlenenler
+```
+
+Sonuçları, hepsi bu gece görüldü:
+
+- Silinen sunucunun son ölçümü haritada kaldığı için **kart ekranda kalıyordu**; silmeye
+  basınca hub `404` dönüyor, kart yine duruyordu (v0.19.2'de yamandı).
+- Panel değiştirilince **önceki panelin ölçümleri** yeni panelin adı altında görünüyordu
+  (v0.18.6'da yamandı).
+- Ve en sinsisi: **eklenmiş ama henüz ölçülmemiş bir sunucu ekranda hiç görünmüyordu.**
+
+Artık profil listesi tek gerçek: kayıt yoksa kart yok, ölçüm yoksa kart var ve
+*"ölçüm bekleniyor"* der. Ad ve müşteri adı profilden okunur (her zaman vardır), sayılar
+ölçümden (olmayabilir). Tazelemede profilde karşılığı olmayan ölçümler atılır; bilinmeyen
+bir ölçüm gelirse profil listesi bir kez tazelenir. Aynı düzeltme site/API modülünde de
+yapıldı.
+
+Sıralamada ölçümü olmayan kayıt **uyarı** sayılır. Sıralayıcı eksik değerleri dibe atar;
+oysa "ölçüm gelmiyor" bir izleme ürününde dibe atılacak değil, öne çıkarılacak bir
+durumdur — sessizlik sağlık değildir.
+
+> 🔴 **Ölçüldü 2026-08-10 00:50**, gerçek hub ve tarayıcıyla (Playwright + yerel API).
+> Veritabanına **kapalı** bir sunucu profili yazıldı — hiç yoklanmadığı için ölçümü yok:
+>
+> ```
+>                        ESKİ kod                       YENİ kod
+> kart sayısı            0                              1
+> ekranda                "Henüz izlenen sunucu yok"     Kapali Sunucu · Marmara · kapalı
+> ```
+>
+> Yani veritabanında duran bir sunucu ekranda **hiç yoktu**; kullanıcının onu görüp
+> yeniden açması ya da silmesi mümkün değildi.
+
 ## [0.19.2] — 2026-08-10
 
 ### 🔴 Düzeltilen — silinmiş bir sunucunun kartı ekrandan gitmiyordu

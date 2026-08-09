@@ -63,6 +63,8 @@
 
 | Ne bozulur | Bugün ne olur | Ne olmalı |
 |---|---|---|
+| Sunucu var ama ölçümü yok | Kart **görünür** ve "ölçüm bekleniyor" der (v0.20.0). Öncesinde liste ölçüm önbelleğinden çizildiği için böyle bir sunucu ekranda **hiç görünmüyordu** — kapalı bir sunucuyu görüp açmak da mümkün değildi (ölçüldü 2026-08-10). | ✅ |
+| Sunucu silinir | Kart kaybolur: liste profillerden türer, ölçüm önbelleği tazelemede budanır. | ✅ |
 | **Panel (müşteri) değiştirilir** | Yeni hub'a bağlanılır, eski soket kapatılır, modül store'ları ve alarm listesi temizlenir. v0.18.6 öncesinde **eski müşterinin hub'ında kalınıyordu**: header çoğu zaman eski adı yazıyor, gösterge "canlı" diyor, sayılar bıraktığın panelden geliyordu (ölçüldü 2026-08-09 17:50, gerçek hub ve tarayıcıyla). | ✅ Ölçüldü. Panel değişimi tek bir yerden (`enterActivePanel`) geçiyor; yeni bir store eklenirse **oraya da eklenmeli** — unutulursa aynı sınıf geri gelir. |
 | Uygulama hub'a ulaşamıyor | Bağlantı göstergesi **"bağlı değil"** der. Yan etkisi olarak üst çubuktaki sürüm rozeti ve sunucu sayfasındaki firma adı da kaybolur — ikisi de gelen veriye bağlı. Bunlar ayrı arıza değil, aynı arızanın belirtisi. Sürüm bağlantı geri gelince yeniden sorulur (v0.18.6 öncesi sorulmuyordu). | ✅ Gösterge doğruyu söylüyor. Belirtilerin tek sebebe bağlı olduğu ekranda yazmıyor ❓ |
 | Sayfa yenilenir / sunucu formu reddeder | Yazılanlar `sessionStorage`'daki taslaktan geri gelir ve kullanıcıya geri yüklendiği söylenir. Parola taslağa **yazılmaz**. | ✅ Ölçüldü 2026-08-09 17:03, tarayıcıda. |
