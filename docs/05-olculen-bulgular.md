@@ -732,6 +732,37 @@ ve okunan alarmda kimin yaptığı görünmezdi.
 Bu yüzden ifade alarm bağlamında **240 karakterde** kesiliyor ve tek satıra katlanıyor.
 Tam metin (4000 karakter) canlı ekranda duruyor; alarm bir özet taşır.
 
+## 2026-08-22 23:4x — süresi dolmuş oturum sonsuza kadar yeniden deneniyordu
+
+Bildirim: telefonda iki panel kayıtlı, birinde her şey canlı, diğerinde "bağlı değil";
+sunucunun kendi tarayıcısında iki panel de sorunsuz.
+
+Kod okunarak iki arıza bulundu:
+
+1. `getAccessToken()` refresh token bittiğinde `null` döner ve token'ları siler
+   (`client.ts:303`). Hub'ın `accessTokenFactory`'si bunu `?? ''` ile boş dizeye çeviriyordu,
+   yani bağlantı yine kuruluyor ve hub 401 veriyordu. `#scheduleRetry` bunu 30 saniyede bir,
+   sonsuza kadar tekrarlıyordu. Oturum **panel başına** tutulduğu için yalnız bir paneli
+   vurur — en uzun süre önce giriş yapılanı.
+2. `realtime.lastError` doluyordu ama arayüzde **tek bir kullanımı yoktu**
+   (`grep -rn "lastError" app/src --include="*.svelte"` → boş). Kullanıcı 401 mi, CORS mu,
+   ad mı çözülmedi, WebSocket mi kapalı ayırt edemiyordu.
+
+Düzeltme: token yoksa bağlantı hiç denenmiyor, durum "oturum sona ermiş" olarak
+işaretleniyor; başlığın altında sebebi ve panel adresini yazan bir şerit çıkıyor.
+
+**Testin koruduğu ölçüldü.** `realtime.svelte.test.ts` yazıldıktan sonra koruma geçici
+olarak kaldırılıp koşuldu ve dördün ikisi düştü:
+
+```
+× token yokken BAĞLANMAYI DENEMEZ                          expected "spy" not to be called
+× token yokken sebebi söyler, "bağlı değil" ile yetinmez    expected false to be true
+```
+
+⚠️ **Doğrulanmayan:** bildirilen panelin oturumunun gerçekten dolmuş olduğu. Belirti birebir
+uyuyor ama kesinleştiren şey ekranda yazacak hata metni olacak. Ağ/CORS kaynaklıysa ikinci
+düzeltme onu söyleyecek. Bu satır, sebep doğrulandığında güncellenmeli.
+
 ## Doğrulanmayı bekleyenler
 
 | Konu | Neden ölçülemedi |
@@ -741,6 +772,7 @@ Tam metin (4000 karakter) canlı ekranda duruyor; alarm bir özet taşır.
 | iOS/Android'de bildirim davranışı | Xcode iOS platform bileşeni kurulu değil (~7 GB) |
 | SMTP kanalı canlı gönderim | Test edilecek mail sunucusu yok |
 | Yüksek sunucu sayısında poller yükü | Tek sunucuyla ölçüldü |
+| Telefondaki "bağlı değil" panelinin gerçek sebebi | Hata metni artık ekranda yazacak; kullanıcıdan bekleniyor |
 | Oturum eşiği 500 gerçekten yeterli mi | Müşteride `sleeping`/aktif oturum dağılımı ölçülmedi |
 | Worker doluluğu %80 eşiği isabetli mi | THREADPOOL doygunluğu üretilemedi; konteynerde havuz %9'da kaldı |
 | SQL metni çekmenin yüzlerce oturumlu sunucuda poll maliyeti | Konteynerde üç oturum vardı |

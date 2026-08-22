@@ -2,6 +2,54 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/)
 
+## [0.22.1] — 2026-08-22
+
+### Düzeltilen — telefonda bir panel sonsuza kadar "bağlı değil" diyordu
+
+Bildirildi 2026-08-22: telefonda iki panel kayıtlı, birinde her şey canlı, diğerinde
+"bağlı değil" — ama sunucunun kendi tarayıcısında iki panel de sorunsuz. Uygulama neden
+bağlanamadığını **biliyordu ve söylemiyordu**.
+
+İki ayrı arıza çıktı:
+
+**1. Süresi dolmuş oturum sonsuza kadar yeniden deneniyordu.** `getAccessToken()` refresh
+token bittiğinde `null` döner ve saklanan token'ları siler. Hub'ın token fabrikası bu
+`null`'ı `?? ''` ile **boş dizeye** çeviriyor, bağlantı yine kuruluyor, hub 401 veriyordu.
+Sonuç: 30 saniyede bir, sonsuza kadar, aynı imkânsız deneme. Panel başına ayrı oturum
+tutulduğu için bu yalnız **bir** paneli vurur — en uzun süre önce giriş yapılanı. Bildirilen
+tablonun şekli tam olarak bu.
+
+Artık token yoksa bağlantı hiç denenmiyor; durum "bu panelin oturumu sona ermiş" olarak
+işaretleniyor ve ekranda **Giriş yap** düğmesi çıkıyor.
+
+**2. Bağlantı hatasının sebebi hiçbir yerde gösterilmiyordu.** `realtime.lastError` doluyor
+ama arayüzde tek bir kullanımı yoktu; kullanıcı 401 mi, CORS mu, ad mı çözülmedi, WebSocket
+mi kapalı ayırt edemiyordu. Başlığın altında bağlantı kesildiğinde bir şerit çıkıyor: panel
+adresi, sebebin kendisi, kaçıncı deneme olduğu ve **Yeniden dene** düğmesi. Yalnız
+`disconnected` durumunda; kısa yeniden bağlanmalarda yanıp sönmez.
+
+Bu ürünün 5. kuralı "sessizlik ≠ sağlık" diyor. Sebebi bilip göstermemek o kuralın ihlaliydi.
+
+### Ölçülen — testin gerçekten koruduğu (2026-08-22 23:42)
+
+`app/src/lib/api/realtime.svelte.test.ts` eklendi: token yokken bağlanma **denenmemeli**,
+sebep söylenmeli, deneme sayacı şişmemeli. Koruma geçici olarak kaldırılıp koşuldu ve
+**dördün ikisi düştü**:
+
+```
+× token yokken BAĞLANMAYI DENEMEZ                    expected "spy" not to be called
+× token yokken sebebi söyler, "bağlı değil" ile yetinmez   expected false to be true
+```
+
+Koruma geri konunca 16 testin hepsi geçti.
+
+⚠️ Not: bildirilen panelin oturumunun gerçekten dolmuş olduğu **doğrulanmadı** — belirti
+birebir uyuyor ama sebebi kesinleştiren şey, artık ekranda yazacak olan hata metni. Ağ ya
+da CORS kaynaklıysa 2. düzeltme bunu söyleyecek.
+
+Ölçülen: `dotnet build` 0 hata/0 uyarı, `dotnet test` 110 test geçti, `npm run check`
+0 hata, `npm test` **16** test geçti (4 yeni).
+
 ## [0.22.0] — 2026-08-22
 
 ### Eklenen — SQL metni her ölçümde ve her alarmda

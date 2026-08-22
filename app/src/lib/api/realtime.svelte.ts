@@ -28,6 +28,13 @@ class RealtimeClient {
 	/** How many times the initial connection has been retried; shown in the UI. */
 	attempts = $state(0);
 
+	/**
+	 * The stored session for this panel is spent, so no amount of retrying will connect.
+	 * Kept separate from `lastError`: "sign in again" is an instruction to the user, while
+	 * a transport error is a report about the network.
+	 */
+	sessionExpired = $state(false);
+
 	#handlers = new Set<Handler>();
 	#wakeBound = false;
 	#subscriptions = new Set<string>();
@@ -65,6 +72,21 @@ class RealtimeClient {
 		}
 
 		this.#stopped = false;
+
+		// A spent session cannot be retried into working. getAccessToken() returns null once
+		// the refresh token is gone — and the token factory below turned that null into an
+		// empty string, so the app kept opening a connection the hub could only answer with
+		// 401, every 30 seconds, forever, while the header said nothing but "bağlı değil".
+		// Panels are per customer, so this hits exactly one panel: the one signed in longest
+		// ago. That is the shape of the bug reported on 2026-08-22.
+		if (!(await getAccessToken())) {
+			this.state = 'disconnected';
+			this.sessionExpired = true;
+			this.lastError = 'Bu panelin oturumu sona ermiş.';
+			return;
+		}
+
+		this.sessionExpired = false;
 		this.state = 'connecting';
 
 		const connection = new HubConnectionBuilder()

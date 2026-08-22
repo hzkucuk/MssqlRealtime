@@ -8,6 +8,8 @@
 | Ne bozulur | Bugün ne olur | Ne olmalı |
 |---|---|---|
 | **Uygulama kapalıyken eşik aşılır** | ✅ Çözüldü (v0.2.0): sunucu alarmı **Telegram / e-posta / webhook** ile kendisi gönderir. Ölçüldü 2026-08-05: hiçbir istemci bağlı değilken iki alarm webhook'a ulaştı. Uygulama içi bildirim hâlâ yalnız açıkken çalışır. | Kanal yapılandırılmamışsa hâlâ sessizdir — kurulumda en az bir kanal açılmalı (`docs/06-bildirimler.md`). |
+| **Bir panelin oturumu dolar** | ✅ Çözüldü (v0.22.1): önceden token'sız bağlantı 30 sn'de bir sonsuza kadar deneniyor, ekranda yalnız "bağlı değil" yazıyordu. Artık denenmiyor ve "oturumu sona ermiş" + **Giriş yap** düğmesi çıkıyor. Oturum panel başına olduğu için tek paneli vurur. | ✅ |
+| **Canlı bağlantı kurulamaz (401/CORS/DNS/WebSocket)** | ✅ Çözüldü (v0.22.1): sebep (`lastError`) artık başlığın altındaki şeritte panel adresiyle birlikte yazıyor. Önceden sebep biliniyor ama hiç gösterilmiyordu. | ✅ Şeritte "Yeniden dene" var. Sık görülen sebepler için yönlendirici metin (ör. CORS → "kurulumdaki genel adresi kontrol edin") eklenebilir. ⬜ |
 | Telefon uykuda / ağ yok | Anlık push kaçar ama **kayıp değil**: alarm SQLite'a yazılır ve *Alarm geçmişi* ekranında görünür; kanal bildirimi zaten ayrı yoldan gitmiştir. | ✅ |
 | Bildirim izni reddedilmiş | Alarm yalnız uygulama içi listede görünür; sessizce kaybolmaz. | ✅ Yeterli. Ayarlarda "bildirimler kapalı" uyarısı gösterilebilir. |
 | Servis yeniden başlar | ✅ Çözüldü (v0.2.0): açık alarmlar SQLite'tan geri yüklenir, başlangıç saatleri korunur ve **yeniden bildirilmez**. Ölçüldü 2026-08-05: "Restored 2 alert(s)", sonrasında 0 yeni teslimat. | ✅ |

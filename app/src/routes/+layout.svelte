@@ -219,6 +219,41 @@
 		</div>
 	{/if}
 
+	{#if !isLogin && realtime.state === 'disconnected'}
+		<!-- Bağlantı kurulamadığında uygulama yalnız "bağlı değil" diyordu. Sebep zaten
+		     elimizdeydi — `realtime.lastError` — ve hiçbir yerde gösterilmiyordu; kullanıcı
+		     401 mi, CORS mu, ad mı çözülmedi ayırt edemiyordu. Bir izleme ürününde sessiz
+		     başarısızlık en tehlikeli davranış. Yalnız 'disconnected' durumunda çıkar:
+		     kısa süreli yeniden bağlanmalarda banner yanıp sönmez. -->
+		<div class="update kopuk">
+			<span>
+				<strong>
+					{realtime.sessionExpired ? 'Bu panelin oturumu sona ermiş.' : 'Panele bağlanılamıyor.'}
+				</strong>
+				{#if activeServer}
+					<span class="mono">{activeServer.url}</span>
+				{/if}
+				<div class="sebep">
+					{realtime.sessionExpired
+						? 'Yeniden giriş yapılana kadar bu panelden ölçüm gelmez. Diğer paneller etkilenmez.'
+						: (realtime.lastError ??
+							'Sebep bildirilmedi — büyük olasılıkla adrese hiç ulaşılamadı.')}
+				</div>
+				{#if !realtime.sessionExpired && realtime.attempts > 0}
+					<div class="muted">{realtime.attempts}. deneme yapıldı, otomatik denemeler sürüyor.</div>
+				{/if}
+			</span>
+			<span class="row" style="gap:0.4rem">
+				{#if realtime.sessionExpired}
+					<a class="btn btn-sm" href="/giris">Giriş yap</a>
+				{:else}
+					<button class="btn btn-sm" onclick={() => realtime.reconnect()}>Yeniden dene</button>
+					<a class="btn btn-sm" href="/giris">Panel değiştir</a>
+				{/if}
+			</span>
+		</div>
+	{/if}
+
 	{#if hubUpdate || guncellemeNotu}
 		<div class="update">
 			{#if guncellemeNotu}
@@ -343,6 +378,19 @@
 		font-size: 0.82rem;
 		border-bottom: 1px solid var(--line);
 		background: color-mix(in srgb, var(--accent) 12%, transparent);
+	}
+
+	/* Kopuk bağlantı bir güncelleme duyurusu değil; accent yerine uyarı rengini alır. */
+	.kopuk {
+		background: color-mix(in srgb, var(--warn, #b45309) 14%, transparent);
+	}
+
+	.sebep {
+		margin-top: 0.2rem;
+		font-family: var(--mono, ui-monospace, monospace);
+		font-size: 0.76rem;
+		overflow-wrap: anywhere;
+		opacity: 0.95;
 	}
 
 	.uyari {
