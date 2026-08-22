@@ -31,7 +31,8 @@ public sealed class SessionsProbe : ISqlProbe
             s.logical_reads                                         AS LogicalReads,
             s.memory_usage * 8                                      AS MemoryUsageKb,
             s.open_transaction_count                                AS OpenTransactionCount,
-            DATEDIFF(second, s.last_request_end_time, GETDATE())    AS IdleSeconds
+            DATEDIFF(second, s.last_request_end_time, GETDATE())    AS IdleSeconds,
+            LEFT(t.text, @MaxLen)                                   AS SqlText
         FROM sys.dm_exec_sessions s
         -- One row per session, always. sys.dm_exec_connections holds one row per
         -- *connection*, and a session can own several: MARS
@@ -42,11 +43,26 @@ public sealed class SessionsProbe : ISqlProbe
         -- instances rarely show it because few clients enable MARS.
         -- The oldest connection is the parent one; MARS children share its address.
         OUTER APPLY (
-            SELECT TOP 1 c2.client_net_address AS ClientAddress
+            SELECT TOP 1
+                c2.client_net_address     AS ClientAddress,
+                c2.most_recent_sql_handle AS SqlHandle
             FROM sys.dm_exec_connections c2
             WHERE c2.session_id = s.session_id
             ORDER BY c2.connect_time
         ) c
+        -- The last statement this session ran. For a sleeping blocker holding an open
+        -- transaction this is the only way to see what it did — it owns no request, so
+        -- sys.dm_exec_requests knows nothing about it.
+        --
+        -- The CASE is the cost control. sys.dm_exec_sql_text is a plan-cache lookup per
+        -- row, and on a pooled application most sessions are idle with nothing open; doing
+        -- it for all of them every few seconds would be paid on the customer's server for
+        -- text nobody reads. Passing NULL makes the function return no row at all.
+        OUTER APPLY sys.dm_exec_sql_text(
+            CASE
+                WHEN s.status <> 'sleeping' OR s.open_transaction_count > 0
+                THEN c.SqlHandle
+            END) t
         WHERE s.is_user_process = 1
         ORDER BY s.cpu_time DESC;
         """;
@@ -54,8 +70,8 @@ public sealed class SessionsProbe : ISqlProbe
     public async Task ExecuteAsync(ProbeContext context, CancellationToken cancellationToken)
     {
         var rows = await context.Connection.QueryAsync<Row>(
-            new CommandDefinition(Sql, commandTimeout: context.CommandTimeoutSeconds,
-                cancellationToken: cancellationToken));
+            new CommandDefinition(Sql, new { MaxLen = RequestsProbe.SqlTextMaxLength },
+                commandTimeout: context.CommandTimeoutSeconds, cancellationToken: cancellationToken));
 
         context.Builder.Sessions = rows.Select(r => new SessionInfo
         {
@@ -75,7 +91,8 @@ public sealed class SessionsProbe : ISqlProbe
             LogicalReads = r.LogicalReads,
             MemoryUsageKb = r.MemoryUsageKb,
             OpenTransactionCount = r.OpenTransactionCount,
-            IdleSeconds = r.IdleSeconds ?? 0
+            IdleSeconds = r.IdleSeconds ?? 0,
+            SqlText = r.SqlText?.Trim()
         }).ToList();
     }
 
@@ -99,5 +116,6 @@ public sealed class SessionsProbe : ISqlProbe
         public long MemoryUsageKb { get; set; }
         public int OpenTransactionCount { get; set; }
         public int? IdleSeconds { get; set; }
+        public string? SqlText { get; set; }
     }
 }

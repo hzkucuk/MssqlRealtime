@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using MssqlRealtime.Core.Alerts;
 using MssqlRealtime.Modules.Mssql.Models;
 
@@ -12,7 +13,7 @@ namespace MssqlRealtime.Modules.Mssql.Alerts;
 /// Debouncing and renotify suppression come from the engine and need no work here.
 /// </para>
 /// </summary>
-public static class MssqlAlertRules
+public static partial class MssqlAlertRules
 {
     public const string Cpu = "cpu";
     public const string Memory = "memory";
@@ -25,6 +26,14 @@ public static class MssqlAlertRules
     public const string WorkerUtilization = "worker-utilization";
     public const string Offline = "offline";
 
+
+    /// <summary>
+    /// How much of a statement fits in an alert. The probes keep 4000 characters for the live
+    /// screen, but an alert context is stored truncated at 400 characters and also travels
+    /// through Telegram and e-mail — a full batch would push the identity line, the part that
+    /// says <i>who</i>, out of the message entirely. The full text stays on the live screen.
+    /// </summary>
+    private const int ContextSqlMaxLength = 240;
 
     /// <summary>
     /// One line naming the heaviest consumer at this instant: SPID, application, login and
@@ -47,6 +56,37 @@ public static class MssqlAlertRules
 
         return string.Join(" · ", parts);
     }
+
+    /// <summary>
+    /// The statement, folded onto one line and cut to length. Multi-line SQL turns an alert
+    /// list into a wall of indentation, and the notification channels do not reflow it.
+    /// </summary>
+    private static string? Statement(string? sql)
+    {
+        if (string.IsNullOrWhiteSpace(sql))
+        {
+            return null;
+        }
+
+        var oneLine = WhitespaceRun().Replace(sql.Trim(), " ");
+
+        return oneLine.Length <= ContextSqlMaxLength
+            ? $"Sorgu: {oneLine}"
+            : $"Sorgu: {oneLine[..ContextSqlMaxLength]}…";
+    }
+
+    /// <summary>Identity line plus the statement, whichever of the two exists.</summary>
+    private static string? Context(SessionInfo? session, string? measure = null, string? sql = null)
+    {
+        var parts = new[] { Describe(session, measure), Statement(sql ?? session?.SqlText) }
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .ToArray();
+
+        return parts.Length == 0 ? null : string.Join(" │ ", parts);
+    }
+
+    [GeneratedRegex(@"\s+")]
+    private static partial Regex WhitespaceRun();
 
     /// <summary>The session burning the most CPU right now, ignoring system sessions.</summary>
     private static SessionInfo? TopCpu(SnapshotBuilder builder) =>
@@ -101,7 +141,7 @@ public static class MssqlAlertRules
                 Value = cpu,
                 Threshold = cpuLimit,
                 Unit = "%",
-                Context = Describe(TopCpu(builder), $"CPU {TopCpu(builder)?.CpuTimeMs:N0} ms"),
+                Context = Context(TopCpu(builder), $"CPU {TopCpu(builder)?.CpuTimeMs:N0} ms"),
                 RequiredConsecutiveBreaches = profile.AlertConsecutiveBreaches,
                 RenotifyMinutes = profile.AlertRenotifyMinutes
             });
@@ -122,7 +162,7 @@ public static class MssqlAlertRules
                 Value = mem,
                 Threshold = memLimit,
                 Unit = "%",
-                Context = Describe(TopMemory(builder), $"{TopMemory(builder)?.MemoryUsageKb:N0} KB"),
+                Context = Context(TopMemory(builder), $"{TopMemory(builder)?.MemoryUsageKb:N0} KB"),
                 RequiredConsecutiveBreaches = profile.AlertConsecutiveBreaches,
                 RenotifyMinutes = profile.AlertRenotifyMinutes
             });
@@ -140,7 +180,7 @@ public static class MssqlAlertRules
                 Value = sqlMem,
                 Threshold = sqlMemLimit,
                 Unit = "MB",
-                Context = Describe(TopMemory(builder), $"{TopMemory(builder)?.MemoryUsageKb:N0} KB"),
+                Context = Context(TopMemory(builder), $"{TopMemory(builder)?.MemoryUsageKb:N0} KB"),
                 RequiredConsecutiveBreaches = profile.AlertConsecutiveBreaches,
                 RenotifyMinutes = profile.AlertRenotifyMinutes
             });
@@ -166,10 +206,14 @@ public static class MssqlAlertRules
                     : $"{blocked} oturum bloke durumda — engelleyen: {head}",
                 Value = blocked,
                 Threshold = blockLimit,
-                Context = Describe(
+                // The blocker's statement comes from the blocking probe rather than from the
+                // session row: a sleeping blocker owns no request, and its last statement is
+                // exactly the thing the reader needs.
+                Context = Context(
                     builder.Sessions.FirstOrDefault(x =>
                         x.SessionId == builder.Blocking.Select(b => b.BlockingSessionId).FirstOrDefault()),
-                    "engelleyen"),
+                    "engelleyen",
+                    builder.Blocking.Select(b => b.BlockingSql).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x))),
                 RequiredConsecutiveBreaches = profile.AlertConsecutiveBreaches,
                 RenotifyMinutes = profile.AlertRenotifyMinutes
             });
@@ -194,14 +238,17 @@ public static class MssqlAlertRules
                 Unit = "sn",
                 Context = longest is null
                     ? null
-                    : string.Join(" · ", new[]
-                        {
-                            $"SPID {longest.SessionId}",
-                            longest.ProgramName,
-                            longest.LoginName,
-                            longest.HostName,
-                            $"{seconds} sn"
-                        }.Where(x => !string.IsNullOrWhiteSpace(x))),
+                    : Context(
+                        builder.Sessions.FirstOrDefault(x => x.SessionId == longest.SessionId)
+                            ?? new SessionInfo
+                            {
+                                SessionId = longest.SessionId,
+                                ProgramName = longest.ProgramName,
+                                LoginName = longest.LoginName,
+                                HostName = longest.HostName
+                            },
+                        $"{seconds} sn",
+                        longest.SqlText),
                 RequiredConsecutiveBreaches = profile.AlertConsecutiveBreaches,
                 RenotifyMinutes = profile.AlertRenotifyMinutes
             });
@@ -219,6 +266,7 @@ public static class MssqlAlertRules
                 Message = $"{count} açık oturum — sınır {sessionLimit}",
                 Value = count,
                 Threshold = sessionLimit,
+                Context = Context(TopCpu(builder), $"CPU {TopCpu(builder)?.CpuTimeMs:N0} ms"),
                 RequiredConsecutiveBreaches = profile.AlertConsecutiveBreaches,
                 RenotifyMinutes = profile.AlertRenotifyMinutes
             });
@@ -247,9 +295,12 @@ public static class MssqlAlertRules
                           : $" ({longest.BlockingProgram})"),
                 Value = seconds,
                 Threshold = blockSecondsLimit,
-                Context = longest?.BlockingSql is { Length: > 0 } sql
-                    ? $"Engelleyen sorgu: {sql}"
-                    : null,
+                Context = longest is null
+                    ? null
+                    : Context(
+                        builder.Sessions.FirstOrDefault(x => x.SessionId == longest.BlockingSessionId),
+                        $"engelleyen · {seconds} sn",
+                        longest.BlockingSql),
                 RequiredConsecutiveBreaches = profile.AlertConsecutiveBreaches,
                 RenotifyMinutes = profile.AlertRenotifyMinutes
             });
@@ -272,7 +323,7 @@ public static class MssqlAlertRules
                     : $"{runnable} görev işlemci sırasında bekliyor — sınır {runnableLimit}",
                 Value = runnable,
                 Threshold = runnableLimit,
-                Context = Describe(TopCpu(builder), $"{TopCpu(builder)?.CpuTimeMs:N0} ms CPU"),
+                Context = Context(TopCpu(builder), $"{TopCpu(builder)?.CpuTimeMs:N0} ms CPU"),
                 RequiredConsecutiveBreaches = profile.AlertConsecutiveBreaches,
                 RenotifyMinutes = profile.AlertRenotifyMinutes
             });

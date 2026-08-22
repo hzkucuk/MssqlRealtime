@@ -112,6 +112,8 @@ export type SessionInfo = {
 	isBlocked: boolean;
 	isBlocker: boolean;
 	idleSeconds: number;
+	/** Son çalıştırdığı ifade; boşta ve işlem açmamış oturumda null. */
+	sqlText?: string | null;
 };
 
 export type RequestInfo = {

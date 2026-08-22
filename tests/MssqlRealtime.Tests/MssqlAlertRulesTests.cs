@@ -295,6 +295,121 @@ public class MssqlAlertRulesTests
             c => c.RuleId == MssqlAlertRules.RunnableTasks);
     }
 
+    // --- SQL metni: her kuralın bağlamında ---
+
+    [Fact]
+    public void LongRunningCarriesTheStatementNotJustTheSpid()
+    {
+        var profile = Profile();
+        var builder = Online(profile);
+        builder.Requests =
+        [
+            new RequestInfo
+            {
+                SessionId = 71,
+                ElapsedSeconds = 240,
+                ProgramName = "Rapor",
+                SqlText = "SELECT * FROM satis_hareket WHERE tarih > @p0"
+            }
+        ];
+
+        var rule = Assert.Single(
+            MssqlAlertRules.Evaluate(profile, builder),
+            c => c.RuleId == MssqlAlertRules.LongRunning);
+
+        Assert.Contains("SPID 71", rule.Context);
+        Assert.Contains("Sorgu: SELECT * FROM satis_hareket", rule.Context);
+    }
+
+    [Fact]
+    public void CpuRuleCarriesTheStatementOfTheHeaviestSession()
+    {
+        var profile = Profile();
+        var builder = Online(profile, new MachineResources { CpuPercent = 95 });
+        builder.Sessions =
+        [
+            new SessionInfo { SessionId = 60, CpuTimeMs = 10 },
+            new SessionInfo { SessionId = 61, CpuTimeMs = 900_000, SqlText = "EXEC dbo.gece_kapanis" }
+        ];
+
+        var rule = Assert.Single(
+            MssqlAlertRules.Evaluate(profile, builder),
+            c => c.RuleId == MssqlAlertRules.Cpu);
+
+        Assert.Contains("SPID 61", rule.Context);
+        Assert.Contains("Sorgu: EXEC dbo.gece_kapanis", rule.Context);
+    }
+
+    [Fact]
+    public void BlockingCarriesWhatTheBlockerRan()
+    {
+        var profile = Profile();
+        var builder = Online(profile);
+        builder.Sessions = [new SessionInfo { SessionId = 55, ProgramName = "Mikro" }];
+        builder.Blocking =
+        [
+            new BlockingEdge
+            {
+                BlockedSessionId = 60,
+                BlockingSessionId = 55,
+                WaitTimeMs = 5_000,
+                BlockingSql = "UPDATE stok SET adet = 0"
+            }
+        ];
+
+        var rule = Assert.Single(
+            MssqlAlertRules.Evaluate(profile, builder),
+            c => c.RuleId == MssqlAlertRules.Blocking);
+
+        Assert.Contains("SPID 55", rule.Context);
+        Assert.Contains("Sorgu: UPDATE stok SET adet = 0", rule.Context);
+    }
+
+    [Fact]
+    public void StatementIsFoldedOntoOneLineAndCut()
+    {
+        var profile = Profile();
+        var builder = Online(profile);
+        builder.Requests =
+        [
+            new RequestInfo
+            {
+                SessionId = 71,
+                ElapsedSeconds = 240,
+                SqlText = "SELECT\n\t*\nFROM   t\nWHERE x = " + new string('9', 500)
+            }
+        ];
+
+        var rule = Assert.Single(
+            MssqlAlertRules.Evaluate(profile, builder),
+            c => c.RuleId == MssqlAlertRules.LongRunning);
+
+        Assert.DoesNotContain('\n', rule.Context!);
+        Assert.DoesNotContain('\t', rule.Context!);
+        Assert.Contains("SELECT * FROM t WHERE", rule.Context);
+        Assert.EndsWith("…", rule.Context);
+
+        // The store cuts context at 400 characters; the identity line has to survive that.
+        Assert.True(rule.Context!.Length < 400, $"bağlam {rule.Context.Length} karakter");
+    }
+
+    [Fact]
+    public void SessionWithoutStatementStillGetsAnIdentityLine()
+    {
+        var profile = Profile();
+        var builder = Online(profile, new MachineResources { CpuPercent = 95 });
+
+        // An idle session with nothing open: the probe deliberately skips the text lookup.
+        builder.Sessions = [new SessionInfo { SessionId = 61, CpuTimeMs = 900_000, ProgramName = "Mikro" }];
+
+        var rule = Assert.Single(
+            MssqlAlertRules.Evaluate(profile, builder),
+            c => c.RuleId == MssqlAlertRules.Cpu);
+
+        Assert.Contains("SPID 61", rule.Context);
+        Assert.DoesNotContain("Sorgu:", rule.Context);
+    }
+
     [Fact]
     public void RunnableTasksNamesTheSchedulerCountSoTheNumberCanBeJudged()
     {

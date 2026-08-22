@@ -99,6 +99,7 @@
 		{ key: 'memory', label: 'Bellek', width: 90, hiddenByDefault: true },
 		{ key: 'login-time', label: 'Bağlanma', width: 130, hiddenByDefault: true },
 		{ key: 'idle', label: 'Boşta', width: 90 },
+		{ key: 'sql', label: 'Son sorgu', width: 320, hiddenByDefault: true },
 		{ key: 'action', label: 'İşlem', width: 70, required: true }
 	]);
 
@@ -753,6 +754,10 @@
 				<td class="muted">{dateTime(x.loginTime)}</td>
 			{:else if col.key === 'idle'}
 				<td>{duration(x.idleSeconds)}</td>
+			{:else if col.key === 'sql'}
+				<!-- Boşta ve işlem açmamış oturumda prob metni hiç çekmez; "—" burada
+				     "sorgu yok" değil, "sormaya değmedi" demek. -->
+				<td class="clamp mono" title={x.sqlText ?? ''}>{short(x.sqlText, 300)}</td>
 			{/if}
 		{/each}
 

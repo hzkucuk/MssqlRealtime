@@ -687,6 +687,51 @@ ederken tuzak.
 ⬜ Ölçülmeyen: %80 eşiğinin gerçek bir üretim sunucusunda isabetli olup olmadığı. Konteynerde
 worker havuzu hiç zorlanmadı; THREADPOOL beklemesi üretilmedi.
 
+## 2026-08-22 22:2x — `sys.dm_exec_sql_text` içine `CASE` koymak çalışıyor
+
+Oturumlara son çalıştırdıkları ifadeyi eklerken sorun maliyetti: `sys.dm_exec_sql_text`
+satır başına bir plan-cache aramasıdır ve havuz kullanan bir uygulamada oturumların çoğu
+boştadır. Hepsi için her turda metin çekmek, kimsenin okumayacağı metnin bedelini
+müşterinin sunucusuna ödetmek olurdu.
+
+Denenen çözüm — fonksiyona `NULL` geçirmek:
+
+```sql
+OUTER APPLY sys.dm_exec_sql_text(
+    CASE WHEN s.status <> 'sleeping' OR s.open_transaction_count > 0
+         THEN c.SqlHandle END) t
+```
+
+Azure SQL Edge 15.0.2000.1574 (ARM64) üzerinde ölçüldü. `sqlcmd` ile biri açık
+transaction'lı, biri transaction'sız iki oturum boşta bırakıldı:
+
+| SPID | Durum | Açık işlem | SqlText |
+|---|---|---|---|
+| 51 | `sleeping` | 1 | `BEGIN TRAN; UPDATE dbo.olcum SET a = 2;` ✅ |
+| 52 | `sleeping` | 0 | *(metin çekilmedi)* ✅ |
+| 53 | `running` | 0 | `SELECT s.session_id AS SPID, …` ✅ |
+
+Üç davranış da beklendiği gibi: `CASE` kabul ediliyor, `NULL` verilince fonksiyon hiç
+satır döndürmüyor, ve **asıl kazanılan durum** — açık transaction'la uyuyan blocker —
+metnini veriyor. O oturumun `sys.dm_exec_requests`'te satırı yoktur; ne yaptığı başka
+hiçbir yerden görünmüyordu.
+
+`most_recent_sql_handle`, istemci IP'si için zaten var olan `dm_exec_connections`
+`OUTER APPLY`'ına eklendi — ek join yok.
+
+⚠️ Ölçülmeyen: gerçek bir müşteri sunucusunda (yüzlerce oturum) bu `CASE`'in poll süresine
+etkisi. Konteynerde üç oturum vardı; ölçüm maliyeti hakkında bir şey söylemiyor.
+
+## 2026-08-22 22:2x — alarm bağlamı 400 karakterde kırpılıyor
+
+`EfAlertStore` alarm bağlamını veritabanına yazarken 400 karakterde kesiyor. Bu, SQL
+metnini bağlama koyarken sessiz bir tuzak: 4000 karakterlik bir batch yazılsaydı kimlik
+satırı ("SPID 71 · Rapor · sa · APP01") kırpma sırasında değil, **metnin sonunda** kalırdı
+ve okunan alarmda kimin yaptığı görünmezdi.
+
+Bu yüzden ifade alarm bağlamında **240 karakterde** kesiliyor ve tek satıra katlanıyor.
+Tam metin (4000 karakter) canlı ekranda duruyor; alarm bir özet taşır.
+
 ## Doğrulanmayı bekleyenler
 
 | Konu | Neden ölçülemedi |
@@ -698,5 +743,6 @@ worker havuzu hiç zorlanmadı; THREADPOOL beklemesi üretilmedi.
 | Yüksek sunucu sayısında poller yükü | Tek sunucuyla ölçüldü |
 | Oturum eşiği 500 gerçekten yeterli mi | Müşteride `sleeping`/aktif oturum dağılımı ölçülmedi |
 | Worker doluluğu %80 eşiği isabetli mi | THREADPOOL doygunluğu üretilemedi; konteynerde havuz %9'da kaldı |
+| SQL metni çekmenin yüzlerce oturumlu sunucuda poll maliyeti | Konteynerde üç oturum vardı |
 | İşlemci sırası için sağlıklı bir varsayılan | Çekirdek sayısına bağlı; ölçüm yapılmadığı için kural kapalı bırakıldı |
 | Veri migration'ının canlı yükseltmede davranışı | Yalnız boş SQLite düzeneğinde koşuldu, gerçek müşteri veritabanında değil |

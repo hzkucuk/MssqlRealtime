@@ -2,6 +2,67 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/)
 
+## [0.22.0] — 2026-08-22
+
+### Eklenen — SQL metni her ölçümde ve her alarmda
+
+"Uzun süren sorgu" alarmı SPID'i ve uygulamayı söylüyor, **hangi sorgu** olduğunu
+söylemiyordu. Bildirimi okuyan kişi panele girip sorguyu aramak zorundaydı; on dakika
+sonra o oturum çoğu zaman kapanmış oluyordu.
+
+**Alarm bağlamlarına ifade eklendi.** İşlemci, bellek, SQL Server belleği, kilitlenme,
+kilit süresi, uzun süren sorgu, oturum sayısı ve işlemci sırası kurallarının hepsi artık
+kimliğin yanında ifadeyi de taşıyor:
+
+```
+SPID 71 · Rapor · sa · APP01 · 240 sn │ Sorgu: SELECT * FROM satis_hareket WHERE tarih > @p0
+```
+
+İfade tek satıra katlanıp **240 karakterde** kesilir. Sebep ölçülmüş: alarm bağlamı
+veritabanına 400 karakterde kırpılıyor (`EfAlertStore`) ve aynı metin Telegram ile
+e-postaya da gidiyor — 4000 karakterlik bir batch, *kimin* yaptığını söyleyen kimlik
+satırını mesajdan tamamen dışarı iterdi. Tam metin canlı ekranda duruyor.
+
+**Oturumlar artık son çalıştırdıkları ifadeyi taşıyor.** Şimdiye kadar `SessionInfo`'da
+SQL metni hiç yoktu; oturum tablosuna "Son sorgu" sütunu eklendi (varsayılan gizli,
+sütun menüsünden açılır). Asıl kazanç uyuyan blocker'da: açık transaction'la uyuyan bir
+oturumun `sys.dm_exec_requests`'te satırı **yoktur**, dolayısıyla ne yaptığı başka hiçbir
+yerden görünmüyordu.
+
+### Ölçülen — metin çekme maliyeti gerçekten sınırlanıyor (2026-08-22 22:2x)
+
+`sys.dm_exec_sql_text` satır başına bir plan-cache aramasıdır. Havuz kullanan bir
+uygulamada oturumların çoğu boştadır; hepsi için her turda metin çekmek, kimsenin
+okumayacağı bir metnin bedelini müşterinin sunucusuna ödetmek olurdu. Bu yüzden çağrı
+bir `CASE` ile korunuyor — `NULL` verilince fonksiyon hiç satır döndürmez:
+
+```sql
+OUTER APPLY sys.dm_exec_sql_text(
+    CASE WHEN s.status <> 'sleeping' OR s.open_transaction_count > 0
+         THEN c.SqlHandle END) t
+```
+
+Azure SQL Edge 15.0.2000.1574 (ARM64) üzerinde üç durum da ölçüldü:
+
+```
+SPID Durum     AçıkİşlemSqlText
+51   sleeping  1        BEGIN TRAN; UPDATE dbo.olcum SET a = 2;   ← uyuyan blocker, metin geldi
+52   sleeping  0        (METİN ÇEKİLMEDİ)                         ← boşta, atlandı
+53   running   0        SELECT s.session_id AS SPID, ...           ← çalışıyor, metin geldi
+```
+
+Bağlantı sorgusu zaten `sys.dm_exec_connections`'a `OUTER APPLY` yapıyordu (istemci IP'si
+için); `most_recent_sql_handle` aynı APPLY'a eklendi — **ek join yok**.
+
+⚠️ **Gizlilik notu:** SQL metni parametre değil, düz metin literal taşıyabilir (ad-hoc
+sorgularda TC kimlik, e-posta, hatta bağlantı dizesi). Bu metin artık Telegram/e-posta/
+webhook bildirimlerine de giriyor. Kural 6 sırların maskelenmesini söylüyor; burada
+maskeleme **yok** — bildirim kanalı güveniliyor sayıldı. Kabul edilebilir değilse kanal
+bazında kapatılabilir bir ayar gerekir. Açık iş olarak yazıldı.
+
+Ölçülen: `dotnet build` 0 hata/0 uyarı, `dotnet test` **110** test geçti (5 yeni),
+`npm run check` 0 hata, `npm test` 12 test geçti (2026-08-22 22:2x).
+
 ## [0.21.0] — 2026-08-22
 
 ### Eklenen — üç darboğaz kuralı: kilit süresi, işlemci sırası, worker doluluğu

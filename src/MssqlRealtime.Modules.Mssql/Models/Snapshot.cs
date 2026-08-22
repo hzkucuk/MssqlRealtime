@@ -144,6 +144,12 @@ public sealed record SessionInfo
     public bool IsBlocked { get; init; }
     public bool IsBlocker { get; init; }
     public int IdleSeconds { get; init; }
+
+    /// <summary>
+    /// The last statement this session ran. Null for a session that is idle with nothing
+    /// open — the probe skips the plan-cache lookup for those on purpose.
+    /// </summary>
+    public string? SqlText { get; init; }
 }
 
 public sealed record RequestInfo
