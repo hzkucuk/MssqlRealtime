@@ -121,6 +121,24 @@ Kayıt (`/api/auth/register`) ucu kapalıdır — ikinci bir kullanıcı oluştu
 - **Forward Hostname/IP** = panelin kurulu olduğu Windows makinenin IP'si, **Port** = 5199
 - **Websockets Support** açık olmalı — kapalıysa hata alınmaz, SignalR sessizce
   long-polling'e düşer ve telefon pili erir
+- 🔴 **`/hubs` için ayrı bir Custom location tanımlama.** Varsayılan `/` yönlendirmesi bu
+  yolu zaten kapsıyor. Ayrı bir location varsa ve hedefi yanlışsa ortaya çok kandırıcı bir
+  tablo çıkar: `/api/*` çalışır (panel açılır, araç listesi gelir, giriş yapılır) ama
+  `/hubs/*` **502** döner ve uygulama yalnız "bağlı değil" der. Ölçüldü 2026-08-22, bkz.
+  `docs/05-olculen-bulgular.md` — orada silinince düzelen bloğun tamamı var. Blok yanlış
+  yazılmış olmak zorunda değil; WebSocket başlıkları doğru olsa bile **hedef adres**
+  varsayılan yönlendirmeninkinden farklıysa aynı sonuç çıkar.
+
+Bir dakikada ayırmanın yolu — ikisini karşılaştır:
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" https://<alan-adı>/api/health   # 200 bekleniyor
+curl -s -o /dev/null -w "%{http_code}\n" https://<alan-adı>/hubs/xyz     # 200 bekleniyor
+```
+
+İkincisi 502 veriyorsa sorun panelde değil, vekil sunucudadır: `/hubs` panele hiç
+ulaşmıyordur. (Olmayan bir yol bilerek seçildi: panele ulaşırsa arayüzün `index.html`'i
+döner, yani **200**. 502 yalnız vekil sunucudan gelir.)
 
 ## 6. Bildirimleri aç — atlanırsa uygulama kapalıyken kimse haber almaz
 

@@ -763,6 +763,73 @@ olarak kaldırılıp koşuldu ve dördün ikisi düştü:
 uyuyor ama kesinleştiren şey ekranda yazacak hata metni olacak. Ağ/CORS kaynaklıysa ikinci
 düzeltme onu söyleyecek. Bu satır, sebep doğrulandığında güncellenmeli.
 
+## 2026-08-23 00:55 — "bağlı değil"in sebebi: vekil sunucu `/hubs` yolunu panele hiç iletmiyor
+
+v0.22.1'in gösterdiği hata metni teşhisi bitirdi. Telefondaki şerit şunu yazıyordu:
+
+```
+Panele bağlanılamıyor. https://izleme.marmaracloud.net
+Failed to complete negotiation with the server: TypeError: Failed to fetch
+3. deneme yapıldı, otomatik denemeler sürüyor.
+```
+
+Aynı ekranda **araç listesi doluydu** (MSSQL İzleme, Site/API İzleme) — o liste
+`/api/modules` çağrısından gelir. Yani REST çalışıyor, hub çalışmıyor. Dışarıdan ölçüldü:
+
+| İstek | Sonuç |
+|---|---|
+| `GET /api/health` | **200** · `{"status":"ok","version":"0.22.1"}` |
+| `OPTIONS /api/modules` (Origin: `http://tauri.localhost`) | **204** · `access-control-allow-origin: http://tauri.localhost` · `x-served-by: izleme.marmaracloud.net` |
+| `OPTIONS /hubs/tools/negotiate` | **502** · openresty · CORS başlığı yok · `x-served-by` yok |
+| `POST /hubs/tools/negotiate` | **502** |
+| `GET /hubs/tools` | **502** |
+| `GET /hubs/xyz` (olmayan yol) | **502** |
+
+Son satır belirleyici: `/hubs/xyz` panele ulaşsaydı `MapFallbackToFile("index.html")`
+devreye girer ve **200** dönerdi. 502 yalnız vekil sunucudan gelebilir. `x-served-by`
+başlığının `/api`'de olup `/hubs`'ta olmaması da aynı yöne işaret ediyor: Nginx Proxy
+Manager'da `/hubs` için **ayrı bir location** var ve hedefi ölü.
+
+Neden bu kadar kandırıcı:
+
+- Panelin kendi tarayıcısı `http://<windows-ip>:5199`'a doğrudan gider, vekili **hiç
+  kullanmaz** — orada her şey normal görünür.
+- Telefonda REST çalıştığı için panel açılır, giriş yapılır, araç listesi gelir; yalnız
+  canlı akış gelmez.
+- Diğer müşterinin paneli başka bir proxy host'tur, doğru yapılandırılmıştır ve çalışır.
+
+Tarayıcı `fetch`'i CORS başlığı taşımayan bir 502'yi `TypeError: Failed to fetch` diye
+bildirir — yani hata metni "ağ hatası" gibi görünürken aslında bir yapılandırma hatasıydı.
+
+### Doğrulandı — blok bulundu ve silinince düzeldi (2026-08-23 01:0x)
+
+Nginx Proxy Manager'daki Custom location aynen şuydu:
+
+```nginx
+location /hubs/ {
+    proxy_pass http://192.168.2.240:5199;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    ...
+}
+```
+
+Blok **silindi ve bağlantı düzeldi**. Dikkat çekici olan: blok yanlış yazılmış değil —
+WebSocket başlıkları dahil doğru görünüyor. Yanlış olan **hedefi**: NPM bu adrese
+ulaşamıyordu, oysa aynı proxy host'un varsayılan `/` yönlendirmesi panele ulaşıyordu
+(`/api/*` bu yüzden çalışıyordu). Yani IP ya bayattı ya da NPM'in ağından erişilebilir
+değildi.
+
+Ders: **`/hubs` için ayrı location gerekmiyor.** Varsayılan `/` yönlendirmesi zaten
+kapsıyor ve NPM'in *Websockets Support* anahtarı gerekli başlıkları zaten ekliyor. Ayrı bir
+blok ikinci bir doğrulanması gereken adres yaratır ve o adres bozulduğunda ürün "yarı
+çalışır" hâle gelir — en zor teşhis edilen hâl.
+
+⚠️ Ürün hatası değil. Ama v0.22.1'e kadar ürün bunu **söylemiyordu**: ekranda yalnız
+"bağlı değil" yazıyordu ve sebep `lastError` içinde tutulup atılıyordu. Şerit eklenmeseydi
+bu teşhis konmazdı.
+
 ## Doğrulanmayı bekleyenler
 
 | Konu | Neden ölçülemedi |
@@ -772,7 +839,6 @@ düzeltme onu söyleyecek. Bu satır, sebep doğrulandığında güncellenmeli.
 | iOS/Android'de bildirim davranışı | Xcode iOS platform bileşeni kurulu değil (~7 GB) |
 | SMTP kanalı canlı gönderim | Test edilecek mail sunucusu yok |
 | Yüksek sunucu sayısında poller yükü | Tek sunucuyla ölçüldü |
-| Telefondaki "bağlı değil" panelinin gerçek sebebi | Hata metni artık ekranda yazacak; kullanıcıdan bekleniyor |
 | Oturum eşiği 500 gerçekten yeterli mi | Müşteride `sleeping`/aktif oturum dağılımı ölçülmedi |
 | Worker doluluğu %80 eşiği isabetli mi | THREADPOOL doygunluğu üretilemedi; konteynerde havuz %9'da kaldı |
 | SQL metni çekmenin yüzlerce oturumlu sunucuda poll maliyeti | Konteynerde üç oturum vardı |
