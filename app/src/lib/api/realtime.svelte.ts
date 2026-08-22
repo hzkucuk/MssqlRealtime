@@ -148,10 +148,34 @@ class RealtimeClient {
 			this.state = 'disconnected';
 			this.lastError = error instanceof Error ? error.message : String(error);
 
+			// Ölçüldü 2026-08-23: bir müşteride vekil sunucu `/hubs` yolunu panele hiç
+			// iletmiyordu; `/api/*` çalıştığı için panel açılıyor, giriş yapılıyor, araç
+			// listesi geliyor, yalnız canlı akış gelmiyordu. Tarayıcı bunu ayırt edilemez bir
+			// `TypeError: Failed to fetch` diye bildirir. Panelin sağlık ucu cevap veriyorsa
+			// arıza panelde değil, arada olduğu için bunu söylemek teşhisin tamamıdır.
+			this.lastError += (await this.#panelIsReachable())
+				? ' — Panelin kendisi ayakta (/api/health cevap veriyor). Sorun /hubs yolunun'
+					+ ' panele iletilmemesinde: ters vekil sunucuda /hubs için ayrı bir kural'
+					+ ' varsa kaldırın, Websockets desteğini açın.'
+				: '';
+
 			// withAutomaticReconnect only covers a connection that was established and then
 			// dropped. A failed FIRST attempt — an expired token at page load, a proxy
 			// restarting — would otherwise leave the app saying "bağlı değil" forever.
 			this.#scheduleRetry();
+		}
+	}
+
+	/**
+	 * Is the panel itself answering? Deliberately unauthenticated and deliberately not
+	 * through api(): the question is whether anything at that address responds at all.
+	 */
+	async #panelIsReachable(): Promise<boolean> {
+		try {
+			const response = await fetch(`${getServerUrl()}/api/health`);
+			return response.ok;
+		} catch {
+			return false;
 		}
 	}
 

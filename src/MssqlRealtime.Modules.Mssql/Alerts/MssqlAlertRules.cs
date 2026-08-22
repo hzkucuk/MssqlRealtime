@@ -29,9 +29,13 @@ public static partial class MssqlAlertRules
 
     /// <summary>
     /// How much of a statement fits in an alert. The probes keep 4000 characters for the live
-    /// screen, but an alert context is stored truncated at 400 characters and also travels
-    /// through Telegram and e-mail — a full batch would push the identity line, the part that
-    /// says <i>who</i>, out of the message entirely. The full text stays on the live screen.
+    /// screen; the alert store truncates context at 400, and a full batch would push the
+    /// identity line — the part that says <i>who</i> — out of what survives. The full text
+    /// stays on the live screen.
+    /// <para>
+    /// Context does not leave the panel: the notification body is <c>Alert.Message</c>, and
+    /// none of the three channels reads Context (measured 2026-08-23).
+    /// </para>
     /// </summary>
     private const int ContextSqlMaxLength = 240;
 
@@ -221,7 +225,19 @@ public static partial class MssqlAlertRules
 
         if (profile.LongRunningQuerySecondsThreshold is { } longLimit)
         {
-            var longest = builder.Requests.Count == 0 ? null : builder.Requests.MaxBy(r => r.ElapsedSeconds);
+            // A blocked request is also a running request — total_elapsed_time keeps counting
+            // while it waits — so one incident used to breach three rules at once: this one,
+            // the blocking head-count and the blocking duration. Three notifications, one
+            // cause, and the vaguest of them usually arrived first. Ölçüldü 2026-08-23.
+            //
+            // When the duration rule is armed it owns blocked requests, and this rule looks at
+            // what is slow on its own merits. When it is switched off, nothing else is watching
+            // duration, so blocked requests stay in — hiding them would lose the incident.
+            var watched = profile.BlockingDurationSecondsThreshold is null
+                ? builder.Requests
+                : builder.Requests.Where(r => r.BlockingSessionId is null).ToList();
+
+            var longest = watched.Count == 0 ? null : watched.MaxBy(r => r.ElapsedSeconds);
             var seconds = longest?.ElapsedSeconds ?? 0;
 
             candidates.Add(new AlertCandidate

@@ -830,6 +830,86 @@ blok ikinci bir doğrulanması gereken adres yaratır ve o adres bozulduğunda �
 "bağlı değil" yazıyordu ve sebep `lastError` içinde tutulup atılıyordu. Şerit eklenmeseydi
 bu teşhis konmazdı.
 
+## 2026-08-23 01:2x — açık kalan beş soru ölçüldü
+
+Ortam: Azure SQL Edge 15.0.2000.1574 (ARM64 konteyner), 4 zamanlayıcı, `max_workers_count`
+256. Emülasyon altında çalışıyor; **mutlak süreler gerçek bir sunucuya taşınamaz**, oranlar
+ve davranışlar taşınır.
+
+### 1. SQL metni çekmenin maliyeti
+
+Oturum sorgusu, korumalı (bugünkü hâl) ve korumasız (her oturum için metin) iki biçimde,
+20 tur, ortalama:
+
+| Oturum | Korumalı | Korumasız | Fark |
+|---|---|---|---|
+| 60 (aynı sorgu metni) | 7,65 ms | 7,10 ms | **yok** (gürültü içinde) |
+| 151 (her oturum farklı metin) | 46,95 ms | 51,70 ms | %9 |
+
+İki şey birden görünüyor: **koruma 60 oturumda hiçbir şey kazandırmıyor**, 151 oturumda
+%9 kazandırıyor. Asıl dikkat çeken sorgunun kendisi: 60 → 151 oturumda süre 7,65 ms'den
+46,95 ms'ye çıktı, yani **oturum sayısıyla doğrusaldan hızlı** büyüyor. 5 saniyelik bir
+poll aralığında 47 ms hâlâ %1'lik bir meşguliyet, ama 500 oturumda ne olacağı bu ölçümden
+çıkarılamaz.
+
+Karar: koruma **kalıyor**. Kazancı 151 oturumda ölçülebilir, büyüdükçe artan yönde ve
+bedeli sıfır. Ama gerekçesi artık "maliyet çok yüksek" değil, "ölçülen kazanç %9 ve
+büyüyor" — ilk yazılan gerekçe abartılıydı.
+
+### 2. Worker doluluğu gerçekten neyi izliyor
+
+| Durum | Oturum | Çalışan iş | Aktif worker | Doluluk | Runnable |
+|---|---|---|---|---|---|
+| Boşta | 151 | 0 | 24 | **%9** | 0 |
+| 80 eşzamanlı `WAITFOR` | 231 | 80 | 109 | **%43** | 6 |
+
+151 boşta oturum iğneyi **hiç oynatmadı**; 80 eşzamanlı iş worker sayısını 24'ten 109'a
+çıkardı — iş başına yaklaşık bir worker. Yani metrik bağlantıyı değil **eşzamanlı işi**
+izliyor. Oturum sayısı kuralının tam olarak kanadığı yerde bu kural sağlam.
+
+Kalibrasyon kuralı: `aktif worker ≈ eşzamanlı istek + taban`. Bu instance'ta %80 eşiği
+≈ 205 worker ≈ ~180 eşzamanlı istek demek.
+
+⚠️ **%80'in doğru eşik olduğu hâlâ ölçülmedi.** THREADPOOL doygunluğu üretilemedi; ölçülen
+şey metriğin doğru şeyi izlediği, eşiğin isabeti değil.
+
+### 3. İşlemci sırası için makul bir başlangıç
+
+80 eşzamanlı iş çalışırken runnable = 6, zamanlayıcı = 4 → zamanlayıcı başına ~1,5. Boşta
+0. Sabit varsayılan yine konmadı (çekirdek sayısına bağlı), ama form artık o sunucunun
+**ölçülen zamanlayıcı sayısını** gösterip iki katını öneriyor.
+
+### 4. Tek olay üç bildirim üretiyordu
+
+45 saniyedir bloke olan **tek** bir istek için kural motoru üç kuralı birden ihlalde
+gösteriyordu:
+
+```
+Collection: ["blocking", "long-running", "blocking-duration"]
+```
+
+Sebep: bloke bir istek aynı zamanda çalışan bir istektir, `total_elapsed_time` beklerken de
+işlemeye devam eder. Düzeltildi: kilit süresi kuralı **açıkken** uzun sorgu kuralı bloke
+istekleri kendi listesinden çıkarıyor; kilit süresi kuralı **kapalıyken** çıkarmıyor, çünkü
+o zaman süreyi izleyen başka kimse yok ve olayı kaybetmek olurdu. Üç test bunu sabitliyor.
+
+Geriye iki bildirim kalıyor — "1 oturum bloke" (sayı, ~15 sn'de) ve "45 sn süren kilit"
+(süre, 30 sn'de). Bunlar aynı şeyin tekrarı değil, **kademe**: önce bloke var, sonra uzadı.
+
+### 5. SQL metni bildirim kanallarına gitmiyor
+
+v0.22.0'da "SQL metni artık Telegram/e-posta/webhook bildirimlerine de giriyor" yazmıştım.
+**Yanlıştı ve doğrulamadan yazılmıştı.** Kod okundu:
+
+- `AlertNotification.Body` = `Alert.Message`; `Context` gövdeye hiç girmiyor.
+- `TelegramChannel` hedef adı + gövde + ölçülen/sınır + saat gönderiyor.
+- `WebhookChannel` alanları tek tek serileştiriyor; `context` listede yok.
+- `EmailChannel` aynı.
+
+SQL metni paneli terk etmiyor: yerel SQLite'taki alarm geçmişinde ve panelin arayüzünde
+duruyor, ikisi de kimlik doğrulamasının arkasında. Kanal bazında maskeleme anahtarı
+**gerekmiyor**; CHANGELOG ve `docs/04` düzeltildi.
+
 ## Doğrulanmayı bekleyenler
 
 | Konu | Neden ölçülemedi |
@@ -839,8 +919,7 @@ bu teşhis konmazdı.
 | iOS/Android'de bildirim davranışı | Xcode iOS platform bileşeni kurulu değil (~7 GB) |
 | SMTP kanalı canlı gönderim | Test edilecek mail sunucusu yok |
 | Yüksek sunucu sayısında poller yükü | Tek sunucuyla ölçüldü |
+| Worker doluluğu %80 eşiği isabetli mi | Metriğin doğru şeyi izlediği ölçüldü; THREADPOOL doygunluğu üretilemedi |
+| 500+ oturumlu sunucuda oturum sorgusunun süresi | 151'e kadar ölçüldü, doğrusaldan hızlı büyüyor |
 | Oturum eşiği 500 gerçekten yeterli mi | Müşteride `sleeping`/aktif oturum dağılımı ölçülmedi |
-| Worker doluluğu %80 eşiği isabetli mi | THREADPOOL doygunluğu üretilemedi; konteynerde havuz %9'da kaldı |
-| SQL metni çekmenin yüzlerce oturumlu sunucuda poll maliyeti | Konteynerde üç oturum vardı |
-| İşlemci sırası için sağlıklı bir varsayılan | Çekirdek sayısına bağlı; ölçüm yapılmadığı için kural kapalı bırakıldı |
 | Veri migration'ının canlı yükseltmede davranışı | Yalnız boş SQLite düzeneğinde koşuldu, gerçek müşteri veritabanında değil |

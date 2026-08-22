@@ -295,6 +295,73 @@ public class MssqlAlertRulesTests
             c => c.RuleId == MssqlAlertRules.RunnableTasks);
     }
 
+    // --- Tek olay, kaç bildirim? ---
+
+    [Fact]
+    public void OneBlockedQueryFiresBothTheDurationAndTheLongRunningRule()
+    {
+        var profile = Profile();
+        var builder = Online(profile);
+
+        // Tek bir olay: 45 saniyedir bloke olan tek bir istek. Bloke bir istek aynı zamanda
+        // ÇALIŞAN bir istektir; total_elapsed_time işlemeye devam eder.
+        builder.Blocking =
+        [
+            new BlockingEdge { BlockedSessionId = 60, BlockingSessionId = 55, WaitTimeMs = 45_000 }
+        ];
+        builder.Requests =
+        [
+            new RequestInfo { SessionId = 60, ElapsedSeconds = 45, BlockingSessionId = 55 }
+        ];
+
+        var breached = MssqlAlertRules.Evaluate(profile, builder)
+            .Where(c => c.IsBreached)
+            .Select(c => c.RuleId)
+            .ToArray();
+
+        Assert.Contains(MssqlAlertRules.BlockingDuration, breached);
+        Assert.Contains(MssqlAlertRules.Blocking, breached);
+        Assert.DoesNotContain(MssqlAlertRules.LongRunning, breached);
+    }
+
+    [Fact]
+    public void ALongQueryThatIsNotBlockedStillFiresTheLongRunningRule()
+    {
+        var profile = Profile();
+        var builder = Online(profile);
+        builder.Requests = [new RequestInfo { SessionId = 71, ElapsedSeconds = 240, ProgramName = "Rapor" }];
+
+        var longRunning = Assert.Single(
+            MssqlAlertRules.Evaluate(profile, builder),
+            c => c.RuleId == MssqlAlertRules.LongRunning);
+
+        Assert.True(longRunning.IsBreached);
+        Assert.Equal(240, longRunning.Value);
+    }
+
+    [Fact]
+    public void WithTheDurationRuleOffALongBlockedQueryIsStillReported()
+    {
+        var profile = Profile();
+        profile.BlockingDurationSecondsThreshold = null;
+        var builder = Online(profile);
+        builder.Blocking =
+        [
+            new BlockingEdge { BlockedSessionId = 60, BlockingSessionId = 55, WaitTimeMs = 45_000 }
+        ];
+        builder.Requests =
+        [
+            new RequestInfo { SessionId = 60, ElapsedSeconds = 45, BlockingSessionId = 55 }
+        ];
+
+        // Nobody else is watching duration now, so hiding it would lose the incident.
+        var longRunning = Assert.Single(
+            MssqlAlertRules.Evaluate(profile, builder),
+            c => c.RuleId == MssqlAlertRules.LongRunning);
+
+        Assert.True(longRunning.IsBreached);
+    }
+
     // --- SQL metni: her kuralın bağlamında ---
 
     [Fact]

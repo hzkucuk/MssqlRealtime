@@ -2,6 +2,76 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/)
 
+## [0.23.0] — 2026-08-23
+
+Açık kalan beş soru ölçüldü ve üçü koda dönüştü. Ölçüm ortamı: Azure SQL Edge
+15.0.2000.1574 (ARM64 konteyner), 4 zamanlayıcı, `max_workers_count` 256. Emülasyon
+altında; **mutlak süreler gerçek sunucuya taşınamaz**, davranışlar taşınır. Ayrıntı:
+`docs/05-olculen-bulgular.md`.
+
+### Düzeltilen — tek olay üç bildirim üretiyordu
+
+45 saniyedir bloke olan **tek** bir istek, kural motorunda üç kuralı birden ihlalde
+gösteriyordu: `blocking`, `long-running`, `blocking-duration`. Sebep, bloke bir isteğin
+aynı zamanda çalışan bir istek olması — `total_elapsed_time` beklerken de işler.
+
+Kilit süresi kuralı **açıkken** uzun sorgu kuralı artık bloke istekleri kendi listesine
+almıyor. **Kapalıyken** alıyor: o zaman süreyi izleyen başka kimse yok, gizlemek olayı
+kaybetmek olurdu. Geriye kalan iki bildirim tekrar değil kademe: önce "bloke var"
+(~15 sn), sonra "kilit uzadı" (30 sn).
+
+### Eklenen — bağlantı kurulamadığında panelin ayakta olup olmadığı da söyleniyor
+
+Dün bir müşteride ters vekil `/hubs` yolunu panele iletmiyordu. `/api/*` çalıştığı için
+panel açılıyor, giriş yapılıyor, araç listesi geliyordu; yalnız canlı akış gelmiyordu.
+Tarayıcı bunu ayırt edilemez bir `TypeError: Failed to fetch` diye bildirir.
+
+Artık bağlantı kurulamadığında uygulama `/api/health`'i de yokluyor. Panel cevap veriyorsa
+şerit şunu ekliyor: *"Panelin kendisi ayakta. Sorun /hubs yolunun panele iletilmemesinde:
+ters vekil sunucuda /hubs için ayrı bir kural varsa kaldırın, Websockets desteğini açın."*
+Panel de cevap vermiyorsa hiçbir şey uydurmuyor.
+
+### Eklenen — işlemci sırası eşiği için ölçülmüş öneri
+
+Kural varsayılan kapalı kalmaya devam ediyor (sağlıklı değer çekirdek sayısına bağlı), ama
+form artık o sunucunun **ölçülen zamanlayıcı sayısını** gösterip iki katını öneriyor.
+Ölçüm: 80 eşzamanlı iş çalışırken runnable = 6, zamanlayıcı = 4 → zamanlayıcı başına ~1,5.
+
+### 🔴 Düzeltilen bilgi — SQL metni bildirim kanallarına gitmiyor
+
+v0.22.0'ın notunda "SQL metni artık Telegram/e-posta/webhook bildirimlerine de giriyor"
+yazıyordu. **Yanlıştı ve doğrulamadan yazılmıştı.** Bildirim gövdesi `Alert.Message`'tır;
+üç kanalın hiçbiri `Context` alanını okumaz. SQL metni paneli terk etmiyor — yerel alarm
+geçmişinde ve panelin arayüzünde duruyor, ikisi de kimlik doğrulamasının arkasında. Kanal
+bazında maskeleme anahtarı gerekmiyor; v0.22.0 notu, `docs/04` ve GitHub sürüm notu
+düzeltildi.
+
+### Ölçülen — worker doluluğu doğru şeyi izliyor
+
+| Durum | Oturum | Çalışan iş | Aktif worker | Doluluk |
+|---|---|---|---|---|
+| Boşta | 151 | 0 | 24 | %9 |
+| 80 eşzamanlı iş | 231 | 80 | 109 | %43 |
+
+151 **boşta** oturum iğneyi hiç oynatmadı; 80 eşzamanlı iş worker sayısını 24'ten 109'a
+çıkardı. Metrik bağlantıyı değil eşzamanlı işi izliyor — oturum sayısı kuralının kanadığı
+yerde bu kural sağlam. ⚠️ %80'in doğru eşik olduğu hâlâ ölçülmedi; THREADPOOL doygunluğu
+üretilemedi.
+
+### Ölçülen — SQL metni korumasının gerçek kazancı
+
+| Oturum | Korumalı | Korumasız | Fark |
+|---|---|---|---|
+| 60 | 7,65 ms | 7,10 ms | yok |
+| 151 | 46,95 ms | 51,70 ms | %9 |
+
+Koruma kalıyor ama gerekçesi düzeltildi: "maliyet çok yüksek" değil, "kazanç %9 ve
+büyüyor". Asıl dikkat edilecek olan sorgunun kendisi — 60 → 151 oturumda 7,65 ms'den
+46,95 ms'ye çıktı, doğrusaldan hızlı büyüyor. 500 oturumda ne olacağı ölçülmedi.
+
+Ölçülen: `dotnet build` 0 hata/0 uyarı, `dotnet test` **113** test geçti (3 yeni),
+`npm run check` 0 hata, `npm test` **18** test geçti (2 yeni).
+
 ## [0.22.1] — 2026-08-22
 
 ### Düzeltilen — telefonda bir panel sonsuza kadar "bağlı değil" diyordu
@@ -102,11 +172,18 @@ SPID Durum     AçıkİşlemSqlText
 Bağlantı sorgusu zaten `sys.dm_exec_connections`'a `OUTER APPLY` yapıyordu (istemci IP'si
 için); `most_recent_sql_handle` aynı APPLY'a eklendi — **ek join yok**.
 
-⚠️ **Gizlilik notu:** SQL metni parametre değil, düz metin literal taşıyabilir (ad-hoc
-sorgularda TC kimlik, e-posta, hatta bağlantı dizesi). Bu metin artık Telegram/e-posta/
-webhook bildirimlerine de giriyor. Kural 6 sırların maskelenmesini söylüyor; burada
-maskeleme **yok** — bildirim kanalı güveniliyor sayıldı. Kabul edilebilir değilse kanal
-bazında kapatılabilir bir ayar gerekir. Açık iş olarak yazıldı.
+⚠️ **Gizlilik — 2026-08-23'te düzeltildi.** Bu bölüm ilk yazıldığında "SQL metni artık
+Telegram/e-posta/webhook bildirimlerine de giriyor" diyordu. **Yanlıştı.** Kod okunarak
+doğrulandı: bildirim gövdesi `AlertNotification.Body` = `Alert.Message`'tır ve üç kanalın
+hiçbiri `Context` alanını okumaz — `TelegramChannel` hedef adı, gövde, ölçülen/sınır ve
+saati gönderir; `WebhookChannel` alan alan serileştirir ve `context` listede yoktur;
+`EmailChannel` aynı şekilde. SQL metni **paneli terk etmiyor**: alarm geçmişi tablosunda
+(yerel SQLite) ve panelin kendi arayüzünde duruyor, ikisi de kimlik doğrulamasının
+arkasında.
+
+Yine de bilinsin: alarm bağlamı ad-hoc sorgulardaki düz metin literalleri taşıyabilir ve
+alarm geçmişi ekranını açan herkes onu görür. Kanal bazında maskeleme **gerekmiyor**;
+gerekseydi eklenecekti.
 
 Ölçülen: `dotnet build` 0 hata/0 uyarı, `dotnet test` **110** test geçti (5 yeni),
 `npm run check` 0 hata, `npm test` 12 test geçti (2026-08-22 22:2x).

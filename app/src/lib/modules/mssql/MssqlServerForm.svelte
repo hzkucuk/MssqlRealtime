@@ -9,6 +9,15 @@
 	// Used for both "add" and "edit"; the route decides which by supplying a target id.
 	const serverId = $derived(page.params.target ?? null);
 
+	// Ölçüldü 2026-08-23 (Azure SQL Edge, 4 zamanlayıcı): 151 BOŞTA oturum runnable sayısını
+	// hiç oynatmadı; 80 eşzamanlı iş çalışırken 6'ya çıktı — zamanlayıcı başına ~1,5. Sağlıklı
+	// değer zamanlayıcı sayısına bağlı olduğu için sabit bir varsayılan konmadı; ekranda o
+	// sunucunun kendi zamanlayıcı sayısı ve ondan türeyen bir öneri gösteriliyor.
+	const schedulers = $derived(
+		serverId ? (mssql.snapshot(serverId)?.resources?.schedulerCount ?? null) : null
+	);
+	const runnableSuggestion = $derived(schedulers && schedulers > 0 ? schedulers * 2 : null);
+
 	let form = $state({
 		name: '',
 		customerName: '',
@@ -348,8 +357,15 @@
 		</div>
 
 		<p class="muted" style="margin:0.2rem 0 0.6rem">
-			İşlemci sırası varsayılan olarak kapalıdır: sağlıklı değer çekirdek sayısına bağlı.
-			Sunucunun zamanlayıcı sayısını ölçüp ona göre bir sayı verin.
+			İşlemci sırası varsayılan olarak <strong>kapalıdır</strong>: sağlıklı değer çekirdek
+			sayısına bağlı, ölçmeden konan bir sayı yanlış alarm üretir.
+			{#if runnableSuggestion}
+				Bu sunucuda <strong>{schedulers} zamanlayıcı</strong> ölçüldü; başlangıç için
+				<strong>{runnableSuggestion}</strong> (zamanlayıcı sayısının iki katı) makul.
+			{:else}
+				Sunucu ekranındaki <em>Sistem</em> sekmesinde zamanlayıcı sayısı yazıyor; iki katı
+				makul bir başlangıçtır.
+			{/if}
 		</p>
 
 		<div class="field-row">
