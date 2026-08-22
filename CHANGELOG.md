@@ -2,6 +2,127 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/)
 
+## [0.21.0] — 2026-08-22
+
+### Eklenen — üç darboğaz kuralı: kilit süresi, işlemci sırası, worker doluluğu
+
+Oturum sayısı bir darboğaz göstergesi değil; boşta duran havuz oturumlarını da sayar ve
+gerçek sıkışmayı ancak dolaylı gösterir. Bu sürüm sıkışmayı **doğrudan ölçen** üç kural
+ekliyor.
+
+**Kilit süresi** (`blocking-duration`, varsayılan 30 sn) — mevcut "Kilitlenme" kuralı
+*kaç* oturumun bloke olduğunu sayıyor, *ne kadar süredir* bloke olduğunu değil. Yarım
+saniye bekleyen on oturum yoğun bir sunucudur; iki dakikadır bekleyen tek oturum bir
+olaydır. Veri zaten toplanıyordu (`BlockingEdge.WaitTimeMs`), hiçbir kural okumuyordu —
+**ek SQL maliyeti yok**. Bildirim engelleyen SPID'i, uygulamayı ve engelleyen sorgunun
+metnini taşıyor.
+
+**İşlemci sırası** (`runnable-tasks`, **varsayılan kapalı**) — `sys.dm_os_schedulers`
+üzerinden CPU sırasında bekleyen görev sayısı. Ring buffer'dan gelen CPU%'in aksine
+**canlı** bir değer. Veri zaten toplanıyordu (`MachineResources.RunnableTasks`), ek SQL
+maliyeti yok. Varsayılan olarak kapalı, çünkü sağlıklı değer çekirdek sayısına bağlı ve
+ölçülmeden konan bir sayı tam olarak 200'lük oturum sınırının hatası olurdu. Bildirim
+zamanlayıcı sayısını da yazar ki eşik kalibre edilebilsin.
+
+**Worker doluluğu** (`worker-utilization`, varsayılan %80) — havuz dolduğunda yeni
+bağlantılar `THREADPOOL` beklemesine girer ve **izleme panelinin kendisi de bağlanamaz**;
+bu yüzden erken uyarması gereken kural bu. Mevcut zamanlayıcı sorgusuna iki sütun eklendi,
+**ek round-trip yok**.
+
+### Ölçülen — `sys.dm_os_sys_info`'da `active_workers_count` yok (2026-08-22 20:47)
+
+Yaygın olarak paylaşılan `SELECT max_workers_count, active_workers_count FROM
+sys.dm_os_sys_info` sorgusu **çalışmaz**. Azure SQL Edge 15.0.2000.1574 (ARM64)
+konteynerinde ölçüldü — bu görünümde `%worker%` kalıbına uyan tek sütun var:
+
+```
+name
+----
+max_workers_count
+```
+
+`active_workers_count` `sys.dm_os_schedulers`'ta yaşıyor. Prob bu yüzden ikisini
+kasıtlı olarak karıştırıyor: pay `dm_os_schedulers`'tan, tavan `dm_os_sys_info`'dan.
+Gizli zamanlayıcılar (DAC, resource monitor) paya girmez ama tavana dahildir, dolayısıyla
+oran birkaç worker kadar **düşük** çıkar — güvenli yön.
+
+Değiştirilmiş prob sorgusunun tamamı aynı konteynerde koşuldu, beş sonuç kümesi de döndü:
+
+```
+SchedulerCount RunnableTasks ActiveWorkers MaxWorkers
+4              0             24            256          → %9 dolu
+```
+
+### Değişen — mevcut sunucularda iki kural yükseltmede açılır
+
+`PressureAlertThresholds` migration'ı üç kolonu ekler ve mevcut satırlara kilit süresi
+için 30 sn, worker doluluğu için %80 yazar. Yeni kolon var olan satıra `NULL` gelir ve
+`NULL` "kural kapalı" demektir — geri doldurmasaydık, bu sürümden önce kayıtlı her sunucu
+kuralları formda görür ama çalıştırmazdı. Bu, bir önceki sürümde belgelenen tuzağın
+aynısı (`docs/04-kirilma-noktalari.md`).
+
+⚠️ Sonucu açıkça yazıyorum: **yükseltmeden sonra iki kural kendiliğinden devreye girer.**
+Sağlıklı bir sunucuda ikisi de sessizdir — 30 saniyelik bir kilit ve %80 dolu bir worker
+havuzu hava durumu değil, olaydır. İşlemci sırası bilerek `NULL` bırakıldı.
+
+Ölçülen: `dotnet build` 0 hata/0 uyarı, `dotnet test` **105** test geçti (8 yeni),
+`npm run check` 0 hata, `npm test` 12 test geçti (2026-08-22 20:5x).
+
+## [0.20.1] — 2026-08-22
+
+### Değişen — oturum sayısı alarmının varsayılan eşiği 200 → 500
+
+Kural, açık oturum sayısını `sys.dm_exec_sessions` üzerinden `is_user_process = 1` ile
+sayıyor; **status filtresi yok**, yani `sleeping` durumdaki bağlantı havuzu (connection
+pool) oturumları da sayıya giriyor. Havuz kullanan üç uygulama sunucusu (`Max Pool Size`
+varsayılanı 100) tek başına 300 boşta oturum demek — kural hiç iş yokken kalıcı olarak
+ihlalde kalıyor ve her turda "hâlâ ihlal" raporluyor. Kalıcı açık alarm, bakılmayan
+alarmdır.
+
+200 sayısının ölçülmüş bir dayanağı yoktu; seçilmiş bir varsayılandı. 500 de ölçülmüş
+değil — yalnız havuz aritmetiğine göre daha az gürültülü. Eşik sunucu başına
+düzenlenebilir, alan boşaltılırsa kural tümüyle kapanır.
+
+- `ServerProfile.SessionCountAlertThreshold` varsayılanı 500
+- Yeni sunucu formunun ön dolgusu 500
+
+### Eklenen — mevcut sunucuları da taşıyan veri migration'ı
+
+Bir C# property başlangıç değeri yalnız **yeni oluşturulan** satıra uygulanır; kayıtlı
+sunucular sessizce 200'de kalırdı — "sınırı 500 yaptık" denip alarmın 200'de çalışması
+en kötü türden bir sürpriz. `RaiseSessionCountThresholdDefault` şema değiştirmez, tek
+iş yapar:
+
+```sql
+UPDATE MssqlServerProfiles SET SessionCountAlertThreshold = 500
+WHERE SessionCountAlertThreshold = 200;
+```
+
+Yalnız **eski varsayılanı taşıyan** satırlar güncellenir. `NULL` (kural kapalı) ve elle
+girilmiş her değer olduğu gibi bırakılır — kullanıcının açık tercihi bizim değiştireceğimiz
+şey değil. `Down` doğası gereği kayıplıdır: 500'ü bilerek seçmiş bir sunucu da 200'e döner,
+eski değer hiçbir yerde saklanmıyor.
+
+**Ölçüldü 2026-08-22 16:52** — boş bir SQLite'a bir önceki migration'a kadar gidilip üç
+satır yazıldı, sonra yeni migration uygulandı:
+
+```
+Eski-200      200  →  500     (taşındı)
+Elle-350      350  →  350     (dokunulmadı)
+Kapali-NULL   NULL →  NULL    (dokunulmadı)
+```
+
+Temiz kurulum yolu da koşuldu: sıfırdan bir veritabanında tüm migration'lar sorunsuz
+uygulandı, `UPDATE` sıfır satır etkiledi (2026-08-22 16:53).
+
+Ölçülen: `dotnet build` 0 hata, `dotnet test` 97 test geçti, `npm run check` 0 hata,
+`npm test` 12 test geçti (2026-08-22 16:53).
+
+⬜ Not: oturum sayısı zaten zayıf bir darboğaz göstergesi. Daha isabetli olanlar —
+en uzun blok süresi, runnable task sayısı, worker thread doluluğu — henüz kural
+olarak yok; ilk ikisinin verisi `BlockingEdge.WaitTimeMs` ve `MachineResources.RunnableTasks`
+içinde zaten toplanıyor ve kullanılmıyor.
+
 ## [0.20.0] — 2026-08-10
 
 ### Eklenen — ön yüzde test altyapısı (vitest)

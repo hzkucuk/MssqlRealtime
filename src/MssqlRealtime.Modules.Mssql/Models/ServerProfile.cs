@@ -56,7 +56,29 @@ public sealed class ServerProfile
 
     public int? BlockedSessionAlertThreshold { get; set; } = 1;
     public int? LongRunningQuerySecondsThreshold { get; set; } = 30;
-    public int? SessionCountAlertThreshold { get; set; } = 200;
+    public int? SessionCountAlertThreshold { get; set; } = 500;
+
+    /// <summary>
+    /// Longest single blocking wait, in seconds. Counts how long one victim has been stuck
+    /// behind one blocker — unlike <see cref="BlockedSessionAlertThreshold"/>, which counts
+    /// heads and says nothing about duration. Null disables the rule.
+    /// </summary>
+    public int? BlockingDurationSecondsThreshold { get; set; } = 30;
+
+    /// <summary>
+    /// Tasks queued for a CPU right now (sum of runnable_tasks_count over the online
+    /// schedulers). Null disables the rule — and null is the default on purpose: a healthy
+    /// count depends on the core count, and a number picked without measuring is how the
+    /// session-count rule ended up alerting on idle connection-pool sessions.
+    /// </summary>
+    public int? RunnableTasksAlertThreshold { get; set; }
+
+    /// <summary>
+    /// Worker thread pool utilisation, in percent. This is the one that precedes a THREADPOOL
+    /// stall, at which point the instance stops accepting connections — including ours.
+    /// Null disables the rule.
+    /// </summary>
+    public int? WorkerUtilizationAlertPercent { get; set; } = 80;
 
     /// <summary>
     /// A rule must stay breached this many consecutive polls before it fires.

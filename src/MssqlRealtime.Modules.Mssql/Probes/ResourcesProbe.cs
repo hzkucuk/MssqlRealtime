@@ -56,10 +56,20 @@ public sealed class ResourcesProbe : ISqlProbe
         FROM sys.dm_os_performance_counters
         WHERE RTRIM(counter_name) IN ('Target Server Memory (KB)', 'Page life expectancy');
 
-        -- 5) Scheduler pressure: tasks waiting for a CPU right now
+        -- 5) Scheduler pressure: tasks waiting for a CPU right now, and how much of the
+        --    worker thread pool is already committed. Worker exhaustion is the failure that
+        --    takes the instance away from us entirely: once every worker is busy, new
+        --    connections queue on THREADPOOL and the monitor cannot log in either.
+        --    active_workers_count is read from sys.dm_os_schedulers rather than from
+        --    sys.dm_os_sys_info — the latter is where max_workers_count lives, and mixing
+        --    the two is deliberate. Hidden schedulers (DAC, resource monitor) are excluded
+        --    from the numerator but included in max_workers_count, so the ratio errs low
+        --    by a handful of workers.
         SELECT
-            COUNT(*)                        AS SchedulerCount,
-            ISNULL(SUM(runnable_tasks_count), 0) AS RunnableTasks
+            COUNT(*)                             AS SchedulerCount,
+            ISNULL(SUM(runnable_tasks_count), 0) AS RunnableTasks,
+            ISNULL(SUM(active_workers_count), 0) AS ActiveWorkers,
+            (SELECT max_workers_count FROM sys.dm_os_sys_info) AS MaxWorkers
         FROM sys.dm_os_schedulers
         WHERE status = 'VISIBLE ONLINE';
         """;
@@ -96,7 +106,9 @@ public sealed class ResourcesProbe : ISqlProbe
             SqlTargetMemoryMb = counters?.TargetMemoryMb,
             PageLifeExpectancySeconds = counters?.PageLifeExpectancy,
             SchedulerCount = sched?.SchedulerCount ?? 0,
-            RunnableTasks = sched?.RunnableTasks ?? 0
+            RunnableTasks = sched?.RunnableTasks ?? 0,
+            ActiveWorkers = sched?.ActiveWorkers ?? 0,
+            MaxWorkers = sched?.MaxWorkers ?? 0
         };
     }
 
@@ -133,5 +145,7 @@ public sealed class ResourcesProbe : ISqlProbe
     {
         public int SchedulerCount { get; set; }
         public int RunnableTasks { get; set; }
+        public int ActiveWorkers { get; set; }
+        public int MaxWorkers { get; set; }
     }
 }

@@ -59,6 +59,9 @@ public sealed record AlertThresholdsDto
     public int? BlockedSessions { get; init; }
     public int? LongRunningQuerySeconds { get; init; }
     public int? SessionCount { get; init; }
+    public int? BlockingDurationSeconds { get; init; }
+    public int? RunnableTasks { get; init; }
+    public int? WorkerUtilizationPercent { get; init; }
     public int ConsecutiveBreaches { get; init; } = 3;
     public int RenotifyMinutes { get; init; } = 15;
     public bool AlertOnOffline { get; init; } = true;
@@ -71,6 +74,9 @@ public sealed record AlertThresholdsDto
         BlockedSessions = p.BlockedSessionAlertThreshold,
         LongRunningQuerySeconds = p.LongRunningQuerySecondsThreshold,
         SessionCount = p.SessionCountAlertThreshold,
+        BlockingDurationSeconds = p.BlockingDurationSecondsThreshold,
+        RunnableTasks = p.RunnableTasksAlertThreshold,
+        WorkerUtilizationPercent = p.WorkerUtilizationAlertPercent,
         ConsecutiveBreaches = p.AlertConsecutiveBreaches,
         RenotifyMinutes = p.AlertRenotifyMinutes,
         AlertOnOffline = p.AlertOnOffline
@@ -84,6 +90,13 @@ public sealed record AlertThresholdsDto
         p.BlockedSessionAlertThreshold = BlockedSessions;
         p.LongRunningQuerySecondsThreshold = LongRunningQuerySeconds;
         p.SessionCountAlertThreshold = SessionCount;
+        p.BlockingDurationSecondsThreshold = BlockingDurationSeconds;
+        p.RunnableTasksAlertThreshold = RunnableTasks;
+        // A percentage above 100 can never be breached — the rule would look armed and never
+        // fire, which is worse than being visibly off.
+        p.WorkerUtilizationAlertPercent = WorkerUtilizationPercent is { } w
+            ? Math.Clamp(w, 1, 100)
+            : null;
         p.AlertConsecutiveBreaches = Math.Clamp(ConsecutiveBreaches, 1, 60);
         p.AlertRenotifyMinutes = Math.Clamp(RenotifyMinutes, 1, 1440);
         p.AlertOnOffline = AlertOnOffline;

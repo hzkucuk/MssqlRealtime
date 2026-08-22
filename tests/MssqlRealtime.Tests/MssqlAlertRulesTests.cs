@@ -167,4 +167,147 @@ public class MssqlAlertRulesTests
         Assert.Contains(candidates, c => c.RuleId == MssqlAlertRules.Memory);
         Assert.Contains(candidates, c => c.RuleId == MssqlAlertRules.SessionCount);
     }
+
+    // --- Kilit süresi: sayı değil, süre ---
+
+    [Fact]
+    public void BlockingDurationUsesLongestWaitNotHeadCount()
+    {
+        var profile = Profile();
+        var builder = Online(profile);
+
+        // A single victim, stuck for 45 seconds. The head-count rule sees "1" and is calm;
+        // this rule is the one that has to speak.
+        builder.Blocking =
+        [
+            new BlockingEdge
+            {
+                BlockedSessionId = 60,
+                BlockingSessionId = 55,
+                WaitTimeMs = 45_000,
+                BlockingProgram = "Mikro",
+                BlockingSql = "UPDATE stok SET adet = adet - 1"
+            }
+        ];
+
+        var rule = Assert.Single(
+            MssqlAlertRules.Evaluate(profile, builder),
+            c => c.RuleId == MssqlAlertRules.BlockingDuration);
+
+        Assert.True(rule.IsBreached);
+        Assert.Equal(45, rule.Value);
+        Assert.Equal(30, rule.Threshold);
+        Assert.Contains("55", rule.Message);
+        Assert.Contains("Mikro", rule.Message);
+        Assert.Contains("UPDATE stok", rule.Context);
+    }
+
+    [Fact]
+    public void BlockingDurationTakesTheWorstEdgeNotTheFirst()
+    {
+        var profile = Profile();
+        var builder = Online(profile);
+        builder.Blocking =
+        [
+            new BlockingEdge { BlockedSessionId = 60, BlockingSessionId = 55, WaitTimeMs = 2_000 },
+            new BlockingEdge { BlockedSessionId = 61, BlockingSessionId = 55, WaitTimeMs = 130_000 }
+        ];
+
+        var rule = Assert.Single(
+            MssqlAlertRules.Evaluate(profile, builder),
+            c => c.RuleId == MssqlAlertRules.BlockingDuration);
+
+        Assert.Equal(130, rule.Value);
+        Assert.Equal(Severity.Critical, rule.Severity);
+    }
+
+    [Fact]
+    public void BlockingDurationStillReportsWhenNothingIsBlocked()
+    {
+        var profile = Profile();
+        var builder = Online(profile);
+
+        // Rule 4: a rule that goes quiet instead of reporting "not breached" leaves the
+        // previous alert open forever.
+        var rule = Assert.Single(
+            MssqlAlertRules.Evaluate(profile, builder),
+            c => c.RuleId == MssqlAlertRules.BlockingDuration);
+
+        Assert.False(rule.IsBreached);
+        Assert.Equal(0, rule.Value);
+    }
+
+    // --- Worker havuzu ---
+
+    [Fact]
+    public void WorkerUtilizationBreachesAsThePoolFillsUp()
+    {
+        var profile = Profile();
+        var builder = Online(profile, new MachineResources { ActiveWorkers = 500, MaxWorkers = 576 });
+
+        var rule = Assert.Single(
+            MssqlAlertRules.Evaluate(profile, builder),
+            c => c.RuleId == MssqlAlertRules.WorkerUtilization);
+
+        Assert.True(rule.IsBreached);
+        Assert.Equal(87, rule.Value);
+        Assert.Equal(Severity.Warning, rule.Severity);
+        Assert.Contains("500/576", rule.Message);
+    }
+
+    [Fact]
+    public void WorkerUtilizationTurnsCriticalTenPointsOverTheLimit()
+    {
+        var profile = Profile();
+        var builder = Online(profile, new MachineResources { ActiveWorkers = 540, MaxWorkers = 576 });
+
+        var rule = Assert.Single(
+            MssqlAlertRules.Evaluate(profile, builder),
+            c => c.RuleId == MssqlAlertRules.WorkerUtilization);
+
+        Assert.Equal(94, rule.Value);
+        Assert.Equal(Severity.Critical, rule.Severity);
+    }
+
+    [Fact]
+    public void WorkerUtilizationRuleIsDroppedWhenTheCeilingIsUnknown()
+    {
+        var profile = Profile();
+        var builder = Online(profile, new MachineResources { ActiveWorkers = 40, MaxWorkers = 0 });
+
+        // Rule 3: an unmeasurable ratio leaves the list entirely. Reporting it as 0% — or as
+        // "not breached" — would close an alert nobody actually verified.
+        Assert.DoesNotContain(
+            MssqlAlertRules.Evaluate(profile, builder),
+            c => c.RuleId == MssqlAlertRules.WorkerUtilization);
+    }
+
+    // --- İşlemci sırası ---
+
+    [Fact]
+    public void RunnableTasksRuleIsOffUntilSomeoneMeasuresTheServer()
+    {
+        var profile = Profile();
+        var builder = Online(profile, new MachineResources { RunnableTasks = 40, SchedulerCount = 8 });
+
+        Assert.DoesNotContain(
+            MssqlAlertRules.Evaluate(profile, builder),
+            c => c.RuleId == MssqlAlertRules.RunnableTasks);
+    }
+
+    [Fact]
+    public void RunnableTasksNamesTheSchedulerCountSoTheNumberCanBeJudged()
+    {
+        var profile = Profile();
+        profile.RunnableTasksAlertThreshold = 8;
+        var builder = Online(profile, new MachineResources { RunnableTasks = 12, SchedulerCount = 8 });
+
+        var rule = Assert.Single(
+            MssqlAlertRules.Evaluate(profile, builder),
+            c => c.RuleId == MssqlAlertRules.RunnableTasks);
+
+        Assert.True(rule.IsBreached);
+        Assert.Equal(12, rule.Value);
+        Assert.Contains("8 zamanlayıcı", rule.Message);
+    }
 }

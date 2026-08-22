@@ -97,6 +97,19 @@ public sealed record MachineResources
     public int? PageLifeExpectancySeconds { get; init; }
     public int SchedulerCount { get; init; }
     public int RunnableTasks { get; init; }
+
+    /// <summary>Workers already handed out across the online schedulers.</summary>
+    public int ActiveWorkers { get; init; }
+
+    /// <summary>Instance-wide worker ceiling. 0 means the probe could not read it.</summary>
+    public int MaxWorkers { get; init; }
+
+    /// <summary>
+    /// Share of the worker pool in use. Null when <see cref="MaxWorkers"/> is unknown — an
+    /// unmeasurable ratio must not be reported as 0%, which would read as "plenty free".
+    /// </summary>
+    public int? WorkerUtilizationPercent =>
+        MaxWorkers > 0 ? (int)Math.Round(ActiveWorkers * 100.0 / MaxWorkers) : null;
 }
 
 public sealed record SqlInstanceInfo

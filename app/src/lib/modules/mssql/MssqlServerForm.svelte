@@ -30,7 +30,10 @@
 			sqlProcessMemoryMb: null as number | null,
 			blockedSessions: 1 as number | null,
 			longRunningQuerySeconds: 30 as number | null,
-			sessionCount: 200 as number | null,
+			sessionCount: 500 as number | null,
+			blockingDurationSeconds: 30 as number | null,
+			runnableTasks: null as number | null,
+			workerUtilizationPercent: 80 as number | null,
 			consecutiveBreaches: 3,
 			renotifyMinutes: 15,
 			alertOnOffline: true
@@ -308,6 +311,46 @@
 				<input id="sessions" type="number" min="1" bind:value={form.thresholds.sessionCount} />
 			</div>
 		</div>
+
+		<p class="muted" style="margin:0.2rem 0 0.6rem">
+			Oturum sayısı boşta duran bağlantı havuzu oturumlarını da içerir; darboğazı aşağıdaki
+			üç sınır çok daha erken yakalar.
+		</p>
+
+		<div class="field-row">
+			<div class="field">
+				<label for="blockdur">Kilit süresi (sn)</label>
+				<input
+					id="blockdur"
+					type="number"
+					min="1"
+					bind:value={form.thresholds.blockingDurationSeconds}
+				/>
+			</div>
+			<div class="field">
+				<label for="workers">Worker doluluğu (%)</label>
+				<input
+					id="workers"
+					type="number"
+					min="1"
+					max="100"
+					bind:value={form.thresholds.workerUtilizationPercent}
+				/>
+			</div>
+		</div>
+
+		<div class="field-row">
+			<div class="field">
+				<label for="runnable">İşlemci sırası (görev)</label>
+				<input id="runnable" type="number" min="1" bind:value={form.thresholds.runnableTasks} />
+			</div>
+			<div class="field"></div>
+		</div>
+
+		<p class="muted" style="margin:0.2rem 0 0.6rem">
+			İşlemci sırası varsayılan olarak kapalıdır: sağlıklı değer çekirdek sayısına bağlı.
+			Sunucunun zamanlayıcı sayısını ölçüp ona göre bir sayı verin.
+		</p>
 
 		<div class="field-row">
 			<div class="field">

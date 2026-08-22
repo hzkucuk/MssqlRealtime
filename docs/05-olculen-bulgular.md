@@ -602,6 +602,91 @@ adıyla ve Program Ekle/Kaldır'da 0.11.0 olarak görünür — "müşteride han
 sorusu cevapsız kalır. `tools/setup-derle.sh` artık derlemeden **önce** ikisini
 karşılaştırıp eşit değilse durur.
 
+## 2026-08-22 16:52 — varsayılan değişikliği tek başına kimseyi kurtarmıyor
+
+Oturum sayısı alarmının varsayılanı 200'den 500'e çekildi. `ServerProfile` içindeki
+`SessionCountAlertThreshold = 500` bir **C# property başlangıç değeri**; yalnız `new`
+ile oluşturulan nesneye uygulanır. Veritabanında zaten duran satırlara hiçbir etkisi
+yok — yükseltmeden sonra müşteri "sınır 500" sanır, alarm 200'de çalışmaya devam eder.
+Hata mesajı yok, log satırı yok; yalnız beklenmeyen bir bildirim.
+
+Bu yüzden şema değiştirmeyen bir veri migration'ı eklendi
+(`20260822135136_RaiseSessionCountThresholdDefault`). Ölçüm düzeneği: boş bir SQLite'a
+bir önceki migration'a (`MetricsAndAlertContext`) kadar gidildi, elle üç satır yazıldı,
+sonra `dotnet ef database update` ile yeni migration uygulandı.
+
+| Sunucu | Önce | Sonra | Beklenen |
+|---|---|---|---|
+| Eski-200 | 200 | **500** | taşınmalı ✅ |
+| Elle-350 | 350 | 350 | dokunulmamalı ✅ |
+| Kapali-NULL | NULL | NULL | dokunulmamalı ✅ |
+
+`WHERE SessionCountAlertThreshold = 200` koşulu kasıtlı: elle girilmiş bir değeri
+"düzeltmek" kullanıcının kararını çöpe atmak olurdu. `NULL` zaten "bu kural kapalı"
+demek, açılmamalı.
+
+Temiz kurulum yolu ayrıca koşuldu (16:53): sıfırdan bir veritabanında tüm migration'lar
+uygulandı, son migration'ın `UPDATE`'i sıfır satır etkiledi, `__EFMigrationsHistory`
+son kayıt olarak yeni migration'ı gösterdi.
+
+⚠️ **500 ölçülmüş bir sayı değil.** Havuz aritmetiğinden türetilmiş bir tahmin: üç
+uygulama sunucusu × varsayılan `Max Pool Size` 100 = 300 boşta oturum. Kural
+`is_user_process = 1` sayıyor ve `status` filtresi yok, yani `sleeping` havuz oturumları
+da sayıya giriyor. Gerçek payı görmek için müşterideki dağılım ölçülmeli:
+
+```sql
+SELECT status, COUNT(*) FROM sys.dm_exec_sessions
+WHERE is_user_process = 1 GROUP BY status;
+```
+
+## 2026-08-22 20:47 — `sys.dm_os_sys_info`'da `active_workers_count` yok
+
+Worker doluluğu kuralı yazılırken yaygın olarak paylaşılan şu sorgu denendi:
+
+```sql
+SELECT max_workers_count, active_workers_count FROM sys.dm_os_sys_info;   -- ÇALIŞMAZ
+```
+
+Azure SQL Edge 15.0.2000.1574 (ARM64) konteynerinde ölçüldü; bu görünümde `%worker%`
+kalıbına uyan **tek** sütun var:
+
+```
+name
+----
+max_workers_count
+```
+
+`active_workers_count` `sys.dm_os_schedulers`'ta. Prob ikisini kasıtlı olarak karıştırıyor:
+
+```sql
+SELECT COUNT(*)                             AS SchedulerCount,
+       ISNULL(SUM(runnable_tasks_count), 0) AS RunnableTasks,
+       ISNULL(SUM(active_workers_count), 0) AS ActiveWorkers,
+       (SELECT max_workers_count FROM sys.dm_os_sys_info) AS MaxWorkers
+FROM sys.dm_os_schedulers
+WHERE status = 'VISIBLE ONLINE';
+```
+
+Ölçülen çıktı (boştaki konteyner):
+
+```
+SchedulerCount RunnableTasks ActiveWorkers MaxWorkers
+4              0             24            256          → %9
+```
+
+`WHERE status = 'VISIBLE ONLINE'` payı kullanıcı zamanlayıcılarıyla sınırlar; `MaxWorkers`
+ise instance geneli ve gizli zamanlayıcıları (DAC, resource monitor) da kapsar. Oran bu
+yüzden birkaç worker kadar **düşük** çıkar — yanılma yönü güvenli tarafta.
+
+Değiştirilmiş prob sorgusunun tamamı aynı konteynerde koşuldu, beş sonuç kümesi de döndü.
+⚠️ `sqlcmd` ile denerken `SET QUOTED_IDENTIFIER ON` gerekiyor: ring buffer sorgusu XML
+metodu kullanıyor ve `sqlcmd` bu ayarı varsayılan olarak **kapalı** açar (Msg 1934). Bu bir
+prob hatası değil — `Microsoft.Data.SqlClient` ayarı zaten açık gönderir; yalnız elle test
+ederken tuzak.
+
+⬜ Ölçülmeyen: %80 eşiğinin gerçek bir üretim sunucusunda isabetli olup olmadığı. Konteynerde
+worker havuzu hiç zorlanmadı; THREADPOOL beklemesi üretilmedi.
+
 ## Doğrulanmayı bekleyenler
 
 | Konu | Neden ölçülemedi |
@@ -611,3 +696,7 @@ karşılaştırıp eşit değilse durur.
 | iOS/Android'de bildirim davranışı | Xcode iOS platform bileşeni kurulu değil (~7 GB) |
 | SMTP kanalı canlı gönderim | Test edilecek mail sunucusu yok |
 | Yüksek sunucu sayısında poller yükü | Tek sunucuyla ölçüldü |
+| Oturum eşiği 500 gerçekten yeterli mi | Müşteride `sleeping`/aktif oturum dağılımı ölçülmedi |
+| Worker doluluğu %80 eşiği isabetli mi | THREADPOOL doygunluğu üretilemedi; konteynerde havuz %9'da kaldı |
+| İşlemci sırası için sağlıklı bir varsayılan | Çekirdek sayısına bağlı; ölçüm yapılmadığı için kural kapalı bırakıldı |
+| Veri migration'ının canlı yükseltmede davranışı | Yalnız boş SQLite düzeneğinde koşuldu, gerçek müşteri veritabanında değil |

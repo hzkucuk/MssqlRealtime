@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using MssqlRealtime.Infrastructure.Persistence;
 
@@ -10,9 +11,11 @@ using MssqlRealtime.Infrastructure.Persistence;
 namespace MssqlRealtime.Api.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260822135136_RaiseSessionCountThresholdDefault")]
+    partial class RaiseSessionCountThresholdDefault
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.10");
@@ -543,9 +546,6 @@ namespace MssqlRealtime.Api.Persistence.Migrations
                     b.Property<int?>("BlockedSessionAlertThreshold")
                         .HasColumnType("INTEGER");
 
-                    b.Property<int?>("BlockingDurationSecondsThreshold")
-                        .HasColumnType("INTEGER");
-
                     b.Property<int>("CommandTimeoutSeconds")
                         .HasColumnType("INTEGER");
 
@@ -600,9 +600,6 @@ namespace MssqlRealtime.Api.Persistence.Migrations
                         .HasMaxLength(4000)
                         .HasColumnType("TEXT");
 
-                    b.Property<int?>("RunnableTasksAlertThreshold")
-                        .HasColumnType("INTEGER");
-
                     b.Property<int?>("SessionCountAlertThreshold")
                         .HasColumnType("INTEGER");
 
@@ -618,9 +615,6 @@ namespace MssqlRealtime.Api.Persistence.Migrations
                     b.Property<string>("Username")
                         .HasMaxLength(128)
                         .HasColumnType("TEXT");
-
-                    b.Property<int?>("WorkerUtilizationAlertPercent")
-                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 

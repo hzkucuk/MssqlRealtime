@@ -18,8 +18,11 @@ public static class MssqlAlertRules
     public const string Memory = "memory";
     public const string SqlProcessMemory = "sql-memory";
     public const string Blocking = "blocking";
+    public const string BlockingDuration = "blocking-duration";
     public const string LongRunning = "long-running";
     public const string SessionCount = "session-count";
+    public const string RunnableTasks = "runnable-tasks";
+    public const string WorkerUtilization = "worker-utilization";
     public const string Offline = "offline";
 
 
@@ -216,6 +219,86 @@ public static class MssqlAlertRules
                 Message = $"{count} açık oturum — sınır {sessionLimit}",
                 Value = count,
                 Threshold = sessionLimit,
+                RequiredConsecutiveBreaches = profile.AlertConsecutiveBreaches,
+                RenotifyMinutes = profile.AlertRenotifyMinutes
+            });
+        }
+
+        // --- How long one victim has been stuck, not how many victims there are. ---
+        // Ten sessions blocked for half a second is a busy server; one blocked for two
+        // minutes is an incident. The head-count rule above cannot tell those apart.
+        if (profile.BlockingDurationSecondsThreshold is { } blockSecondsLimit)
+        {
+            var longest = builder.Blocking.Count == 0 ? null : builder.Blocking.MaxBy(b => b.WaitTimeMs);
+            var seconds = (longest?.WaitTimeMs ?? 0) / 1000;
+
+            candidates.Add(new AlertCandidate
+            {
+                RuleId = BlockingDuration,
+                RuleTitle = "Kilit süresi",
+                IsBreached = seconds >= blockSecondsLimit && longest is not null,
+                Severity = seconds >= blockSecondsLimit * 4 ? Severity.Critical : Severity.Warning,
+                Message = longest is null
+                    ? string.Empty
+                    : $"{seconds} sn süren kilit — SPID {longest.BlockedSessionId} bekliyor, "
+                      + $"engelleyen SPID {longest.BlockingSessionId}"
+                      + (string.IsNullOrWhiteSpace(longest.BlockingProgram)
+                          ? string.Empty
+                          : $" ({longest.BlockingProgram})"),
+                Value = seconds,
+                Threshold = blockSecondsLimit,
+                Context = longest?.BlockingSql is { Length: > 0 } sql
+                    ? $"Engelleyen sorgu: {sql}"
+                    : null,
+                RequiredConsecutiveBreaches = profile.AlertConsecutiveBreaches,
+                RenotifyMinutes = profile.AlertRenotifyMinutes
+            });
+        }
+
+        // --- CPU queue depth. Unlike the ring-buffer CPU%, this one is live. ---
+        if (profile.RunnableTasksAlertThreshold is { } runnableLimit && resources is not null)
+        {
+            var runnable = resources.RunnableTasks;
+            var schedulers = resources.SchedulerCount;
+
+            candidates.Add(new AlertCandidate
+            {
+                RuleId = RunnableTasks,
+                RuleTitle = "İşlemci sırası",
+                IsBreached = runnable >= runnableLimit,
+                Severity = runnable >= runnableLimit * 3 ? Severity.Critical : Severity.Warning,
+                Message = schedulers > 0
+                    ? $"{runnable} görev işlemci sırasında bekliyor ({schedulers} zamanlayıcı) — sınır {runnableLimit}"
+                    : $"{runnable} görev işlemci sırasında bekliyor — sınır {runnableLimit}",
+                Value = runnable,
+                Threshold = runnableLimit,
+                Context = Describe(TopCpu(builder), $"{TopCpu(builder)?.CpuTimeMs:N0} ms CPU"),
+                RequiredConsecutiveBreaches = profile.AlertConsecutiveBreaches,
+                RenotifyMinutes = profile.AlertRenotifyMinutes
+            });
+        }
+
+        // --- Worker exhaustion. The one failure that also locks the monitor out. ---
+        // Guarded on WorkerUtilizationPercent rather than on resources alone: when the probe
+        // could not read max_workers_count the ratio is unknowable, and reporting an
+        // unmeasured rule as "not breached" would clear an alert nobody verified (rule 3).
+        if (profile.WorkerUtilizationAlertPercent is { } workerLimit
+            && resources?.WorkerUtilizationPercent is { } workerPercent)
+        {
+            candidates.Add(new AlertCandidate
+            {
+                RuleId = WorkerUtilization,
+                RuleTitle = "Worker thread doluluğu",
+                IsBreached = workerPercent >= workerLimit,
+                Severity = workerPercent >= Math.Min(100, workerLimit + 10)
+                    ? Severity.Critical
+                    : Severity.Warning,
+                Message = $"Worker havuzu %{workerPercent} dolu — "
+                          + $"{resources.ActiveWorkers}/{resources.MaxWorkers}, sınır %{workerLimit}",
+                Value = workerPercent,
+                Threshold = workerLimit,
+                Context = "Havuz dolduğunda yeni bağlantılar THREADPOOL beklemesine girer; "
+                          + "izleme paneli de bağlanamaz.",
                 RequiredConsecutiveBreaches = profile.AlertConsecutiveBreaches,
                 RenotifyMinutes = profile.AlertRenotifyMinutes
             });

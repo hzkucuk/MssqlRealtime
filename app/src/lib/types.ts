@@ -76,6 +76,10 @@ export type MachineResources = {
 	pageLifeExpectancySeconds?: number | null;
 	schedulerCount: number;
 	runnableTasks: number;
+	activeWorkers: number;
+	maxWorkers: number;
+	/** null when maxWorkers could not be read — an unknown ratio, not 0%. */
+	workerUtilizationPercent?: number | null;
 };
 
 export type SqlInstanceInfo = {
@@ -201,6 +205,9 @@ export type AlertThresholds = {
 	blockedSessions?: number | null;
 	longRunningQuerySeconds?: number | null;
 	sessionCount?: number | null;
+	blockingDurationSeconds?: number | null;
+	runnableTasks?: number | null;
+	workerUtilizationPercent?: number | null;
 	consecutiveBreaches: number;
 	renotifyMinutes: number;
 	alertOnOffline: boolean;
