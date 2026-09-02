@@ -41,7 +41,9 @@ public sealed class EfMetricStore(AppDbContext db) : IMetricStore
             SessionCount = x.SessionCount,
             RequestCount = x.RequestCount,
             BlockedCount = x.BlockedCount,
-            LongestQuerySeconds = x.LongestQuerySeconds
+            LongestQuerySeconds = x.LongestQuerySeconds,
+            LongestQueryBy = x.LongestQueryBy,
+            LongestQueryText = x.LongestQueryText
         }).ToList();
     }
 }

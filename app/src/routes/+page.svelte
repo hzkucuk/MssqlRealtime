@@ -65,6 +65,14 @@
 		</span>
 		<span class="muted">›</span>
 	</a>
+	<a class="card tool" href="/gizlilik">
+		<span class="icon">🔒</span>
+		<span style="flex:1;min-width:0">
+			<strong>Gizlilik</strong>
+			<div class="muted">Sorgu metni nasıl saklansın</div>
+		</span>
+		<span class="muted">›</span>
+	</a>
 	<a class="card tool" href="/alarmlar">
 		<span class="icon">📋</span>
 		<span style="flex:1;min-width:0">

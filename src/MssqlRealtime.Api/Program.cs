@@ -15,6 +15,7 @@ using MssqlRealtime.Core.Abstractions;
 using MssqlRealtime.Core.Alerts;
 using MssqlRealtime.Core.Modularity;
 using MssqlRealtime.Core.Notifications;
+using MssqlRealtime.Core.Privacy;
 using MssqlRealtime.Infrastructure.Notifications;
 using MssqlRealtime.Infrastructure.Persistence;
 using MssqlRealtime.Infrastructure.Security;
@@ -148,6 +149,9 @@ builder.Services.AddDataProtection()
 
 // --- Platform services --------------------------------------------------------------------
 builder.Services.AddSingleton<ISecretProtector, DataProtectionSecretProtector>();
+
+// Panel-wide privacy setting, read on every poll cycle: a singleton serving it from memory.
+builder.Services.AddSingleton<IStatementPrivacy, StatementPrivacyService>();
 builder.Services.AddSingleton<IAlertEngine, AlertEngine>();
 builder.Services.AddSingleton<IRealtimePublisher, SignalRPublisher>();
 builder.Services.AddSingleton<IModuleRegistry, ModuleRegistry>();
@@ -297,6 +301,11 @@ await using (var scope = app.Services.CreateAsyncScope())
     await AdminSeeder.SeedAsync(scope.ServiceProvider, app.Configuration, app.Logger);
 }
 
+// Before the first poll: a poller that starts with the built-in default would write full
+// statement text for one cycle on a panel that had switched it off.
+var statementPrivacy = await app.Services.GetRequiredService<IStatementPrivacy>().RefreshAsync();
+app.Logger.LogInformation("Sorgu metni saklama: {Storage}", statementPrivacy);
+
 // Must run before anything that reads the scheme or the client address.
 app.UseForwardedHeaders();
 
@@ -382,6 +391,7 @@ app.MapGet("/api/modules", (IModuleRegistry registry) => Results.Ok(registry.Des
 
 app.MapNotificationEndpoints();
 app.MapMetricEndpoints();
+app.MapPrivacyEndpoints();
 app.MapUpdateEndpoints();
 app.MapToolModules();
 

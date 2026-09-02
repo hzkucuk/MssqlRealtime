@@ -4,6 +4,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using MssqlRealtime.Core.Alerts;
 using MssqlRealtime.Core.Abstractions;
+using MssqlRealtime.Core.Privacy;
 using MssqlRealtime.Modules.Mssql.Alerts;
 using MssqlRealtime.Modules.Mssql.Models;
 using MssqlRealtime.Modules.Mssql.Probes;
@@ -26,6 +27,7 @@ public sealed class ServerPoller(
     IRealtimePublisher publisher,
     IAlertSink alertSink,
     IMetricSink metrics,
+    IStatementPrivacy privacy,
     ILogger<ServerPoller> logger)
 {
     private readonly ISqlProbe[] _probes = probes.OrderBy(p => p.Order).ToArray();
@@ -81,7 +83,11 @@ public sealed class ServerPoller(
             GroupName = profile.CustomerName
         };
 
-        var candidates = MssqlAlertRules.Evaluate(profile, builder);
+        // Read once per pass, not per rule: the setting is panel-wide and a cycle that
+        // masked some of its records and not others would be indefensible to explain.
+        var statementStorage = privacy.Storage;
+
+        var candidates = MssqlAlertRules.Evaluate(profile, builder, statementStorage);
         var outcome = alerts.Evaluate(target, candidates, DateTimeOffset.UtcNow);
 
         var elapsedMs = (int)Stopwatch.GetElapsedTime(started).TotalMilliseconds;
@@ -100,6 +106,10 @@ public sealed class ServerPoller(
         // zeros for an unreachable server would draw a calm month where there was an outage.
         if (builder.Status == ServerStatus.Online)
         {
+            // Who ran the slowest query, captured now: the report is read hours later, when
+            // the session no longer exists and nothing can say what it was.
+            var longest = LongestQuery.From(builder.Requests, statementStorage);
+
             metrics.Report(MssqlModule.ModuleId, target.TargetId, new MetricPoint
             {
                 CpuPercent = builder.Resources?.CpuPercent,
@@ -109,9 +119,9 @@ public sealed class ServerPoller(
                 SessionCount = builder.Sessions.Count,
                 RequestCount = builder.Requests.Count,
                 BlockedCount = builder.Blocking.Select(b => b.BlockedSessionId).Distinct().Count(),
-                LongestQuerySeconds = builder.Requests.Count == 0
-                    ? 0
-                    : builder.Requests.Max(r => r.ElapsedSeconds)
+                LongestQuerySeconds = longest.Seconds,
+                LongestQueryBy = longest.By,
+                LongestQueryText = longest.Text
             });
         }
 

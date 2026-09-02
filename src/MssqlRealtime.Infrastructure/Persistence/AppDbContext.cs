@@ -83,6 +83,11 @@ public sealed class AppDbContext(
             e.Property(x => x.TargetId).HasMaxLength(128).IsRequired();
             e.Property(x => x.Resolution).HasConversion<int>();
 
+            // Cut at the source too (LongestQuery), but declared here so the column is not a
+            // free-for-all: one minute row per server per minute, kept a week.
+            e.Property(x => x.LongestQueryBy).HasMaxLength(200);
+            e.Property(x => x.LongestQueryText).HasMaxLength(500);
+
             // Every report query is "this target, this resolution, this window", and the
             // roll-up walks the same order. One index covers both.
             e.HasIndex(x => new { x.ModuleId, x.TargetId, x.Resolution, x.TakenAtUtc });

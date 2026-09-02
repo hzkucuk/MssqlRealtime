@@ -2,6 +2,118 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/)
 
+## [0.24.0] — 2026-09-02
+
+### Eklenen — "en uzun sorgu" artık kimin, hangi sorgu olduğunu da söylüyor
+
+Raporlar sekmesi bir dakikanın en uzun sorgusunu saniye olarak gösteriyordu: `2.251 sn`.
+Kimin çalıştırdığı ve sorgunun kendisi **hiçbir yerde saklanmıyordu** — canlı ekranda duran
+metin oturumla birlikte kayboluyor, rapor okunduğunda geriye üzerine gidilecek hiçbir şey
+kalmıyordu.
+
+Artık ölçüm anında yakalanıp ölçümle birlikte yazılıyor:
+
+- **Kim:** `SPID 89 · SQLCMD · sa · WEB01 · master` — SPID, uygulama, login, makine,
+  veritabanı; hangisi varsa (200 karakter).
+- **Sorgu:** ifadenin kendisi, tek satıra katlanmış (500 karakter).
+
+Tabloda **zamana tıklanınca** satırın altında açılıyor; `Kopyala` düğmesi metni panoya
+alıyor (panel http üzerinden açıldığında `navigator.clipboard` tanımsız olduğu için eski
+seçim yöntemine düşüyor, kopyalanamazsa **söylüyor**).
+
+Kararlar:
+
+- Dakikanın **en kötü** turu kazanır. Sayı zaten öyle saklanıyordu; kimlik ve metin artık
+  aynı turdan geliyor, yani gösterilen sorgu gösterilen sürenin sorgusudur.
+- Saatlik/günlük katlamada en kötü satırın metni korunur — ortalaması alınamayacak tek alan
+  bu, bir sorgu metninin ortalaması yok.
+- Hiçbir sorgu çalışmayan turda **kimlik yazılmaz**: sıfır gerçek bir ölçüm ama adı olan
+  kimse yok. O satırlarda arayüz açılır ok da göstermez.
+- Kesme kaynakta yapılıyor, veritabanında değil: kolon genişliğini bir karakter aşan satır
+  gece üçte başarısız bir insert demektir. Yüzey çifti (emoji) ortadan bölünmüyor.
+
+Şema: `MetricSamples` tablosuna iki nullable kolon — `LongestQueryOwner` migration'ı. Eski
+satırlar sayıyı korur, yeni alanları boş kalır; **olmayan bilgi uydurulmuyor**.
+
+### Ölçülen — 2026-09-02 19:33–19:41, SQL Server 2025 (ARM64 konteyner) + SQLite
+
+| Ne ölçüldü | Sonuç |
+|---|---|
+| Uçtan uca yazım | `sqlcmd` ile `WAITFOR DELAY '00:02:30'` başlatıldı; iki dakika satırı yazıldı: 15 sn ve 75 sn, ikisinde de `SPID 89 · SQLCMD · sa · 212300506c75 · master` ve `WAITFOR DELAY '00:02:30';` |
+| API okuma yolu | `/api/metrics/mssql/<id>?aralik=gun` iki yeni alanı da döndürdü |
+| Yükseltme | Bir önceki migration'a kadar kurulmuş, içinde **veri olan** SQLite'a yeni migration uygulandı: iki kolon eklendi, eski satır yerinde kaldı, yeni alanları `NULL` |
+| Saatlik katlama | 5 sn / 90 sn / `NULL` üç dakika satırı bir saate katlandı → tek satır, 90 sn, **90 sn'lik satırın** metni; `NULL` satır katlamayı bozmadı |
+
+Ölçüm ortamı emülasyon altında; **süreler gerçek sunucuya taşınamaz**, davranışlar taşınır.
+
+### Eklenen — sorgu metni varsayılan olarak maskeli saklanıyor (KVKK)
+
+Yönetim → **Gizlilik**. Panel genelinde tek ayar, diske yazılan metni belirler:
+
+| Seçenek | Diske yazılan |
+|---|---|
+| **Maskeli** (varsayılan) | `SELECT * FROM Musteri WHERE TCKimlik = ?` |
+| Tam metin | `SELECT * FROM Musteri WHERE TCKimlik = '12345678901'` |
+| Saklanmasın | süre ve kim — metin yok |
+
+Maskeleme sorgunun **şeklini** korur, değerlerini atar: tırnaklı metinler, tek başına duran
+sayılar ve `0x…` ikili sabitler `?` olur. Tanımlayıcı içindeki rakam değer değildir —
+`Adres2`, `dbo.T1`, `sys.dm_exec_requests` okunur kalır.
+
+Kapsam iki saklama noktası: **ölçüm geçmişi** (iki yıl) ve **alarm kayıtları**. Bunun
+dışında kalanlar bilinçli:
+
+- **Canlı ekran maskelenmez** — o an sorunu çözen kişinin gördüğü metin. Diske yazılmıyor,
+  oturumla birlikte kayboluyor.
+- **Kim bilgisi maskelenmez** (SPID · uygulama · login · makine · veritabanı): raporun
+  cevapladığı asıl soru bu.
+- **Yorum satırları maskelenmez.** `-- Ahmet'in raporu` maskelemeden geçer. Maskeleme riski
+  azaltır, sıfırlamaz — arayüzde de böyle yazıyor.
+
+Varsayılan **maskeli**: kimse ayara girmezse KVKK açısından savunulabilir durumda olan
+seçenek açık olsun. Yükseltmede mevcut kurulumlar da maskeliye geçer; eski satırlar olduğu
+gibi kalır (geriye dönük maskeleme yok — metin zaten yazılmış).
+
+Ayar `NotificationChannelSettings` tablosunda ayrılmış bir anahtar altında duruyor (sessiz
+saatler ayarı gibi), **migration gerektirmiyor**. Bellekten okunuyor: poller her turda
+soruyor, ayar kaydedilince anında değişiyor — servisi yeniden başlatmak gerekmiyor
+(ölçüldü, aşağıda).
+
+Ölçüldü 2026-09-02 20:58–21:01, SQL Server 2025 (ARM64 konteyner):
+
+| Ne | Sonuç |
+|---|---|
+| Varsayılan | Temiz kurulumda `maskeli`; açılış günlüğü `Sorgu metni saklama: Masked` |
+| Maskeli satır (17:59 UTC) | `WAITFOR DELAY ?;` — literal gitti |
+| `tam`'a geçildi (20:59:37) | Bir sonraki dakika satırı (18:00 UTC) `WAITFOR DELAY '00:03:30';` — **yeniden başlatma yok**, sonraki turda geçerli |
+| Geçersiz değer | `PUT /api/gizlilik` bilinmeyen değere `400` döndürüyor; sessizce varsayılana düşmüyor |
+
+Ayrıca: `MssqlAlertRules.Evaluate` ve `LongestQuery.From` artık ayarı **zorunlu parametre**
+olarak alıyor. İmza değişikliği bilinçli — varsayılanı olsaydı yeni bir çağrı yeri gizlilik
+kararını sessizce atlayabilirdi. 25 test çağrısı `StatementStorage.Full` ile güncellendi,
+davranışları değişmedi.
+
+### Ölçülen — arayüz tarayıcıda çalıştırıldı (21:19–21:26)
+
+Geçici bir Playwright düzeneğiyle, telefon genişliğinde, gerçek panel ve gerçek SQL Server
+ile: giriş → Gizlilik sayfasında ayar değiştirip kaydetme → rapor tablosunda satır açma →
+kapatma. Konsolda hata yok. Açılan detay: `SPID 69 · SQLCMD · sa · … · master` ·
+`en uzun sorgu · 1 dk 29 sn` · sorgu metni · `Kopyala`.
+
+Bir hata bulundu ve düzeltildi: Gizlilik sayfasındaki iki örnek (`= ?` ve `= '12345678901'`)
+telefon genişliğinde yatay kaydırmaya düşüyor, yani seçenekleri ayıran tek şey ekran dışında
+kalıyordu. Örnekler artık sarıyor.
+
+### 🔴 Bilinen açık — tam metin seçilirse sorgu metni iki yıl saklanır
+
+Varsayılan maskeli olduğu için kutudan çıktığı hâliyle sorun yok. Ama **Tam metin**
+seçilirse sorgu metni literal taşıyabilir (`WHERE TCKimlik = '...'`) ve ölçüm satırları
+**iki yıl** saklanır — alarm geçmişinden uzun. Metin paneli terk etmiyor (kimlik
+doğrulamasının arkasında, bildirim kanallarına girmiyor — v0.23.0'da ölçüldü), ama
+Windows'ta veri klasörü izinleri hâlâ açık iş: `BUILTIN\Users` veri klasörünü okuyabiliyor
+(ölçüldü 2026-08-06). Yani "Tam metin" seçen bir kurulumda sıradan bir yerel kullanıcı iki
+yıllık ifadeyi okuyabilir. Arayüzde bu seçeneğin altında saklama süresi yazıyor.
+
 ## [0.23.0] — 2026-08-23
 
 Açık kalan beş soru ölçüldü ve üçü koda dönüştü. Ölçüm ortamı: Azure SQL Edge

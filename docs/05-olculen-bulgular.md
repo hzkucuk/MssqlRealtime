@@ -910,6 +910,131 @@ SQL metni paneli terk etmiyor: yerel SQLite'taki alarm geçmişinde ve panelin a
 duruyor, ikisi de kimlik doğrulamasının arkasında. Kanal bazında maskeleme anahtarı
 **gerekmiyor**; CHANGELOG ve `docs/04` düzeltildi.
 
+## 2026-09-02 19:33–19:41 — rapordaki "en uzun sorgu" kimin olduğunu söylemiyordu
+
+Düzenek: SQL Server 2025 (ARM64 konteyner, `127.0.0.1:14331`), panel `dotnet run` ile ayrı
+bir veri klasöründe, boş SQLite. Uzun sorgu `sqlcmd` ile üretildi:
+`WAITFOR DELAY '00:02:30'`.
+
+### 1. Sayı vardı, sahibi yoktu
+
+`MetricSamples` yalnız `LongestQuerySeconds` taşıyordu. Canlı ekran sorgunun metnini
+gösteriyor (`RequestInfo.SqlText`), ama o metin snapshot ile birlikte geçiyor: rapor bir
+saat sonra açıldığında oturum yok, metin yok, geriye `2.251 sn` kalıyor. Rapordaki bir
+sayının üzerine gidilemiyorsa rapor değil, dekor.
+
+### 2. Uçtan uca ölçüm — 19:34 ve 19:35 satırları
+
+```
+TakenAtUtc           SampleCount  sn  LongestQueryBy                                 LongestQueryText
+2026-09-02 16:34:00  6            15  SPID 89 · SQLCMD · sa · 212300506c75 · master  WAITFOR DELAY '00:02:30';
+2026-09-02 16:35:00  12           75  SPID 89 · SQLCMD · sa · 212300506c75 · master  WAITFOR DELAY '00:02:30';
+```
+
+Dakikanın **en kötü** turu kazanıyor: aynı sorgu ikinci dakikada 75 sn'ye çıktı, satır da
+öyle. `/api/metrics/mssql/<id>?aralik=gun` iki yeni alanı da döndürdü — okuma yolu da
+çalışıyor, yalnız yazma değil.
+
+`sqlcmd`'nin program adı `SQLCMD`, makine adı konteyner kimliği (`212300506c75`). Gerçek
+bir müşteride bu satır `.Net SqlClient Data Provider · app_user · WEB01` gibi görünür ve
+asıl sorulan soruyu — *hangi uygulama?* — doğrudan cevaplar.
+
+### 3. Yükseltme: dolu veritabanına iki kolon
+
+Boş veritabanında migration çalışması bir şey kanıtlamaz; kırılma **dolu** veritabanında
+olur. Bir önceki migration'a (`PressureAlertThresholds`) kadar kurulmuş bir SQLite'a bir
+ölçüm satırı yazıldı, sonra yeni migration uygulandı:
+
+```
+Id  ModuleId  LongestQuerySeconds  byType  textType
+1   mssql     38                   null    null
+```
+
+Satır yerinde, sayı yerinde, yeni alanlar `NULL`. `ALTER TABLE ... ADD` iki kolon; tablo
+yeniden yazılmıyor.
+
+### 4. Saatlik katlama metni kaybetmiyor
+
+Bir saate ait üç dakika satırı elle yazıldı — 5 sn, 90 sn ve `LongestQuerySeconds NULL` —
+ve bakım servisi başlangıçta çalıştırıldı:
+
+```
+TakenAtUtc           Resolution  SampleCount  sn  LongestQueryBy  LongestQueryText
+2026-08-01 03:00:00  1           15           90  SPID 22 · B     SELECT uzun_olan
+```
+
+Katlama en kötü satırın kimliğini ve metnini taşıyor; ölçemeyen satır (`NULL`) katlamayı
+bozmuyor. Sayısal alanlar ağırlıklı ortalamaya giriyor, metin **giremez**: bir sorgu
+metninin ortalaması yok, o yüzden maksimumun sahibi taşınıyor.
+
+### 5. Kesme kaynakta, veritabanında değil
+
+Kolonlar 200 ve 500 karakter. Kesme `LongestQuery` içinde yapılıyor ve sonuç **tam** o
+uzunlukta oluyor (üç nokta dahil), çünkü bir karakter taşan satır gece üçte başarısız bir
+insert demektir. Yüzey çifti (emoji) kesme noktasına denk gelirse bir karakter geri
+çekiliyor — yarım kod noktası kolonda kalmıyor. Altı test bunu sabitliyor.
+
+### 6. Arayüz gerçek tarayıcıda çalıştırıldı (21:19–21:26)
+
+Geçici bir Playwright düzeneğiyle (kurulu Chrome, 430×900 telefon görünümü), gerçek panel ve
+gerçek SQL Server ile:
+
+| Adım | Sonuç |
+|---|---|
+| Giriş | ok |
+| Gizlilik sayfası | kayıtlı ayarı okuyor; başka seçenek işaretlenip kaydedilince `kaydedildi` çıkıyor ve düğme yeniden pasifleşiyor |
+| Rapor tablosu | sorgu bilgisi olan 2 satırda açılır ok var, olmayanda yok |
+| Açılan detay | `SPID 69 · SQLCMD · sa · 212300506c75 · master` · `en uzun sorgu · 1 dk 29 sn` · `WAITFOR DELAY '00:03:30';` · `Kopyala` |
+| İkinci tık | detay kapanıyor |
+| Konsol | hata yok |
+
+Bir hata bulundu ve düzeltildi: Gizlilik sayfasındaki örnek satırlar (`… TCKimlik = ?` ve
+`… TCKimlik = '12345678901'`) telefon genişliğinde **yatay kaydırmaya düşüyordu** — yani iki
+seçeneği ayıran tek şey ekranın dışında kalıyordu. Örnekler artık sarıyor.
+
+⚠️ Düzenek `scratchpad` altında kaldı, depoya girmedi: bu ölçüm bir kez yapıldı, korunmuyor.
+
+## 2026-09-02 20:58–21:01 — sorgu metni maskeleme (KVKK) ölçümü
+
+Aynı düzenek: SQL Server 2025 (ARM64 konteyner), panel ayrı bir veri klasöründe.
+
+### 1. Varsayılan gerçekten maskeli
+
+Temiz kurulumda açılış günlüğü: `Sorgu metni saklama: Masked`. `GET /api/gizlilik` →
+`{"sorguMetni":"maskeli"}`. Ayar hiç kaydedilmemişken de, kayıtta okunamayan bir değer
+varken de maskeliye düşüyor — bilinmeyen değer "her şeyi sakla" tarafına düşerse ayarın
+anlamı kalmaz.
+
+### 2. Ayar bir sonraki turda geçerli — yeniden başlatma yok
+
+```
+17:59:00 UTC   WAITFOR DELAY ?;              ← maskeli
+20:59:37 TR    PUT /api/gizlilik {"sorguMetni":"tam"}
+18:00:00 UTC   WAITFOR DELAY '00:03:30';     ← tam metin
+```
+
+Aynı sorgu, aynı SPID, ardışık iki dakika. Ayar bellekte tutuluyor ve yazma başarılı olduktan
+**sonra** güncelleniyor: kaydedilmemiş bir ayar yüzünden bir tur daha az maskeleme yapılmıyor.
+
+### 3. Maskeleme ne yapar, ne yapmaz
+
+`SELECT * FROM Musteri WHERE TCKimlik = '12345678901'` → `... WHERE TCKimlik = ?`. Tırnaksız
+sayılar da maskeleniyor (kimlik numarası `bigint` kolonda tutuluyor olabilir), `0x…` ikili
+sabitler de. Tanımlayıcı içindeki rakam maskelenmiyor: `Adres2`, `dbo.T1`,
+`sys.dm_exec_requests` okunur kalıyor — maskelenseydi rapor okunamaz hâle gelirdi.
+
+Maskeleme **kesmeden önce** çalışıyor. Tersi olsaydı 500. karakterden sonra duran bir literal
+maskeleyiciyi hiç görmezdi; bir test bunu sabitliyor.
+
+Yakalamadıkları arayüzde de yazıyor: yorum satırları, canlı ekran, geçmiş kayıtlar.
+
+### 4. Kapsam kararı
+
+Maskeleme **yakalama anında** yapılıyor, saklama anında değil. Sebep: alarm bağlamı
+`SPID 71 · RaporServisi │ Sorgu: …` biçiminde tek bir metin; platform katmanında maskelense
+kimlik satırındaki SPID numarası da `?` olurdu. Hangi parçanın ifade olduğunu yalnız modül
+bilir.
+
 ## Doğrulanmayı bekleyenler
 
 | Konu | Neden ölçülemedi |
@@ -923,3 +1048,4 @@ duruyor, ikisi de kimlik doğrulamasının arkasında. Kanal bazında maskeleme 
 | 500+ oturumlu sunucuda oturum sorgusunun süresi | 151'e kadar ölçüldü, doğrusaldan hızlı büyüyor |
 | Oturum eşiği 500 gerçekten yeterli mi | Müşteride `sleeping`/aktif oturum dağılımı ölçülmedi |
 | Veri migration'ının canlı yükseltmede davranışı | Yalnız boş SQLite düzeneğinde koşuldu, gerçek müşteri veritabanında değil |
+| Arayüzün regresyona karşı korunması | Açılır satır ve Gizlilik sayfası 2026-09-02'de tarayıcıda **bir kez** doğrulandı; düzenek depoda kalmadı, yarın bir değişiklik ikisini de sessizce bozabilir |

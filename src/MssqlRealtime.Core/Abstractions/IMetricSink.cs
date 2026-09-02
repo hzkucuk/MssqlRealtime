@@ -13,6 +13,16 @@ public sealed record MetricPoint
     public int? RequestCount { get; init; }
     public int? BlockedCount { get; init; }
     public int? LongestQuerySeconds { get; init; }
+
+    /// <summary>
+    /// Who ran the longest query of this cycle: SPID, application, login, machine, database.
+    /// Null when nothing was running — a cycle with no request is a real measurement of zero,
+    /// but there is nobody to name for it.
+    /// </summary>
+    public string? LongestQueryBy { get; init; }
+
+    /// <summary>The statement itself, folded onto one line and cut to length.</summary>
+    public string? LongestQueryText { get; init; }
 }
 
 /// <summary>
@@ -44,6 +54,8 @@ public sealed record MetricSeriesPoint
     public int? RequestCount { get; init; }
     public int? BlockedCount { get; init; }
     public int? LongestQuerySeconds { get; init; }
+    public string? LongestQueryBy { get; init; }
+    public string? LongestQueryText { get; init; }
 }
 
 public interface IMetricStore

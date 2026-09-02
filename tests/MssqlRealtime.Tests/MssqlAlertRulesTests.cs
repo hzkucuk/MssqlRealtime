@@ -1,6 +1,7 @@
 using MssqlRealtime.Core.Alerts;
 using MssqlRealtime.Modules.Mssql.Alerts;
 using MssqlRealtime.Modules.Mssql.Models;
+using MssqlRealtime.Core.Privacy;
 
 namespace MssqlRealtime.Tests;
 
@@ -32,7 +33,7 @@ public class MssqlAlertRulesTests
         var profile = Profile();
         var builder = Online(profile, new MachineResources { CpuPercent = 91 });
 
-        var cpu = Assert.Single(MssqlAlertRules.Evaluate(profile, builder), c => c.RuleId == MssqlAlertRules.Cpu);
+        var cpu = Assert.Single(MssqlAlertRules.Evaluate(profile, builder, StatementStorage.Full), c => c.RuleId == MssqlAlertRules.Cpu);
 
         Assert.True(cpu.IsBreached);
         Assert.Equal(91, cpu.Value);
@@ -45,7 +46,7 @@ public class MssqlAlertRulesTests
         var profile = Profile();
         var builder = Online(profile, new MachineResources { CpuPercent = 96 });
 
-        var cpu = Assert.Single(MssqlAlertRules.Evaluate(profile, builder), c => c.RuleId == MssqlAlertRules.Cpu);
+        var cpu = Assert.Single(MssqlAlertRules.Evaluate(profile, builder, StatementStorage.Full), c => c.RuleId == MssqlAlertRules.Cpu);
 
         Assert.Equal(Severity.Critical, cpu.Severity);
     }
@@ -56,7 +57,7 @@ public class MssqlAlertRulesTests
         var profile = Profile();
         var builder = Online(profile, new MachineResources { CpuPercent = 95, CpuSampleAgeSeconds = 120 });
 
-        var cpu = Assert.Single(MssqlAlertRules.Evaluate(profile, builder), c => c.RuleId == MssqlAlertRules.Cpu);
+        var cpu = Assert.Single(MssqlAlertRules.Evaluate(profile, builder, StatementStorage.Full), c => c.RuleId == MssqlAlertRules.Cpu);
 
         // The user must not act on a two-minute-old number believing it is live.
         Assert.Contains("120", cpu.Message);
@@ -69,7 +70,7 @@ public class MssqlAlertRulesTests
         profile.CpuAlertPercent = null;
         var builder = Online(profile, new MachineResources { CpuPercent = 100 });
 
-        Assert.DoesNotContain(MssqlAlertRules.Evaluate(profile, builder), c => c.RuleId == MssqlAlertRules.Cpu);
+        Assert.DoesNotContain(MssqlAlertRules.Evaluate(profile, builder, StatementStorage.Full), c => c.RuleId == MssqlAlertRules.Cpu);
     }
 
     [Fact]
@@ -79,7 +80,7 @@ public class MssqlAlertRulesTests
         // No resources probe result at all — e.g. the login lacks VIEW SERVER STATE.
         var builder = Online(profile, resources: null);
 
-        var candidates = MssqlAlertRules.Evaluate(profile, builder);
+        var candidates = MssqlAlertRules.Evaluate(profile, builder, StatementStorage.Full);
 
         // Absent is not the same as fine: the rule is simply not evaluated.
         Assert.DoesNotContain(candidates, c => c.RuleId == MssqlAlertRules.Cpu);
@@ -96,7 +97,7 @@ public class MssqlAlertRulesTests
             ErrorMessage = "Sunucuya ulaşılamıyor."
         };
 
-        var candidates = MssqlAlertRules.Evaluate(profile, builder);
+        var candidates = MssqlAlertRules.Evaluate(profile, builder, StatementStorage.Full);
 
         var offline = Assert.Single(candidates);
         Assert.Equal(MssqlAlertRules.Offline, offline.RuleId);
@@ -119,7 +120,7 @@ public class MssqlAlertRulesTests
             new BlockingEdge { BlockedSessionId = 61, BlockingSessionId = 55, BlockingProgram = "Mikro" }
         ];
 
-        var blocking = Assert.Single(MssqlAlertRules.Evaluate(profile, builder), c => c.RuleId == MssqlAlertRules.Blocking);
+        var blocking = Assert.Single(MssqlAlertRules.Evaluate(profile, builder, StatementStorage.Full), c => c.RuleId == MssqlAlertRules.Blocking);
 
         Assert.True(blocking.IsBreached);
         Assert.Equal(2, blocking.Value);
@@ -138,7 +139,7 @@ public class MssqlAlertRulesTests
         ];
 
         var longRunning = Assert.Single(
-            MssqlAlertRules.Evaluate(profile, builder),
+            MssqlAlertRules.Evaluate(profile, builder, StatementStorage.Full),
             c => c.RuleId == MssqlAlertRules.LongRunning);
 
         Assert.True(longRunning.IsBreached);
@@ -159,7 +160,7 @@ public class MssqlAlertRulesTests
         });
         builder.Sessions = [new SessionInfo { SessionId = 60 }];
 
-        var candidates = MssqlAlertRules.Evaluate(profile, builder);
+        var candidates = MssqlAlertRules.Evaluate(profile, builder, StatementStorage.Full);
 
         // Every rule still reports in — that is what lets the engine clear a stale alert.
         Assert.All(candidates, c => Assert.False(c.IsBreached));
@@ -191,7 +192,7 @@ public class MssqlAlertRulesTests
         ];
 
         var rule = Assert.Single(
-            MssqlAlertRules.Evaluate(profile, builder),
+            MssqlAlertRules.Evaluate(profile, builder, StatementStorage.Full),
             c => c.RuleId == MssqlAlertRules.BlockingDuration);
 
         Assert.True(rule.IsBreached);
@@ -214,7 +215,7 @@ public class MssqlAlertRulesTests
         ];
 
         var rule = Assert.Single(
-            MssqlAlertRules.Evaluate(profile, builder),
+            MssqlAlertRules.Evaluate(profile, builder, StatementStorage.Full),
             c => c.RuleId == MssqlAlertRules.BlockingDuration);
 
         Assert.Equal(130, rule.Value);
@@ -230,7 +231,7 @@ public class MssqlAlertRulesTests
         // Rule 4: a rule that goes quiet instead of reporting "not breached" leaves the
         // previous alert open forever.
         var rule = Assert.Single(
-            MssqlAlertRules.Evaluate(profile, builder),
+            MssqlAlertRules.Evaluate(profile, builder, StatementStorage.Full),
             c => c.RuleId == MssqlAlertRules.BlockingDuration);
 
         Assert.False(rule.IsBreached);
@@ -246,7 +247,7 @@ public class MssqlAlertRulesTests
         var builder = Online(profile, new MachineResources { ActiveWorkers = 500, MaxWorkers = 576 });
 
         var rule = Assert.Single(
-            MssqlAlertRules.Evaluate(profile, builder),
+            MssqlAlertRules.Evaluate(profile, builder, StatementStorage.Full),
             c => c.RuleId == MssqlAlertRules.WorkerUtilization);
 
         Assert.True(rule.IsBreached);
@@ -262,7 +263,7 @@ public class MssqlAlertRulesTests
         var builder = Online(profile, new MachineResources { ActiveWorkers = 540, MaxWorkers = 576 });
 
         var rule = Assert.Single(
-            MssqlAlertRules.Evaluate(profile, builder),
+            MssqlAlertRules.Evaluate(profile, builder, StatementStorage.Full),
             c => c.RuleId == MssqlAlertRules.WorkerUtilization);
 
         Assert.Equal(94, rule.Value);
@@ -278,7 +279,7 @@ public class MssqlAlertRulesTests
         // Rule 3: an unmeasurable ratio leaves the list entirely. Reporting it as 0% — or as
         // "not breached" — would close an alert nobody actually verified.
         Assert.DoesNotContain(
-            MssqlAlertRules.Evaluate(profile, builder),
+            MssqlAlertRules.Evaluate(profile, builder, StatementStorage.Full),
             c => c.RuleId == MssqlAlertRules.WorkerUtilization);
     }
 
@@ -291,7 +292,7 @@ public class MssqlAlertRulesTests
         var builder = Online(profile, new MachineResources { RunnableTasks = 40, SchedulerCount = 8 });
 
         Assert.DoesNotContain(
-            MssqlAlertRules.Evaluate(profile, builder),
+            MssqlAlertRules.Evaluate(profile, builder, StatementStorage.Full),
             c => c.RuleId == MssqlAlertRules.RunnableTasks);
     }
 
@@ -314,7 +315,7 @@ public class MssqlAlertRulesTests
             new RequestInfo { SessionId = 60, ElapsedSeconds = 45, BlockingSessionId = 55 }
         ];
 
-        var breached = MssqlAlertRules.Evaluate(profile, builder)
+        var breached = MssqlAlertRules.Evaluate(profile, builder, StatementStorage.Full)
             .Where(c => c.IsBreached)
             .Select(c => c.RuleId)
             .ToArray();
@@ -332,7 +333,7 @@ public class MssqlAlertRulesTests
         builder.Requests = [new RequestInfo { SessionId = 71, ElapsedSeconds = 240, ProgramName = "Rapor" }];
 
         var longRunning = Assert.Single(
-            MssqlAlertRules.Evaluate(profile, builder),
+            MssqlAlertRules.Evaluate(profile, builder, StatementStorage.Full),
             c => c.RuleId == MssqlAlertRules.LongRunning);
 
         Assert.True(longRunning.IsBreached);
@@ -356,7 +357,7 @@ public class MssqlAlertRulesTests
 
         // Nobody else is watching duration now, so hiding it would lose the incident.
         var longRunning = Assert.Single(
-            MssqlAlertRules.Evaluate(profile, builder),
+            MssqlAlertRules.Evaluate(profile, builder, StatementStorage.Full),
             c => c.RuleId == MssqlAlertRules.LongRunning);
 
         Assert.True(longRunning.IsBreached);
@@ -381,11 +382,63 @@ public class MssqlAlertRulesTests
         ];
 
         var rule = Assert.Single(
-            MssqlAlertRules.Evaluate(profile, builder),
+            MssqlAlertRules.Evaluate(profile, builder, StatementStorage.Full),
             c => c.RuleId == MssqlAlertRules.LongRunning);
 
         Assert.Contains("SPID 71", rule.Context);
         Assert.Contains("Sorgu: SELECT * FROM satis_hareket", rule.Context);
+    }
+
+    [Fact]
+    public void MaskedStorageKeepsTheAlertUsableWithoutTheValues()
+    {
+        var profile = Profile();
+        var builder = Online(profile);
+        builder.Sessions = [new SessionInfo { SessionId = 71, ProgramName = "RaporServisi" }];
+        builder.Requests =
+        [
+            new RequestInfo
+            {
+                SessionId = 71,
+                ElapsedSeconds = 120,
+                SqlText = "SELECT * FROM Musteri WHERE TCKimlik = '12345678901'"
+            }
+        ];
+
+        var rule = Assert.Single(
+            MssqlAlertRules.Evaluate(profile, builder, StatementStorage.Masked),
+            c => c.RuleId == MssqlAlertRules.LongRunning);
+
+        // An alert record outlives the session it describes, so the value is what goes; who
+        // ran it and which query stay, because that is what somebody acts on.
+        Assert.DoesNotContain("12345678901", rule.Context);
+        Assert.Contains("SPID 71", rule.Context);
+        Assert.Contains("Sorgu: SELECT * FROM Musteri WHERE TCKimlik = ?", rule.Context);
+    }
+
+    [Fact]
+    public void NoneStorageLeavesTheIdentityLineAndDropsTheStatement()
+    {
+        var profile = Profile();
+        var builder = Online(profile);
+        builder.Sessions = [new SessionInfo { SessionId = 71, ProgramName = "RaporServisi" }];
+        builder.Requests =
+        [
+            new RequestInfo
+            {
+                SessionId = 71,
+                ElapsedSeconds = 120,
+                SqlText = "SELECT * FROM Musteri WHERE TCKimlik = '12345678901'"
+            }
+        ];
+
+        var rule = Assert.Single(
+            MssqlAlertRules.Evaluate(profile, builder, StatementStorage.None),
+            c => c.RuleId == MssqlAlertRules.LongRunning);
+
+        Assert.DoesNotContain("Sorgu:", rule.Context);
+        Assert.Contains("SPID 71", rule.Context);
+        Assert.Contains("RaporServisi", rule.Context);
     }
 
     [Fact]
@@ -400,7 +453,7 @@ public class MssqlAlertRulesTests
         ];
 
         var rule = Assert.Single(
-            MssqlAlertRules.Evaluate(profile, builder),
+            MssqlAlertRules.Evaluate(profile, builder, StatementStorage.Full),
             c => c.RuleId == MssqlAlertRules.Cpu);
 
         Assert.Contains("SPID 61", rule.Context);
@@ -425,7 +478,7 @@ public class MssqlAlertRulesTests
         ];
 
         var rule = Assert.Single(
-            MssqlAlertRules.Evaluate(profile, builder),
+            MssqlAlertRules.Evaluate(profile, builder, StatementStorage.Full),
             c => c.RuleId == MssqlAlertRules.Blocking);
 
         Assert.Contains("SPID 55", rule.Context);
@@ -448,7 +501,7 @@ public class MssqlAlertRulesTests
         ];
 
         var rule = Assert.Single(
-            MssqlAlertRules.Evaluate(profile, builder),
+            MssqlAlertRules.Evaluate(profile, builder, StatementStorage.Full),
             c => c.RuleId == MssqlAlertRules.LongRunning);
 
         Assert.DoesNotContain('\n', rule.Context!);
@@ -470,7 +523,7 @@ public class MssqlAlertRulesTests
         builder.Sessions = [new SessionInfo { SessionId = 61, CpuTimeMs = 900_000, ProgramName = "Mikro" }];
 
         var rule = Assert.Single(
-            MssqlAlertRules.Evaluate(profile, builder),
+            MssqlAlertRules.Evaluate(profile, builder, StatementStorage.Full),
             c => c.RuleId == MssqlAlertRules.Cpu);
 
         Assert.Contains("SPID 61", rule.Context);
@@ -485,7 +538,7 @@ public class MssqlAlertRulesTests
         var builder = Online(profile, new MachineResources { RunnableTasks = 12, SchedulerCount = 8 });
 
         var rule = Assert.Single(
-            MssqlAlertRules.Evaluate(profile, builder),
+            MssqlAlertRules.Evaluate(profile, builder, StatementStorage.Full),
             c => c.RuleId == MssqlAlertRules.RunnableTasks);
 
         Assert.True(rule.IsBreached);

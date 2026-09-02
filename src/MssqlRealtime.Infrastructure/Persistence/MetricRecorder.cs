@@ -84,6 +84,10 @@ public sealed class MetricRecorder(IServiceScopeFactory scopes, ILogger<MetricRe
                 bucket.Points.Clear();
             }
 
+            var worst = points
+                .Where(p => p.LongestQuerySeconds is not null)
+                .MaxBy(p => p.LongestQuerySeconds);
+
             rows.Add(new MetricSample
             {
                 ModuleId = moduleId,
@@ -101,8 +105,11 @@ public sealed class MetricRecorder(IServiceScopeFactory scopes, ILogger<MetricRe
                 RequestCount = AverageInt(points, p => p.RequestCount),
                 BlockedCount = AverageInt(points, p => p.BlockedCount),
                 // The worst query of the minute, not the average of them: this one is asked
-                // as "how bad did it get?".
-                LongestQuerySeconds = points.Max(p => p.LongestQuerySeconds)
+                // as "how bad did it get?". Its owner and statement travel with it, so the
+                // report can answer "who?" as well as "how bad?".
+                LongestQuerySeconds = worst?.LongestQuerySeconds,
+                LongestQueryBy = worst?.LongestQueryBy,
+                LongestQueryText = worst?.LongestQueryText
             });
         }
 

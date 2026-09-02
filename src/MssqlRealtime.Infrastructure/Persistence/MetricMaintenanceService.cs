@@ -94,23 +94,32 @@ public sealed class MetricMaintenanceService(IServiceScopeFactory scopes, ILogge
                 x.TargetId,
                 Bucket = new DateTime(x.TakenAtUtc.Ticks / bucket.Ticks * bucket.Ticks, DateTimeKind.Utc)
             })
-            .Select(g => new MetricSample
+            .Select(g =>
             {
-                ModuleId = g.Key.ModuleId,
-                TargetId = g.Key.TargetId,
-                TakenAtUtc = g.Key.Bucket,
-                Resolution = to,
-                SampleCount = g.Sum(x => x.SampleCount),
-                // Weighted by how many raw samples each row stands for, so an hour missing
-                // half its minutes does not count as much as a full one.
-                CpuPercent = Weighted(g, x => x.CpuPercent),
-                SqlCpuPercent = Weighted(g, x => x.SqlCpuPercent),
-                MemoryPercent = Weighted(g, x => x.MemoryPercent),
-                SqlMemoryMb = WeightedInt(g, x => x.SqlMemoryMb),
-                SessionCount = WeightedInt(g, x => x.SessionCount),
-                RequestCount = WeightedInt(g, x => x.RequestCount),
-                BlockedCount = WeightedInt(g, x => x.BlockedCount),
-                LongestQuerySeconds = g.Max(x => x.LongestQuerySeconds)
+                // The hour keeps the worst minute's query, not a query of its own: folding
+                // averages the numbers but there is no average of a statement.
+                var worst = Worst(g);
+
+                return new MetricSample
+                {
+                    ModuleId = g.Key.ModuleId,
+                    TargetId = g.Key.TargetId,
+                    TakenAtUtc = g.Key.Bucket,
+                    Resolution = to,
+                    SampleCount = g.Sum(x => x.SampleCount),
+                    // Weighted by how many raw samples each row stands for, so an hour missing
+                    // half its minutes does not count as much as a full one.
+                    CpuPercent = Weighted(g, x => x.CpuPercent),
+                    SqlCpuPercent = Weighted(g, x => x.SqlCpuPercent),
+                    MemoryPercent = Weighted(g, x => x.MemoryPercent),
+                    SqlMemoryMb = WeightedInt(g, x => x.SqlMemoryMb),
+                    SessionCount = WeightedInt(g, x => x.SessionCount),
+                    RequestCount = WeightedInt(g, x => x.RequestCount),
+                    BlockedCount = WeightedInt(g, x => x.BlockedCount),
+                    LongestQuerySeconds = worst?.LongestQuerySeconds,
+                    LongestQueryBy = worst?.LongestQueryBy,
+                    LongestQueryText = worst?.LongestQueryText
+                };
             })
             .ToList();
 
@@ -118,6 +127,10 @@ public sealed class MetricMaintenanceService(IServiceScopeFactory scopes, ILogge
         db.Set<MetricSample>().AddRange(folded);
         await db.SaveChangesAsync(ct);
     }
+
+    /// <summary>The row holding the slowest query of the bucket, if any row measured one.</summary>
+    private static MetricSample? Worst(IEnumerable<MetricSample> rows) =>
+        rows.Where(x => x.LongestQuerySeconds is not null).MaxBy(x => x.LongestQuerySeconds);
 
     private static double? Weighted(IEnumerable<MetricSample> rows, Func<MetricSample, double?> select)
     {

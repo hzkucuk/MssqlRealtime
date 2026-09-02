@@ -305,6 +305,9 @@
 		requestCount: number | null;
 		blockedCount: number | null;
 		longestQuerySeconds: number | null;
+		/** O dakikanın en uzun sorgusunu kim çalıştırdı: SPID · uygulama · login · makine · veritabanı. */
+		longestQueryBy: string | null;
+		longestQueryText: string | null;
 	};
 
 	const RANGES: [string, string][] = [
@@ -453,6 +456,54 @@
 			new Date(m.atUtc).toLocaleString('tr').toLocaleLowerCase('tr').includes(needle)
 		);
 	});
+
+	const shownFields = $derived(FIELDS.filter((f) => selectedFields.includes(f.key)));
+
+	// Sahibi ve sorgu metni satırın altında açılır. Sütun olarak eklemek telefonda tabloyu
+	// taşırırdı, tooltip ise dokunmatikte hiç açılmıyor.
+	let openRow = $state<string | null>(null);
+	let copied = $state<string | null>(null);
+	let copyError = $state<string | null>(null);
+
+	function hasQueryDetail(m: MetricPoint) {
+		return m.longestQueryBy !== null || m.longestQueryText !== null;
+	}
+
+	function toggleRow(key: string) {
+		copyError = null;
+		openRow = openRow === key ? null : key;
+	}
+
+	async function copyQuery(m: MetricPoint) {
+		if (!m.longestQueryText) return;
+
+		copyError = null;
+
+		try {
+			if (navigator.clipboard?.writeText) {
+				await navigator.clipboard.writeText(m.longestQueryText);
+			} else {
+				// Panel çoğu kurulumda http üzerinden açılıyor ve güvensiz kaynakta
+				// navigator.clipboard TANIMSIZ olur — orada tek yol eski seçim yöntemi.
+				const area = document.createElement('textarea');
+				area.value = m.longestQueryText;
+				area.style.position = 'fixed';
+				area.style.opacity = '0';
+				document.body.appendChild(area);
+				area.select();
+				document.execCommand('copy');
+				area.remove();
+			}
+
+			copied = m.atUtc;
+			setTimeout(() => {
+				if (copied === m.atUtc) copied = null;
+			}, 2000);
+		} catch {
+			// Sessizce başarısız olmaz: kopyalanmadığını bilmeyen kullanıcı boş yapıştırır.
+			copyError = 'Kopyalanamadı — metni seçip kopyalayabilirsiniz.';
+		}
+	}
 
 	// --- Sağ tık menüsü ------------------------------------------------------------------
 	let menu = $state<{ x: number; y: number; items: MenuItem[] } | null>(null);
@@ -1173,7 +1224,7 @@
 							<thead>
 								<tr>
 									<SortHeader sorter={tableSort} column="at" label="Zaman" />
-									{#each FIELDS.filter((f) => selectedFields.includes(f.key)) as f (f.key)}
+									{#each shownFields as f (f.key)}
 										<SortHeader sorter={tableSort} column={f.key} label={f.label} />
 									{/each}
 								</tr>
@@ -1181,8 +1232,22 @@
 							<tbody>
 								{#each tableRows as m (m.atUtc)}
 									<tr>
-										<td class="muted">{dateTime(m.atUtc)}</td>
-										{#each FIELDS.filter((f) => selectedFields.includes(f.key)) as f (f.key)}
+										<td class="muted">
+											{#if hasQueryDetail(m)}
+												<button
+													class="row-toggle"
+													aria-expanded={openRow === m.atUtc}
+													title="En uzun sorguyu kim çalıştırdı?"
+													onclick={() => toggleRow(m.atUtc)}
+												>
+													<span class="caret" class:collapsed={openRow !== m.atUtc}>▾</span>
+													{dateTime(m.atUtc)}
+												</button>
+											{:else}
+												{dateTime(m.atUtc)}
+											{/if}
+										</td>
+										{#each shownFields as f (f.key)}
 											<td class="mono">
 												{m[f.key] === null || m[f.key] === undefined
 													? '—'
@@ -1190,6 +1255,35 @@
 											</td>
 										{/each}
 									</tr>
+
+									{#if openRow === m.atUtc}
+										<tr class="detail-row">
+											<td colspan={shownFields.length + 1}>
+												<div class="row between">
+													<strong class="mono">{m.longestQueryBy ?? 'Kim olduğu saklanmamış'}</strong>
+													<span class="muted">
+														en uzun sorgu ·
+														{m.longestQuerySeconds === null
+															? '—'
+															: duration(m.longestQuerySeconds)}
+													</span>
+												</div>
+
+												{#if m.longestQueryText}
+													<pre class="sql">{m.longestQueryText}</pre>
+													<button class="btn btn-sm" onclick={() => copyQuery(m)}>
+														{copied === m.atUtc ? 'Kopyalandı' : 'Kopyala'}
+													</button>
+												{:else}
+													<p class="muted" style="margin:0.3rem 0 0">
+														Sorgu metni saklanmamış — oturum planı önbellekte bulunamamış olabilir.
+													</p>
+												{/if}
+
+												{#if copyError}<div class="error">{copyError}</div>{/if}
+											</td>
+										</tr>
+									{/if}
 								{/each}
 							</tbody>
 						</table>
@@ -1199,7 +1293,10 @@
 
 			<p class="muted" style="font-size:0.78rem">
 				Ölçümler dakikada bir yazılır. Bir haftadan eskiler saatlik, üç aydan eskiler günlük
-				ortalamaya iner; iki yıldan eskiler silinir.
+				ortalamaya iner; iki yıldan eskiler silinir. Zamana tıklayınca o dakikanın en uzun
+				sorgusunu kimin çalıştırdığı ve sorgunun kendisi açılır — v0.24.0'dan önce yazılan
+				satırlarda yalnız süre var. Sorgu metni varsayılan olarak <strong>maskeli</strong>
+				saklanır; değerler <code>?</code> olur (Yönetim → Gizlilik).
 			</p>
 
 			{#if expanded}
@@ -1480,5 +1577,25 @@
 
 	.group-menu:hover {
 		color: var(--text);
+	}
+
+	/* Zaman hücresi açılır anahtar: satırın kendisi tıklanabilir olsaydı sıralama ve metin
+	   seçme ile çakışırdı. */
+	.row-toggle {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		background: none;
+		border: 0;
+		padding: 0;
+		color: inherit;
+		font: inherit;
+		text-align: left;
+		cursor: pointer;
+	}
+
+	/* Detay bir ölçüm satırı değil, o satırın açıklaması: zemini ayrı, rengi yok. */
+	.detail-row td {
+		background: var(--surface-2, rgba(127, 127, 127, 0.08));
 	}
 </style>

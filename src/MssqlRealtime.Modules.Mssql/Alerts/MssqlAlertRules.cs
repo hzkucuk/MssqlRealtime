@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using MssqlRealtime.Core.Alerts;
 using MssqlRealtime.Modules.Mssql.Models;
+using MssqlRealtime.Core.Privacy;
 
 namespace MssqlRealtime.Modules.Mssql.Alerts;
 
@@ -65,24 +66,30 @@ public static partial class MssqlAlertRules
     /// The statement, folded onto one line and cut to length. Multi-line SQL turns an alert
     /// list into a wall of indentation, and the notification channels do not reflow it.
     /// </summary>
-    private static string? Statement(string? sql)
+    private static string? Statement(string? sql, StatementStorage storage)
     {
-        if (string.IsNullOrWhiteSpace(sql))
+        if (storage == StatementStorage.None || string.IsNullOrWhiteSpace(sql))
         {
             return null;
         }
 
-        var oneLine = WhitespaceRun().Replace(sql.Trim(), " ");
+        var text = storage == StatementStorage.Masked ? StatementMasking.Mask(sql) : sql;
+        var oneLine = WhitespaceRun().Replace(text!.Trim(), " ");
 
         return oneLine.Length <= ContextSqlMaxLength
             ? $"Sorgu: {oneLine}"
             : $"Sorgu: {oneLine[..ContextSqlMaxLength]}…";
     }
 
-    /// <summary>Identity line plus the statement, whichever of the two exists.</summary>
-    private static string? Context(SessionInfo? session, string? measure = null, string? sql = null)
+    /// <summary>
+    /// Identity line plus the statement, whichever of the two exists. The storage setting is
+    /// the first parameter because it is not optional: an alert record outlives the session,
+    /// and a call site that forgot it would be a call site that stored a customer's data.
+    /// </summary>
+    private static string? Context(
+        StatementStorage storage, SessionInfo? session, string? measure = null, string? sql = null)
     {
-        var parts = new[] { Describe(session, measure), Statement(sql ?? session?.SqlText) }
+        var parts = new[] { Describe(session, measure), Statement(sql ?? session?.SqlText, storage) }
             .Where(x => !string.IsNullOrWhiteSpace(x))
             .ToArray();
 
@@ -99,7 +106,8 @@ public static partial class MssqlAlertRules
     private static SessionInfo? TopMemory(SnapshotBuilder builder) =>
         builder.Sessions.Where(x => x.SessionId > 50).MaxBy(x => x.MemoryUsageKb);
 
-    public static IReadOnlyList<AlertCandidate> Evaluate(ServerProfile profile, SnapshotBuilder builder)
+    public static IReadOnlyList<AlertCandidate> Evaluate(
+        ServerProfile profile, SnapshotBuilder builder, StatementStorage storage)
     {
         var candidates = new List<AlertCandidate>();
 
@@ -145,7 +153,7 @@ public static partial class MssqlAlertRules
                 Value = cpu,
                 Threshold = cpuLimit,
                 Unit = "%",
-                Context = Context(TopCpu(builder), $"CPU {TopCpu(builder)?.CpuTimeMs:N0} ms"),
+                Context = Context(storage, TopCpu(builder), $"CPU {TopCpu(builder)?.CpuTimeMs:N0} ms"),
                 RequiredConsecutiveBreaches = profile.AlertConsecutiveBreaches,
                 RenotifyMinutes = profile.AlertRenotifyMinutes
             });
@@ -166,7 +174,7 @@ public static partial class MssqlAlertRules
                 Value = mem,
                 Threshold = memLimit,
                 Unit = "%",
-                Context = Context(TopMemory(builder), $"{TopMemory(builder)?.MemoryUsageKb:N0} KB"),
+                Context = Context(storage, TopMemory(builder), $"{TopMemory(builder)?.MemoryUsageKb:N0} KB"),
                 RequiredConsecutiveBreaches = profile.AlertConsecutiveBreaches,
                 RenotifyMinutes = profile.AlertRenotifyMinutes
             });
@@ -184,7 +192,7 @@ public static partial class MssqlAlertRules
                 Value = sqlMem,
                 Threshold = sqlMemLimit,
                 Unit = "MB",
-                Context = Context(TopMemory(builder), $"{TopMemory(builder)?.MemoryUsageKb:N0} KB"),
+                Context = Context(storage, TopMemory(builder), $"{TopMemory(builder)?.MemoryUsageKb:N0} KB"),
                 RequiredConsecutiveBreaches = profile.AlertConsecutiveBreaches,
                 RenotifyMinutes = profile.AlertRenotifyMinutes
             });
@@ -213,7 +221,7 @@ public static partial class MssqlAlertRules
                 // The blocker's statement comes from the blocking probe rather than from the
                 // session row: a sleeping blocker owns no request, and its last statement is
                 // exactly the thing the reader needs.
-                Context = Context(
+                Context = Context(storage,
                     builder.Sessions.FirstOrDefault(x =>
                         x.SessionId == builder.Blocking.Select(b => b.BlockingSessionId).FirstOrDefault()),
                     "engelleyen",
@@ -254,7 +262,7 @@ public static partial class MssqlAlertRules
                 Unit = "sn",
                 Context = longest is null
                     ? null
-                    : Context(
+                    : Context(storage,
                         builder.Sessions.FirstOrDefault(x => x.SessionId == longest.SessionId)
                             ?? new SessionInfo
                             {
@@ -282,7 +290,7 @@ public static partial class MssqlAlertRules
                 Message = $"{count} açık oturum — sınır {sessionLimit}",
                 Value = count,
                 Threshold = sessionLimit,
-                Context = Context(TopCpu(builder), $"CPU {TopCpu(builder)?.CpuTimeMs:N0} ms"),
+                Context = Context(storage, TopCpu(builder), $"CPU {TopCpu(builder)?.CpuTimeMs:N0} ms"),
                 RequiredConsecutiveBreaches = profile.AlertConsecutiveBreaches,
                 RenotifyMinutes = profile.AlertRenotifyMinutes
             });
@@ -313,7 +321,7 @@ public static partial class MssqlAlertRules
                 Threshold = blockSecondsLimit,
                 Context = longest is null
                     ? null
-                    : Context(
+                    : Context(storage,
                         builder.Sessions.FirstOrDefault(x => x.SessionId == longest.BlockingSessionId),
                         $"engelleyen · {seconds} sn",
                         longest.BlockingSql),
@@ -339,7 +347,7 @@ public static partial class MssqlAlertRules
                     : $"{runnable} görev işlemci sırasında bekliyor — sınır {runnableLimit}",
                 Value = runnable,
                 Threshold = runnableLimit,
-                Context = Context(TopCpu(builder), $"{TopCpu(builder)?.CpuTimeMs:N0} ms CPU"),
+                Context = Context(storage, TopCpu(builder), $"{TopCpu(builder)?.CpuTimeMs:N0} ms CPU"),
                 RequiredConsecutiveBreaches = profile.AlertConsecutiveBreaches,
                 RenotifyMinutes = profile.AlertRenotifyMinutes
             });

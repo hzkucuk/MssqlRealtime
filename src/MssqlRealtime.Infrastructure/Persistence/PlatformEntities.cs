@@ -130,6 +130,16 @@ public sealed class MetricSample
     public int? BlockedCount { get; set; }
     public int? LongestQuerySeconds { get; set; }
 
+    /// <summary>
+    /// Who ran the longest query of this bucket and what it was. A number alone answers "how
+    /// bad did it get?" but not "who did it?", and by the time the report is read the session
+    /// is long gone — so the winner's identity line and statement travel with the number.
+    /// Null when nothing was running, and on every row written before this existed.
+    /// </summary>
+    public string? LongestQueryBy { get; set; }
+
+    public string? LongestQueryText { get; set; }
+
     /// <summary>How many minute samples this row was folded from; 1 while it is still raw.</summary>
     public int SampleCount { get; set; } = 1;
 }
