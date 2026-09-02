@@ -6,8 +6,9 @@
  * same origin).
  *
  * Several servers are supported because that is how the product is actually deployed — one
- * hub per customer, on their own Portainer box. Each saved server keeps its own tokens, so
- * switching customers does not mean signing in again every time.
+ * hub per customer, on the customer's own Windows machine, usually next to SQL Server. Each
+ * saved server keeps its own tokens, so switching customers does not mean signing in again
+ * every time.
  */
 
 const SERVERS_KEY = 'mr.servers';

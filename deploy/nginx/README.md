@@ -1,5 +1,17 @@
 # nginx + Let's Encrypt
 
+> ⚠️ **Bu belge kaldırılmış bir dağıtım şeklini anlatıyor.** Docker/Linux yolu v0.8.0'da
+> kaldırıldı: ürün artık **Windows servisi** olarak kuruluyor ve önündeki vekil **Nginx Proxy
+> Manager**. Aşağıdaki `docker compose`, konteyner ağı ve `ufw` adımlarının bugünkü kurulumda
+> karşılığı yok. Güncel yol: `docs/03-kurulum.md` ve `CLAUDE.md` → *Nginx Proxy Manager*.
+> Burada yalnız nginx davranışına dair iki şey hâlâ doğru: WebSocket yükseltme başlıkları
+> olmadan SignalR **sessizce** long-polling'e düşer, ve `/hubs/` için ayrı bir `location`
+> gerekiyorsa sebebi zaman aşımıdır.
+>
+> 🔴 Aşağıdaki doğrulama bloğundaki WebSocket testi **yanlış**: `/hubs/tools` yetkilendirme
+> ister, token'sız `curl` en iyi ihtimalle `401` döner — `101` beklenmemeli. WebSocket'in
+> çalıştığını tarayıcıdaki bağlantı göstergesi doğrular.
+
 Alan adı: **izleme.example.com** (başka bir subdomain kullanacaksan dosyadaki iki
 `server_name` satırını ve `Cors__AllowedOrigins__0` değerini değiştir).
 

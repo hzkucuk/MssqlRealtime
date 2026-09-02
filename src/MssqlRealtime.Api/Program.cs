@@ -26,11 +26,10 @@ using Serilog;
 var builder = WebApplication.CreateBuilder(args);
 
 // Runs as a long-lived background service, not something someone starts by hand: the poller
-// keeps measuring and raising alerts whether or not a phone is connected.
-//   Linux : systemd    (deploy/systemd/mssqlrealtime.service)
-//   Docker: restart policy (docker-compose.yml)
-//   Windows: `sc create` — the call below is what makes the service lifetime work there.
-// It is a no-op on every other platform, so it is safe to leave in unconditionally.
+// keeps measuring and raising alerts whether or not a phone is connected. The product ships
+// as a Windows service (`sc create`, see setup/), and the call below is what makes the
+// service lifetime work there. It is a no-op on every other platform, so it stays
+// unconditional — running from a terminal on macOS for development still works.
 builder.Host.UseWindowsService();
 
 // Behind nginx the app only sees the proxy: without this the scheme looks like http even on
