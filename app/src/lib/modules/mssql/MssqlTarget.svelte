@@ -469,6 +469,13 @@
 		return m.longestQueryBy !== null || m.longestQueryText !== null;
 	}
 
+	// Sorgu 4000 karakterde kesiliyor; kesilmişse metin üç noktayla biter. Bunu söylemek şart:
+	// kesildiğini bilmeden kopyalayan kişi sorgu penceresine yarım bir metin yapıştırır ve
+	// hatayı sorguda arar. (v0.24.0'da sınır 500'dü ve hiçbir yerde yazmıyordu.)
+	function isQueryCut(m: MetricPoint) {
+		return m.longestQueryText?.endsWith('…') ?? false;
+	}
+
 	function toggleRow(key: string) {
 		copyError = null;
 		openRow = openRow === key ? null : key;
@@ -1271,9 +1278,16 @@
 
 												{#if m.longestQueryText}
 													<pre class="sql">{m.longestQueryText}</pre>
-													<button class="btn btn-sm" onclick={() => copyQuery(m)}>
-														{copied === m.atUtc ? 'Kopyalandı' : 'Kopyala'}
-													</button>
+													<div class="row" style="gap:0.6rem;align-items:center">
+														<button class="btn btn-sm" onclick={() => copyQuery(m)}>
+															{copied === m.atUtc ? 'Kopyalandı' : 'Kopyala'}
+														</button>
+														{#if isQueryCut(m)}
+															<span class="muted" style="font-size:0.78rem">
+																Sorgu kesildi — kopyalanan metin eksik.
+															</span>
+														{/if}
+													</div>
 												{:else}
 													<p class="muted" style="margin:0.3rem 0 0">
 														Sorgu metni saklanmamış — oturum planı önbellekte bulunamamış olabilir.

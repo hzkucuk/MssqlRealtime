@@ -2,6 +2,61 @@
 
 Biçim: [Keep a Changelog](https://keepachangelog.com/tr/1.1.0/) · Sürümleme: [SemVer](https://semver.org/lang/tr/)
 
+## [0.25.0] — 2026-09-14
+
+### Düzeltildi — rapordaki sorgu 500 karakterde kesiliyordu, "Kopyala" yarısını veriyordu
+
+Raporlarda bir satırı açıp **Kopyala**'ya basan kişi eksik bir sorgu alıyordu: metin diske
+yazılırken 500 karakterde kesiliyor, kopyalanan da diskteki hâli oluyordu. Ekranda `…`
+görünüyordu ama bunun "sorgu burada bitmiyor" demek olduğunu hiçbir yer söylemiyordu —
+kişi sorgu penceresine yarım bir `WITH … AS (` yapıştırıp hatayı sorguda arıyordu.
+
+Sınır **500 → 4000**. Bu, prob'un sorguyu sunucudan zaten çektiği uzunluk: iki kez kesmenin
+anlamı yoktu, 3500 karakter ağdan geçip atılıyordu. `LongestQuery.TextMaxLength` artık
+`RequestsProbe.SqlTextMaxLength` sabitinin kendisi, ikisi bir daha ayrışamaz.
+
+Sunucudan **bir karakter fazlası** isteniyor (`SqlTextFetchLength = 4001`). Sebebi:
+tam 4000 karakterde biten bir sorgu ile 4000'de kesilmiş bir sorgu aksi halde ayırt
+edilemez, ve `…` işaretinin bir anlamı kalmaz. Üç nokta ancak gerçekten kesilmişse konur.
+
+Aynı sorunun ikinci yarısı arayüzde: metin kesilmişse **Kopyala düğmesinin yanında
+"Sorgu kesildi — kopyalanan metin eksik."** yazıyor. Kesilmiş bir sorguyu sessizce
+kopyalatmak, bu sürümde düzeltilen davranışın ta kendisiydi.
+
+Code review'da yakalanan ikinci tuzak: fazladan gelen o bir karakter, **katlamadan sonra
+kayboluyordu.** Sunucudan 4001 karakter gelir, ardından boşluk dizileri tek boşluğa katlanır;
+SSMS'ten gelen girintili bir sorgunun ilk 4001 karakteri katlanınca 3000'e düşer, "sınırı
+aşmıyor" sayılır ve `…` konmazdı — yani kesilmiş sorgu yine sessizce "tam" diye kopyalanırdı.
+Kesildi kararı artık **ham uzunluktan**, katlama ve maskelemeden önce veriliyor.
+
+### Dikkat
+
+- **Eski satırlar düzelmez.** 0.24.0 ile yazılmış satırlar 500 karakterlik metinlerini
+  korur; gerisi yakalama anında kesildi ve diske hiç ulaşmadı. Bu sürümden sonra yazılan
+  satırlar tam gelir.
+- **Gizlilik ayarı değişmedi**, maskeli varsayılan duruyor. Maskelide kopyalanan sorgu
+  SSMS'te çalışmaz — literaller `?` olur. Çalıştırılabilir sorgu isteyen Yönetim →
+  Gizlilik → "Tam" seçmeli ve iki yıl boyunca literal saklamayı göze almalı.
+
+### Ölçüldü 2026-09-14
+
+- **18:22** `dotnet build` 7 proje 0 hata · `dotnet test` **134 test** (biri yeni:
+  tam sınırda biten sorgu üç nokta almıyor) · `npm run check` 399 dosya 0 hata ·
+  `npm test` 18 test.
+- **18:24** migration mevcut veritabanına uygulandı (`20260914151939_LongestQueryTextLength`).
+- **20:24** katlama düzeltmesi sonrası: `dotnet build` 0 hata · `dotnet test` **135 test**
+  (yeni: girintili 4001 karakterlik sorgu katlanınca kısalır ama yine `…` alır) ·
+  `npm run check` 0 hata · `npm test` 18 test.
+  **Gövdesi boş ve öyle kalmalı:** SQLite'ta `TEXT` sütununun genişliği yoktur, `HasMaxLength`
+  yalnız EF tarafında doğrulamadır. Genişletme tablo yeniden kurmuyor, hiçbir satıra
+  dokunmuyor; migration yalnız model anlık görüntüsünü ilerletiyor. "Boş, silelim" denirse
+  bir sonraki migration eski modele göre üretilir.
+- **18:25** 4000 karakterlik metin gerçek şemaya yazıldı ve **4000 olarak** geri okundu.
+  (Geliştirme veritabanında ölçüm satırı yoktu, dolayısıyla "var olan satırlar bozulmadı"
+  bu turda değil, 0.24.0 turunda ölçüldü — 2026-09-02 19:39.)
+- ❓ **Ölçülmedi:** 4001 karakterlik isteğin gerçek SQL Server'dan dönüşü. Konteyner
+  çalışıyordu ama oturum açma izin katmanına takıldı; yalnız birim testiyle doğrulandı.
+
 ## [0.24.0] — 2026-09-02
 
 ### Eklenen — "en uzun sorgu" artık kimin, hangi sorgu olduğunu da söylüyor

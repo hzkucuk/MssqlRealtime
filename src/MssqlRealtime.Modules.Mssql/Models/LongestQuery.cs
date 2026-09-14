@@ -19,10 +19,18 @@ public static partial class LongestQuery
     public const int ByMaxLength = 200;
 
     /// <summary>
-    /// Matches the <c>LongestQueryText</c> column width. Longer than the 240 an alert carries:
-    /// this text is read on a screen with room, not inside a Telegram message.
+    /// Matches the <c>LongestQueryText</c> column width, and deliberately equals what the probe
+    /// brings back: a second cut here would throw away text that already crossed the network.
+    /// Longer than the 240 an alert carries, because this text is read on a screen with room
+    /// and copied into a query window, not inside a Telegram message.
+    /// <para>
+    /// 500 until v0.25.0, which was too short to act on: a report query cut mid-CTE cannot be
+    /// pasted anywhere, and the report exists to be acted on. The probe fetches one character
+    /// past this so a statement cut at exactly the limit is still marked with an ellipsis —
+    /// a silently shortened query is the failure being fixed here, not a longer column.
+    /// </para>
     /// </summary>
-    public const int TextMaxLength = 500;
+    public const int TextMaxLength = Probes.RequestsProbe.SqlTextMaxLength;
 
     /// <summary>Seconds of the slowest request, plus who ran it and what it was.</summary>
     public readonly record struct Result(int Seconds, string? By, string? Text);
@@ -63,8 +71,7 @@ public static partial class LongestQuery
     /// indentation read back for every chart.
     /// <para>
     /// Masking happens before folding and cutting, in that order: masked text is shorter, so
-    /// more of the query survives the 500 characters — and a literal must never be what gets
-    /// cut off last.
+    /// more of the query survives the cut — and a literal must never be what gets cut off last.
     /// </para>
     /// </summary>
     private static string? Statement(string? sql, StatementStorage storage)
@@ -74,16 +81,27 @@ public static partial class LongestQuery
             return null;
         }
 
+        // Whether the server already cut this: the probe fetches one character past the limit,
+        // so a raw text longer than the limit is one that did not end there. Decided on the raw
+        // text, before folding and masking — both shorten it, and an indented 4001-character
+        // statement folds to well under 4000, which would otherwise pass as whole.
+        var cutByServer = sql!.Length > TextMaxLength;
+
         var text = storage == StatementStorage.Masked ? StatementMasking.Mask(sql) : sql;
 
-        return Cut(WhitespaceRun().Replace(text!.Trim(), " "), TextMaxLength);
+        return Cut(WhitespaceRun().Replace(text!.Trim(), " "), TextMaxLength, cutByServer);
     }
 
-    private static string Cut(string text, int max)
+    private static string Cut(string text, int max, bool forceEllipsis = false)
     {
-        if (text.Length <= max)
+        if (text.Length <= max && !forceEllipsis)
         {
             return text;
+        }
+
+        if (text.Length < max && forceEllipsis)
+        {
+            return text + "…";
         }
 
         // One character short, because the ellipsis takes a place too — the result has to fit

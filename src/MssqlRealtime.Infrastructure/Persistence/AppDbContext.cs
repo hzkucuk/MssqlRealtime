@@ -85,8 +85,15 @@ public sealed class AppDbContext(
 
             // Cut at the source too (LongestQuery), but declared here so the column is not a
             // free-for-all: one minute row per server per minute, kept a week.
+            //
+            // The statement is 4000 rather than the 500 it was until v0.25.0. A query cut at 500
+            // is unusable — it cannot be pasted, planned or even read to the end — which made the
+            // stored text decoration rather than evidence. 4000 is where the probe already cuts,
+            // so nothing is thrown away twice. Cost, per server in steady state: roughly 13.000
+            // rows survive (a week of minutes, three months of hours, two years of days), so a
+            // worst case of every row using all 4000 characters is about 50 MB.
             e.Property(x => x.LongestQueryBy).HasMaxLength(200);
-            e.Property(x => x.LongestQueryText).HasMaxLength(500);
+            e.Property(x => x.LongestQueryText).HasMaxLength(4000);
 
             // Every report query is "this target, this resolution, this window", and the
             // roll-up walks the same order. One index covers both.

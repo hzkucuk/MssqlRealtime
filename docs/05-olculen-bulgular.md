@@ -1035,6 +1035,62 @@ Maskeleme **yakalama anında** yapılıyor, saklama anında değil. Sebep: alarm
 kimlik satırındaki SPID numarası da `?` olurdu. Hangi parçanın ifade olduğunu yalnız modül
 bilir.
 
+## 2026-09-14 18:20–18:25 — rapordaki sorgu 500 karakterde kesiliyordu
+
+Kullanıcı raporlarda bir satırı açtı, **Kopyala**'ya bastı ve eksik sorgu aldı. Ekranda
+`… ` vardı ama ne olduğunu söyleyen bir şey yoktu.
+
+Zincirdeki üç sınır ölçüldü:
+
+| Adım | Sınır | Nerede |
+|---|---|---|
+| Sunucudan çekilen | 4000 | `RequestsProbe.SqlTextMaxLength` |
+| Diske yazılan | **500** | `LongestQuery.TextMaxLength`, `HasMaxLength(500)` |
+| Kopyalanan | diskteki hâli | `MssqlTarget.svelte` |
+
+Yani metin ağdan 4000 karakter olarak geçiyor, 500'e indirilip atılıyordu. Kopyalama
+hatası yoktu; saklama sınırı yanlıştı.
+
+**Düzeltme:** `TextMaxLength` artık `RequestsProbe.SqlTextMaxLength` sabitinin **kendisi**
+— iki sınır bir daha ayrışamaz. Prob sunucudan **bir karakter fazlası** istiyor
+(`SqlTextFetchLength = 4001`), çünkü tam 4000'de biten bir sorgu ile 4000'de kesilmiş bir
+sorgu aksi halde ayırt edilemez; üç nokta o zaman yalan söylemeye başlar.
+
+### Ne ölçüldü
+
+- **18:20** `dotnet test` **133 test**, biri **kırmızı**: `BothFieldsFitTheColumnsTheyAreStoredIn`
+  sorgu metnini `new string('x', 4000)` ile kuruyordu — sabit büyüyünce metin tam sınıra
+  oturdu ve kesilmedi. Test sabite bağlandı (`TextMaxLength + 1`). Sabit yerine sayı yazan
+  test, sabit değişince sessizce yanlış şeyi doğrular.
+- **18:22** Yeni test eklendi: **tam sınırda biten sorgu üç nokta almıyor**. `SqlTextFetchLength`
+  bu testin var olma sebebi. Toplam **134 test yeşil**.
+- **18:22** `dotnet build` 7 proje 0 hata 0 uyarı · `npm run check` 399 dosya 0 hata ·
+  `npm test` 18 test yeşil.
+- **18:24** Migration `20260914151939_LongestQueryTextLength` var olan geliştirme
+  veritabanına uygulandı. **`Up()` gövdesi boş** ve bu bir hata değil: `dotnet ef migrations add`
+  SQLite için hiçbir DDL üretmedi, çünkü `TEXT` sütununun genişliği yoktur — `HasMaxLength`
+  yalnız EF tarafında doğrulamadır. Genişletmenin tablo yeniden kurma maliyeti **sıfır**.
+  Migration yalnız model anlık görüntüsünü ilerletmek için var; "boş, silelim" denirse bir
+  sonraki migration eski modele göre üretilir.
+- **18:25** Gerçek şemaya 4000 karakterlik metin yazıldı, **4000 olarak** geri okundu
+  (`length(LongestQueryText) = 4000`). Sütun genişliği gerçekten sınırlamıyor.
+
+### Ne ölçülmedi
+
+- ❓ **4001 karakterlik isteğin gerçek SQL Server'dan dönüşü.** Konteyner (`b2b-db`,
+  SQL Server 2025 ARM64) ayaktaydı ama oturum açma adımı izin katmanına takıldı. Bu yarım
+  yalnız birim testiyle doğrulandı; gerçek bir DMV çıktısıyla değil.
+- ❓ **4000'i aşan sorguların gerçekte ne sıklıkta olduğu.** Sınırın doğru yerde olup
+  olmadığı buna bağlı; üretilmiş ORM sorguları 4000'i rahatça aşabilir.
+
+### İkinci yarısı: maskeli modda kopyalanan sorgu yine çalışmaz
+
+Uzunluktan bağımsız bir gerçek: varsayılan **maskeli** modda literaller `?` olur, yani
+kopyalanan sorgu SSMS'te olduğu gibi çalışmaz. Bu bir hata değil, gizlilik kararının
+bedeli — ama "Kopyala" düğmesi bunu vaat ediyormuş gibi duruyor. Çalıştırılabilir sorgu
+isteyen Yönetim → Gizlilik → **Tam** seçmek zorunda, ve iki yıllık literal saklamayı
+göze almak zorunda. Bu turda ayar **maskeli bırakıldı** (kullanıcı kararı).
+
 ## Doğrulanmayı bekleyenler
 
 | Konu | Neden ölçülemedi |
@@ -1048,4 +1104,6 @@ bilir.
 | 500+ oturumlu sunucuda oturum sorgusunun süresi | 151'e kadar ölçüldü, doğrusaldan hızlı büyüyor |
 | Oturum eşiği 500 gerçekten yeterli mi | Müşteride `sleeping`/aktif oturum dağılımı ölçülmedi |
 | Veri migration'ının canlı yükseltmede davranışı | Yalnız boş SQLite düzeneğinde koşuldu, gerçek müşteri veritabanında değil |
+| 4001 karakterlik sorgu metninin gerçek SQL Server'dan dönüşü | Konteyner ayaktaydı, oturum açma adımı izin katmanına takıldı (2026-09-14 18:2x); yalnız birim testiyle doğrulandı |
+| 4000 karakteri aşan sorguların gerçek sıklığı | Müşteri iş yükünde ölçülmedi; sınırın doğru yerde olup olmadığı buna bağlı |
 | Arayüzün regresyona karşı korunması | Açılır satır ve Gizlilik sayfası 2026-09-02'de tarayıcıda **bir kez** doğrulandı; düzenek depoda kalmadı, yarın bir değişiklik ikisini de sessizce bozabilir |

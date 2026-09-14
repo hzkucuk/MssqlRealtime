@@ -51,7 +51,7 @@ public sealed class BlockingProbe : ISqlProbe
     public async Task ExecuteAsync(ProbeContext context, CancellationToken cancellationToken)
     {
         var rows = await context.Connection.QueryAsync<Row>(
-            new CommandDefinition(Sql, new { MaxLen = RequestsProbe.SqlTextMaxLength },
+            new CommandDefinition(Sql, new { MaxLen = RequestsProbe.SqlTextFetchLength },
                 commandTimeout: context.CommandTimeoutSeconds, cancellationToken: cancellationToken));
 
         var edges = rows.Select(r => new BlockingEdge

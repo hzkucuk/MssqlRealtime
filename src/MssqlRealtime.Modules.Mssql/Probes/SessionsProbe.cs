@@ -70,7 +70,7 @@ public sealed class SessionsProbe : ISqlProbe
     public async Task ExecuteAsync(ProbeContext context, CancellationToken cancellationToken)
     {
         var rows = await context.Connection.QueryAsync<Row>(
-            new CommandDefinition(Sql, new { MaxLen = RequestsProbe.SqlTextMaxLength },
+            new CommandDefinition(Sql, new { MaxLen = RequestsProbe.SqlTextFetchLength },
                 commandTimeout: context.CommandTimeoutSeconds, cancellationToken: cancellationToken));
 
         context.Builder.Sessions = rows.Select(r => new SessionInfo

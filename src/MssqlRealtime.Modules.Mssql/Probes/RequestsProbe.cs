@@ -16,6 +16,14 @@ public sealed class RequestsProbe : ISqlProbe
     /// <summary>Statement text is truncated before it ever leaves the monitored server.</summary>
     public const int SqlTextMaxLength = 4000;
 
+    /// <summary>
+    /// What the SELECT actually asks for: one character past the limit, so a statement that
+    /// came back longer can be told apart from one that happens to end exactly at 4000. Without
+    /// that character a cut query would be handed over — copied into a query window, even —
+    /// with nothing saying it was cut.
+    /// </summary>
+    public const int SqlTextFetchLength = SqlTextMaxLength + 1;
+
     private const string Sql = """
         SELECT
             r.session_id                                        AS SessionId,
@@ -56,7 +64,7 @@ public sealed class RequestsProbe : ISqlProbe
     public async Task ExecuteAsync(ProbeContext context, CancellationToken cancellationToken)
     {
         var rows = await context.Connection.QueryAsync<Row>(
-            new CommandDefinition(Sql, new { MaxLen = SqlTextMaxLength },
+            new CommandDefinition(Sql, new { MaxLen = SqlTextFetchLength },
                 commandTimeout: context.CommandTimeoutSeconds, cancellationToken: cancellationToken));
 
         context.Builder.Requests = rows.Select(r => new RequestInfo

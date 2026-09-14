@@ -92,8 +92,8 @@ public class LongestQueryTests
             {
                 SessionId = 4000,
                 ElapsedSeconds = 60,
-                ProgramName = new string('u', 400),
-                SqlText = new string('x', 4000)
+                ProgramName = new string('u', LongestQuery.ByMaxLength + 200),
+                SqlText = new string('x', LongestQuery.TextMaxLength + 1)
             }
         ], StatementStorage.Full);
 
@@ -102,6 +102,40 @@ public class LongestQueryTests
         Assert.Equal(LongestQuery.ByMaxLength, result.By!.Length);
         Assert.Equal(LongestQuery.TextMaxLength, result.Text!.Length);
         Assert.EndsWith("…", result.By);
+        Assert.EndsWith("…", result.Text);
+    }
+
+    [Fact]
+    public void AStatementThatEndsExactlyAtTheLimitIsNotMarkedAsCut()
+    {
+        // Why the probe asks for one character more than it keeps. The ellipsis is the only
+        // thing telling a reader the query they are about to copy is incomplete, so it has to
+        // mean it: a statement that simply ends at the limit must come back whole and unmarked.
+        var result = LongestQuery.From(
+            [new RequestInfo
+            {
+                SessionId = 7,
+                ElapsedSeconds = 9,
+                SqlText = new string('x', LongestQuery.TextMaxLength)
+            }], StatementStorage.Full);
+
+        Assert.Equal(LongestQuery.TextMaxLength, result.Text!.Length);
+        Assert.DoesNotContain('…', result.Text);
+    }
+
+    [Fact]
+    public void AStatementCutByTheServerIsMarkedEvenWhenFoldingMakesItShort()
+    {
+        // The probe fetches one character past the limit; whether the server cut the text is
+        // known only from that raw length. Folding happens afterwards and shrinks indented SQL
+        // a lot — an indented statement fetched at 4001 folds to a few thousand characters and
+        // would otherwise be stored whole-looking, with the reader copying an incomplete query.
+        var indented = string.Concat(Enumerable.Repeat("SELECT 1\n        ", 400))[..(LongestQuery.TextMaxLength + 1)];
+        var result = LongestQuery.From(
+            [new RequestInfo { SessionId = 7, ElapsedSeconds = 9, SqlText = indented }],
+            StatementStorage.Full);
+
+        Assert.True(result.Text!.Length < LongestQuery.TextMaxLength);
         Assert.EndsWith("…", result.Text);
     }
 
